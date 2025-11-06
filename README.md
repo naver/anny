@@ -28,7 +28,10 @@ pip install anny@git+https://github.com/naver/anny.git
 
 ## Tutorials
 
-To get started with Anny, you can have a look at the different notebooks in the `tutorials` repository.
+To get started with Anny, you can have a look at the different notebooks in the `tutorials` repository:
+- [Shape parameterization](https://naver.github.io/anny/build/shape_parameterization.html)
+- [Pose parameterization](https://naver.github.io/anny/build/pose_parameterization.html)
+- [Texture coordinates](https://naver.github.io/anny/build/texture.html)
 
 ## Interactive demo
 
