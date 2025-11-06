@@ -7,7 +7,7 @@ Anny models a large variety of human body shapes, from infants to elders, using 
 
 [![ArXiv](https://img.shields.io/badge/arXiv-2511.03589-33cb56)](https://arxiv.org/abs/2511.03589)
 [![Demo](https://img.shields.io/badge/Demo-33cb56)](http://anny-demo.europe.naverlabs.com/)
-
+[![Blogpost](https://img.shields.io/badge/Blogpost-33cb56)](https://europe.naverlabs.com/blog/anny-a-free-to-use-3d-human-parametric-model-for-all-ages/)
 
 ### Features
 - Anny is based on the tremendous work of the [MakeHuman](https://static.makehumancommunity.org/) community, which offers plenty of opportunities for extensions.
