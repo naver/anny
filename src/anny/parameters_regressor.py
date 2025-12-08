@@ -118,7 +118,8 @@ class ParametersRegressor:
     def _init_pose_macro_local(
         self,
         batch_size: int,
-        initial_phenotype_kwargs: Dict[str, Any]
+        initial_phenotype_kwargs: Dict[str, Any],
+        initial_pose_parameters,
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
         """
         Initialize pose_parameters (identity), phenotype_kwargs shape (0.5), and local_changes_kwargs changes (zero).
@@ -130,7 +131,11 @@ class ParametersRegressor:
         Returns:
             - Tuple[Tensor, Dict[str, Tensor], Dict[str, Tensor]]: pose_parameters, phenotype_kwargs, local_changes_kwargs.
         """
-        pose_parameters = roma.Rigid.Identity(dim=3, batch_shape=(batch_size, self.model.bone_count), dtype=self.dtype, device=self.device).to_homogeneous()
+        if initial_pose_parameters is not None:
+            pose_parameters = initial_pose_parameters # [bs,k,4,4]
+        else:
+            pose_parameters = roma.Rigid.Identity(dim=3, batch_shape=(batch_size, self.model.bone_count), dtype=self.dtype, device=self.device).to_homogeneous()
+
         phenotype_kwargs = {k: torch.full((batch_size,), 0.5, dtype=self.dtype, device=self.device) for k in self.model.phenotype_labels}
         for k, v in initial_phenotype_kwargs.items():
             if isinstance(v, torch.Tensor):
@@ -138,7 +143,9 @@ class ParametersRegressor:
                 phenotype_kwargs[k] = v.to(dtype=self.dtype, device=self.device)
             else:
                 phenotype_kwargs[k] = torch.full((batch_size,), float(v), dtype=self.dtype, device=self.device)
+
         local_changes_kwargs = {k: torch.zeros(batch_size, dtype=self.dtype, device=self.device) for k in self.model.local_change_labels}
+
         return pose_parameters, phenotype_kwargs, local_changes_kwargs
     
     def _compute_macro_jacobian(
@@ -191,6 +198,36 @@ class ParametersRegressor:
 
         return J_all
 
+    def _sanitize_pose_parameters(self, pose_parameters: torch.Tensor) -> torch.Tensor:
+        """
+        Projects the 3x3 rotation blocks of the pose parameters back onto SO(3)
+        to prevent numerical explosion (scaling/shearing drift) during iterative updates.
+        """
+        # pose_parameters: [B, J, 4, 4]
+        
+        # 1. Extract the 3x3 rotation part
+        R = pose_parameters[..., :3, :3]
+        
+        # 2. Use SVD to orthogonalize: R_clean = U @ V.T
+        U, S, Vh = torch.linalg.svd(R)
+        
+        # Check determinant to prevent reflection (det should be +1, not -1)
+        det = torch.det(U @ Vh)
+        
+        # If det is -1, flip the last column of U to correct reflection
+        with torch.no_grad():
+            corr = torch.ones_like(S)
+            corr[..., -1] = det
+            U = U * corr[..., None, :]
+
+        R_clean = U @ Vh
+        
+        # 3. Put it back
+        pose_parameters_clean = pose_parameters.clone()
+        pose_parameters_clean[..., :3, :3] = R_clean
+        
+        return pose_parameters_clean
+    
     def _jointwise_registration_to_pose(
         self,
         v_ref: torch.Tensor,
@@ -262,6 +299,10 @@ class ParametersRegressor:
         output_abs = self.model(pose_parameters=pose_abs, phenotype_kwargs=phenotype_kwargs, local_changes_kwargs=local_changes_kwargs, pose_parameterization='absolute')
         pose_root = self.model.get_pose_parameterization(output_abs, target_pose_parameterization='root_relative_world')
 
+        # --- Sanitize to prevent drift ---
+        pose_root = self._sanitize_pose_parameters(pose_root)
+        # ----------------------------------------
+
         pose_root[:, 0] = torch.eye(4, device=device)
         for i in range(1, pose_root.shape[1]):
             if len(joint_vertex_sets[i]) == 0:
@@ -275,6 +316,11 @@ class ParametersRegressor:
         R_root, t_root = roma.rigid_points_registration(output_neutral['vertices'], output_abs['vertices'], compute_scaling=False)
         pose_root[:, 0, :3, :3] = R_root
         pose_root[:, 0, :3, -1] = t_root
+
+        # --- Sanitize final result ---
+        pose_root = self._sanitize_pose_parameters(pose_root)
+        # -----------------------------------------------
+
         vertices = output_neutral['vertices'][:, self.unique_ids] @ R_root.transpose(-2, -1) + t_root[:, None]
 
         return pose_root, vertices
@@ -337,7 +383,7 @@ class ParametersRegressor:
         vertices_target = vertices_target.to(self.device)        
         batch_size = vertices_target.shape[0]
         initial_phenotype_kwargs = initial_phenotype_kwargs or {}
-        pose_parameters, phenotype_kwargs, local_changes_kwargs = self._init_pose_macro_local(batch_size, initial_phenotype_kwargs)
+        pose_parameters, phenotype_kwargs, local_changes_kwargs = self._init_pose_macro_local(batch_size, initial_phenotype_kwargs, initial_pose_parameters)
 
         # Initial model pass
         output = self.model(pose_parameters=pose_parameters, phenotype_kwargs=phenotype_kwargs, local_changes_kwargs=local_changes_kwargs, pose_parameterization='root_relative_world')
@@ -345,8 +391,10 @@ class ParametersRegressor:
         b_ref = output['bone_poses'] # [batch_size,K,4,4]
     
         for iter in range(max_n_iters):
+            # 1. Estimate Pose (Rigid Registration)
             pose_parameters, v_hat = self._jointwise_registration_to_pose(v_ref, vertices_target, b_ref, phenotype_kwargs, local_changes_kwargs)
             
+            # 2. Optimize Phenotypes (Optional)
             if optimize_phenotypes:
                 A = self._compute_macro_jacobian(pose_parameters, local_changes_kwargs, self.idx, phenotype_kwargs)
                 A = A[..., [self.model.phenotype_labels.index(k) for k in optim_keys]]
@@ -369,6 +417,18 @@ class ParametersRegressor:
                 v_hat = output['vertices'][:, self.unique_ids]
                 b_ref = output['bone_poses']
             
+            # --- Always update b_ref for the next iteration ---
+            # We must refresh the model output to get the bone poses that correspond 
+            # to the new pose_parameters calculated in this step.
+            output = self.model(pose_parameters=pose_parameters, phenotype_kwargs=phenotype_kwargs,
+                                local_changes_kwargs=local_changes_kwargs,
+                                pose_parameterization='root_relative_world')
+
+            v_hat = output['vertices'][:, self.unique_ids]
+            b_ref = output['bone_poses'] # Updates reference bones for next ICP
+            v_ref = v_hat
+            # ---------------------------------------------------------
+
             if self.verbose:
                 pve = 1000. * torch.norm(v_hat - vertices_target, dim=-1).mean()
                 print(f"PVE: {pve:.2f} mm")
