@@ -358,6 +358,7 @@ class ParametersRegressor:
         initial_pose_parameters: torch.Tensor = None,
         max_n_iters: int = None,
         max_delta: int = 0.2,
+        shared_phenotypes=False,
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor], torch.Tensor]:
         """
         Run iterative pose and shape fitting on the input target mesh.
@@ -408,8 +409,14 @@ class ParametersRegressor:
 
                 delta = torch.nan_to_num(delta, nan=0.0)  # or other fill value
                 for i, k in enumerate(optim_keys):
-                    diff = torch.clamp(delta[:, i], -max_delta, max_delta)
-                    phenotype_kwargs[k] = torch.clamp(phenotype_kwargs[k] + diff, 0.01, 0.99)
+                    if shared_phenotypes:
+                        # Compute one single shared update per macro-detail
+                        shared_diff = torch.clamp(delta[:, i].mean(), -max_delta, max_delta)
+                        # Broadcast the same value to all batch elements
+                        phenotype_kwargs[k] = torch.clamp(phenotype_kwargs[k] + shared_diff, 0.01, 0.99).expand_as(phenotype_kwargs[k])
+                    else:
+                        diff = torch.clamp(delta[:, i], -max_delta, max_delta)
+                        phenotype_kwargs[k] = torch.clamp(phenotype_kwargs[k] + diff, 0.01, 0.99)
 
                 output = self.model(pose_parameters=pose_parameters.clone(), phenotype_kwargs=phenotype_kwargs, local_changes_kwargs=local_changes_kwargs, pose_parameterization='root_relative_world')
 
