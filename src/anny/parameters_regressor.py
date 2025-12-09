@@ -402,8 +402,10 @@ class ParametersRegressor:
                 reg = torch.diag(
                     self.reg_weights[[self.model.phenotype_labels.index(k) for k in optim_keys]]
                 ).to(self.device)[None]
-                delta = torch.linalg.solve(A.transpose(2, 1) @ A + reg, (A.transpose(2, 1) @ b[:, :, None])[:, :, 0])
-                # delta = torch.linalg.lstsq(A, b).solution
+                
+                # delta = torch.linalg.solve(A.transpose(2, 1) @ A + reg, (A.transpose(2, 1) @ b[:, :, None])[:, :, 0])
+                delta = torch.linalg.lstsq(A, b).solution
+
                 delta = torch.nan_to_num(delta, nan=0.0)  # or other fill value
                 for i, k in enumerate(optim_keys):
                     diff = torch.clamp(delta[:, i], -max_delta, max_delta)
@@ -445,7 +447,12 @@ class ParametersRegressor:
         self,
         vertices_target: torch.Tensor,
         age_anchors: List[float] = [0.0, 0.33, 0.67, 1.0],
-        initial_phenotype_kwargs: Optional[Dict[str, Any]] = None
+        initial_phenotype_kwargs: Optional[Dict[str, Any]] = None,
+        optimize_phenotypes: bool = True,
+        excluded_phenotypes: Optional[List[str]] = None,
+        initial_pose_parameters: torch.Tensor = None,
+        max_n_iters: int = None,
+        max_delta: int = 0.2,
     ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor], torch.Tensor, torch.Tensor]:
         """
         Batch-mode age anchor search: selects best age per sample, then optimizes other phenotypes.
@@ -470,13 +477,16 @@ class ParametersRegressor:
         for anchor in age_anchors:
             macros['age'] = torch.full((B,), anchor, device=device)
 
+            excluded_phenotypes = ['age']
+            # excluded_phenotypes = []
             pose_parameters, _macros, v_hat = self.__call__(
                 vertices_target,
                 initial_phenotype_kwargs=macros,
                 optimize_phenotypes=True,
-                excluded_phenotypes=[x for x in self.model.phenotype_labels if x != 'height'],
-                # max_n_iters=2, # to speed-up the process
-                # max_delta=0.3,
+                excluded_phenotypes=excluded_phenotypes,
+                initial_pose_parameters=initial_pose_parameters,
+                max_n_iters=max_n_iters,
+                max_delta=max_delta,
             )
             pve = 1000. * torch.norm(v_hat - vertices_target, dim=-1).mean(dim=-1)  # [B]
 
