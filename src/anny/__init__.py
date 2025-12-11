@@ -4,3 +4,4 @@
 from anny.models import *
 from anny.anthropometry import Anthropometry
 from anny.parameters_regressor import ParametersRegressor
+from anny.interop.vertex_regressor import VertexRegressor
