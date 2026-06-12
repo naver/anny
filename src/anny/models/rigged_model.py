@@ -12,45 +12,6 @@ import warnings
 PoseParameterization = Literal["world", "local-bone-world", "local-bone", "local-ref", "world-orient"]
 BoneOrientation = Literal["blender", "gramschmidtyx", "gramschmidtyz", "blender-rootidentity"]
 
-def _get_pose_parameterization_with_identity_root_delta_transform(rest_bone_poses, delta_transform, base_transform):
-        rest_root_bone_pose = rest_bone_poses[...,0,:,:]
-        identity = torch.eye(4, dtype=rest_bone_poses.dtype, device=rest_bone_poses.device)[None]
-        output_base_transform = rest_root_bone_pose @ delta_transform[...,0,:,:] @ roma.Rigid.from_homogeneous(rest_root_bone_pose).inverse().to_homogeneous()
-        if base_transform is not None:
-            output_base_transform = base_transform @ output_base_transform
-        output_delta_transform = delta_transform.clone()
-        output_delta_transform[...,0,:,:] = identity
-        return output_delta_transform, output_base_transform
-
-def _get_pose_parameterization_with_identity_base_transform(rest_bone_poses, delta_transform, base_transform):
-    if base_transform is None:
-        return delta_transform, None
-    output_delta_transform = delta_transform.clone()
-    rest_root_bone_pose = rest_bone_poses[...,0,:,:]
-    output_delta_transform[...,0,:,:] = roma.Rigid.from_homogeneous(rest_root_bone_pose).inverse().to_homogeneous() @ base_transform @ rest_root_bone_pose @ delta_transform[...,0,:,:]
-    return output_delta_transform, None
-
-def _get_pose_parameterization_with_translation_only_base_transform(rest_bone_poses, delta_transform, base_transform):
-    """
-    Return a pose parametrization ensuring that the root delta_transform is a pure rotation, and that base_transform is a pure translation.
-    """
-    rest_root_bone_pose = roma.Rigid.from_homogeneous(rest_bone_poses[...,0,:,:])
-    input_root_delta_transform = roma.Rigid.from_homogeneous(delta_transform[...,0,:,:])
-    if base_transform is None:
-        batch_shape = rest_root_bone_pose.linear.shape[:-2]
-        base_transform = roma.Rigid.Identity(3, batch_shape, dtype=rest_bone_poses.dtype, device=rest_bone_poses.device)
-    else:
-        base_transform = roma.Rigid.from_homogeneous(base_transform)
-    # Move the base transform into the root delta transform
-    temp_root_delta_transform = rest_root_bone_pose.inverse() @ base_transform @ rest_root_bone_pose @ input_root_delta_transform
-    # Move back the translation part into the base transform
-    output_root_delta_transform = roma.Rigid(temp_root_delta_transform.linear, None)
-    output_base_transform = rest_root_bone_pose @ roma.Rigid(None, temp_root_delta_transform.translation) @ rest_root_bone_pose.inverse()
-
-    output_delta_transform = delta_transform.clone()
-    output_delta_transform[...,0,:,:] = output_root_delta_transform.to_homogeneous()
-    output_base_transform = output_base_transform.to_homogeneous()
-    return output_delta_transform, output_base_transform
 
 class RiggedModelWithLinearBlendShapes(torch.nn.Module):
     def __init__(self,
