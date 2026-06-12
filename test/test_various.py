@@ -33,6 +33,33 @@ class TestVarious(unittest.TestCase):
                 for key in batched_results.keys():
                     self.assertTrue(torch.all(torch.abs(batched_results[key][i] - results[key].squeeze(dim=0)) < epsilon))
 
+    def test_default_phenotypes_expand_to_pose_batch_size(self):
+        batch_size = 4
+        dtype = torch.float64
+        device = torch.device('cpu')
+        model = anny.Anny().to(dtype=dtype, device=device)
+
+        pose_parameters = torch.eye(4, dtype=dtype, device=device)[None, None].expand(batch_size, model.bone_count, 4, 4).clone()
+
+        results = model(pose_parameters=pose_parameters)
+
+        self.assertEqual(results["vertices"].shape[0], batch_size)
+        self.assertEqual(results["bone_poses"].shape[0], batch_size)
+
+    def test_single_phenotype_batch_expands_to_pose_batch_size(self):
+        batch_size = 4
+        dtype = torch.float64
+        device = torch.device('cpu')
+        model = anny.Anny().to(dtype=dtype, device=device)
+
+        pose_parameters = torch.eye(4, dtype=dtype, device=device)[None, None].expand(batch_size, model.bone_count, 4, 4).clone()
+        phenotype_kwargs = {key: torch.full((1,), 0.5, dtype=dtype, device=device) for key in model.phenotype_labels}
+
+        results = model(phenotype_kwargs=phenotype_kwargs, pose_parameters=pose_parameters)
+
+        self.assertEqual(results["vertices"].shape[0], batch_size)
+        self.assertEqual(results["bone_poses"].shape[0], batch_size)
+
     def test_local_changes(self):
         """
         Ensure that default local changes params have no impact on 
