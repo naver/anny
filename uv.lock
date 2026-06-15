@@ -61,6 +61,7 @@ examples = [
     { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
 ]
 smpl = [
+    { name = "chumpy" },
     { name = "smplx" },
 ]
 warp = [
@@ -69,6 +70,7 @@ warp = [
 
 [package.metadata]
 requires-dist = [
+    { name = "chumpy", marker = "extra == 'smpl'" },
     { name = "gradio", marker = "extra == 'examples'" },
     { name = "ipykernel", marker = "extra == 'examples'" },
     { name = "jsonargparse", marker = "extra == 'examples'" },
@@ -576,6 +578,17 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/98/3f/70f37fd6141ec7c836834556f1fb7a7f549f284d18638fb6425499723deb/cholespy-2.2.0-cp314-cp314t-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:1db1e21db352fe116cd318a135f823a0e63c1c83f38104c3567dd03f92edad0e", size = 5629245, upload-time = "2026-01-15T16:29:56.213Z" },
     { url = "https://files.pythonhosted.org/packages/07/dd/dea75e2c94707a90aa1cc48485c5c3ea1336ffc778a181313e7603ba8373/cholespy-2.2.0-cp314-cp314t-win_amd64.whl", hash = "sha256:d2a1acdf8165d75009216eed18b36d361b9933ff2f24b38935e24244ec34e85c", size = 5002901, upload-time = "2026-01-15T16:29:58.457Z" },
 ]
+
+[[package]]
+name = "chumpy"
+version = "0.70"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "scipy", version = "1.15.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "scipy", version = "1.17.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "six" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/01/f7/865755c8bdb837841938de622e6c8b5cb6b1c933bde3bd3332f0cd4574f1/chumpy-0.70.tar.gz", hash = "sha256:a0275c2018784ca1302875567dc81761f5fd469fab9f3ac0f3e7c39e9180350a", size = 50608, upload-time = "2020-08-26T00:05:32.216Z" }
 
 [[package]]
 name = "click"

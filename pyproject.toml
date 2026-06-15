@@ -51,5 +51,9 @@ warp = [
     "warp-lang"
 ]
 smpl = [
-    "smplx"
+    "smplx",
+    "chumpy"
 ]
+
+[tool.uv.extra-build-dependencies]
+chumpy = ["pip"]
