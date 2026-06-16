@@ -16,7 +16,7 @@ uv sync --extra warp --extra examples  # full install with GPU acceleration and 
 ### Testing
 ```bash
 uv run python -m unittest discover     # run all tests
-uv run python -m unittest test.test_full_model  # run a single test file
+uv run python -m unittest test.test_various  # run a single test file
 ```
 
 ### Documentation
@@ -38,9 +38,9 @@ bash build_doc.bash  # build HTML docs from the jupytext py:percent tutorials in
 
 ### Core Class Hierarchy
 
-- **`RiggedModelWithLinearBlendShapes`** (`models/rigged_model.py`) — base class; holds template vertices/faces/blend shapes, implements forward kinematics and LBS
-- **`Anny`** (`models/phenotype.py`) — common base of every phenotype model (full-body, hand, head); adds the 9 phenotype dimensions (gender, age, muscle, weight, height, proportions, race, cupsize, firmness) and computes blend shape coefficients from these semantic scalars. Its `_AnnyMeta` metaclass also makes `Anny(...)` itself build a full-body model via `create_fullbody_model`.
-- **`RiggedModelWithPhenotypeParameters`** / **`RiggedModelWithProcrustesAndPhenotypeParameters`** — concrete pose+shape models (tail- vs procrustes-based bone orientation); `model_from_model_data` selects between them.
+- **`RiggedModelWithLinearBlendShapes`** (`models/rigged_model.py`) — base class; holds template vertices/faces/blend shapes, implements forward kinematics and LBS. The `model_type` parameter (`"tail"` or `"procrustes"`) selects bone orientation strategy internally.
+- **`Anny`** (`models/phenotype.py`) — inherits directly from `RiggedModelWithLinearBlendShapes`; adds the 9 phenotype dimensions (gender, age, muscle, weight, height, proportions, race, cupsize, firmness) and computes blend shape coefficients from these semantic scalars. Its `_AnnyMeta` metaclass makes `Anny(...)` itself build a full-body model via `create_fullbody_model`.
+- **`SMPL`** / **`SMPLX`** (`models/smpl.py`) — first-class model types that also inherit directly from `RiggedModelWithLinearBlendShapes`; wrap the `smplx` library and follow the same initialization pattern as `Anny`, but accept `betas` + pose parameters instead of phenotype dimensions. Require the optional `smplx` package (`uv sync --extra smpl`).
 
 ### Rigs & Topologies
 
@@ -56,6 +56,7 @@ bash build_doc.bash  # build HTML docs from the jupytext py:percent tutorials in
 | Skinning | `skinning/skinning.py` | LBS and dual-quaternion skinning |
 | GPU skinning | `skinning/warp_skinning.py` | `warp-lang` accelerated variant (optional) |
 | Collision | `utils/collision.py` | Self-intersection detection; warp-accelerated when available |
+| Model data | `models/model_data.py` | `ModelData` / `ModelMetadata` dataclasses; bundle template mesh, blend shapes, and rig data; safetensors serialization for caching |
 | Parameter regression | `parameters_regressor.py` | Iterative pose+shape fitting to a target mesh |
 | Anthropometry | `anthropometry.py` | Computes body measurements (height, volume, mass) from mesh |
 
@@ -65,9 +66,10 @@ Phenotypes are blended linearly between discrete anchor states defined in `src/a
 
 ### Pose Parameterization
 
-Three built-in variants: `local-bone` (default), `root_relative_world`, `root_relative`. Selected via `pose_parameterization` argument to `Anny()`.
+Six built-in variants: `local-bone` (default), `local-bone-world`, `world`, `world-orient`, `local-ref`, `root_relative_world`. Selected via `pose_parameterization` argument to `Anny()`.
 
 ### Optional Dependencies
 
 - `warp-lang` — enables GPU-accelerated skinning and collision detection; code degrades gracefully without it
+- `smplx` — required for `SMPL` and `SMPLX` model classes; install via `uv sync --extra smpl`
 - `trimesh`, `gradio`, `jsonargparse`, `requests` — needed only for examples and parameter regression tests
