@@ -4,21 +4,28 @@ import anny
 import roma
 
 class TestVarious(unittest.TestCase):
+    device = torch.device('cpu')
+    dtype = torch.float64
+    
+    def setUp(self):
+        self._deterministic_algorithms = torch.are_deterministic_algorithms_enabled()
+
+    def tearDown(self):
+        torch.use_deterministic_algorithms(self._deterministic_algorithms)
+        
     def test_batch_consistency(self):
         batch_size = 32
-        dtype = torch.float64
-        device = torch.device('cpu')
-        model = anny.Anny().to(dtype=dtype, device=device)
+        model = anny.Anny().to(dtype=self.dtype, device=self.device)
         torch.use_deterministic_algorithms(True)
 
         joints_relative_transforms = {}
         for k in model.bone_labels:
-            rot = roma.random_rotmat(batch_size, dtype=dtype, device=device)
-            joints_relative_transforms[k] = roma.Rigid(rot, torch.zeros((batch_size,3), dtype=dtype, device=device)).to_homogeneous()      
+            rot = roma.random_rotmat(batch_size, dtype=self.dtype, device=self.device)
+            joints_relative_transforms[k] = roma.Rigid(rot, torch.zeros((batch_size,3), dtype=self.dtype, device=self.device)).to_homogeneous()      
         delta_transforms = model.parse_delta_transforms_dict(joints_relative_transforms)
 
         generator = None
-        phenotype_kwargs = { key : torch.rand((batch_size,), dtype=dtype, device=device, generator=generator) for key in model.phenotype_labels}
+        phenotype_kwargs = { key : torch.rand((batch_size,), dtype=self.dtype, device=self.device, generator=generator) for key in model.phenotype_labels}
 
         epsilon = 1e-8
         for skinning_method in ['lbs', 'dqs', 'warp_lbs']:
@@ -35,11 +42,9 @@ class TestVarious(unittest.TestCase):
 
     def test_default_phenotypes_expand_to_pose_batch_size(self):
         batch_size = 4
-        dtype = torch.float64
-        device = torch.device('cpu')
-        model = anny.Anny().to(dtype=dtype, device=device)
+        model = anny.Anny().to(dtype=self.dtype, device=self.device)
 
-        pose_parameters = torch.eye(4, dtype=dtype, device=device)[None, None].expand(batch_size, model.bone_count, 4, 4).clone()
+        pose_parameters = torch.eye(4, dtype=self.dtype, device=self.device)[None, None].expand(batch_size, model.bone_count, 4, 4).clone()
 
         results = model(pose_parameters=pose_parameters)
 
@@ -48,12 +53,10 @@ class TestVarious(unittest.TestCase):
 
     def test_single_phenotype_batch_expands_to_pose_batch_size(self):
         batch_size = 4
-        dtype = torch.float64
-        device = torch.device('cpu')
-        model = anny.Anny().to(dtype=dtype, device=device)
+        model = anny.Anny().to(dtype=self.dtype, device=self.device)
 
-        pose_parameters = torch.eye(4, dtype=dtype, device=device)[None, None].expand(batch_size, model.bone_count, 4, 4).clone()
-        phenotype_kwargs = {key: torch.full((1,), 0.5, dtype=dtype, device=device) for key in model.phenotype_labels}
+        pose_parameters = torch.eye(4, dtype=self.dtype, device=self.device)[None, None].expand(batch_size, model.bone_count, 4, 4).clone()
+        phenotype_kwargs = {key: torch.full((1,), 0.5, dtype=self.dtype, device=self.device) for key in model.phenotype_labels}
 
         results = model(phenotype_kwargs=phenotype_kwargs, pose_parameters=pose_parameters)
 
@@ -65,24 +68,22 @@ class TestVarious(unittest.TestCase):
         Ensure that default local changes params have no impact on 
         """
         batch_size = 32
-        dtype = torch.float64
-        device = torch.device('cpu')
-        model = anny.Anny().to(dtype=dtype, device=device)
-        model_local_changes = anny.Anny(local_changes="default").to(dtype=dtype, device=device)
+        model = anny.Anny().to(dtype=self.dtype, device=self.device)
+        model_local_changes = anny.Anny(local_changes="default").to(dtype=self.dtype, device=self.device)
         torch.use_deterministic_algorithms(True)
 
         generator = None
-        phenotype_kwargs = dict(gender=torch.rand((batch_size,), dtype=dtype, device=device, generator=generator),
-                                age=torch.rand((batch_size,), dtype=dtype, device=device, generator=generator),
-                                muscle=torch.rand((batch_size,), dtype=dtype, device=device, generator=generator),
-                                weight=torch.rand((batch_size,), dtype=dtype, device=device, generator=generator),
-                                height=torch.rand((batch_size,), dtype=dtype, device=device, generator=generator),
-                                proportions=torch.rand((batch_size,), dtype=dtype, device=device, generator=generator),
-                                cupsize=torch.rand((batch_size,), dtype=dtype, device=device, generator=generator),
-                                firmness=torch.rand((batch_size,), dtype=dtype, device=device, generator=generator),
-                                african=torch.rand((batch_size,), dtype=dtype, device=device, generator=generator),
-                                asian=torch.rand((batch_size,), dtype=dtype, device=device, generator=generator),
-                                caucasian=torch.rand((batch_size,), dtype=dtype, device=device, generator=generator))
+        phenotype_kwargs = dict(gender=torch.rand((batch_size,), dtype=self.dtype, device=self.device, generator=generator),
+                                age=torch.rand((batch_size,), dtype=self.dtype, device=self.device, generator=generator),
+                                muscle=torch.rand((batch_size,), dtype=self.dtype, device=self.device, generator=generator),
+                                weight=torch.rand((batch_size,), dtype=self.dtype, device=self.device, generator=generator),
+                                height=torch.rand((batch_size,), dtype=self.dtype, device=self.device, generator=generator),
+                                proportions=torch.rand((batch_size,), dtype=self.dtype, device=self.device, generator=generator),
+                                cupsize=torch.rand((batch_size,), dtype=self.dtype, device=self.device, generator=generator),
+                                firmness=torch.rand((batch_size,), dtype=self.dtype, device=self.device, generator=generator),
+                                african=torch.rand((batch_size,), dtype=self.dtype, device=self.device, generator=generator),
+                                asian=torch.rand((batch_size,), dtype=self.dtype, device=self.device, generator=generator),
+                                caucasian=torch.rand((batch_size,), dtype=self.dtype, device=self.device, generator=generator))
         
         blendshape_coeffs0 = model.get_phenotype_blendshape_coefficients(**phenotype_kwargs)
         rest_model0 = model.get_rest_model(blendshape_coeffs0)
@@ -90,7 +91,7 @@ class TestVarious(unittest.TestCase):
         blendshape_coeffs1 = model_local_changes.get_phenotype_blendshape_coefficients(**phenotype_kwargs)
         rest_model1 = model_local_changes.get_rest_model(blendshape_coeffs1)
 
-        blendshape_coeffs2 = model_local_changes.get_phenotype_blendshape_coefficients(**phenotype_kwargs, local_changes={key: torch.zeros((batch_size,), dtype=dtype, device=device) for key in model_local_changes.local_change_labels})
+        blendshape_coeffs2 = model_local_changes.get_phenotype_blendshape_coefficients(**phenotype_kwargs, local_changes={key: torch.zeros((batch_size,), dtype=self.dtype, device=self.device) for key in model_local_changes.local_change_labels})
         rest_model2 = model_local_changes.get_rest_model(blendshape_coeffs2)
 
         for key in ["rest_vertices", "rest_bone_heads", "rest_bone_tails", "rest_bone_poses"]:

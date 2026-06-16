@@ -176,8 +176,7 @@ class Anny(metaclass=_AnnyMeta):
         phenotype_kwargs = self.parse_phenotype_kwargs(phenotype_kwargs)
         assert set(phenotype_kwargs) <= set(self.phenotype_labels), f"Invalid phenotype: {set(phenotype_kwargs) - set(self.phenotype_labels)}; available: {self.phenotype_labels}"
         blendshape_coeffs = self.get_phenotype_blendshape_coefficients(**phenotype_kwargs, local_changes=local_changes_kwargs)
-        if pose_parameters is not None and blendshape_coeffs.shape[0] == 1:
-            blendshape_coeffs = blendshape_coeffs.expand(pose_parameters.shape[0], -1)
+            
         return super().forward(pose_parameters, blendshape_coeffs, pose_parameterization=pose_parameterization, return_bone_ends=return_bone_ends)
 
 
