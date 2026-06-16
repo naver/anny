@@ -5,7 +5,7 @@ import pathlib
 import os
 import logging
 
-PathLike = os.PathLike | str
+from anny.typing import PathLike
 
 ANNY_ROOT_DIR = pathlib.Path(__file__).resolve().parent
 

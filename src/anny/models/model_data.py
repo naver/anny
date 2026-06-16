@@ -4,72 +4,74 @@
 from __future__ import annotations
 
 import dataclasses
-from dataclasses import replace
+import logging
 import hashlib
 import json
-from typing import TYPE_CHECKING, Literal, Optional
-from anny.paths import PathLike, get_anny_cache_path
-import torch
 import inspect
-if TYPE_CHECKING:
-    from anny.models.rigged_model import RiggedModelWithLinearBlendShapes
 from pathlib import Path
 from typing import Callable
 import importlib.metadata
-ANNY_VERSION = importlib.metadata.version("anny")
 
+import torch
+
+from anny.paths import PathLike, get_anny_cache_path
+from anny.typing import BoneOrientation, PoseParameterization, SkinningMethod
+
+ANNY_VERSION = importlib.metadata.version("anny")
 # Increase this if there are any non-backwards-compatible changes to the data/metadata format
-CURRENT_DATA_VERSION = 1
+CURRENT_DATA_VERSION = 2
+
+logger = logging.getLogger(__name__)
 
 @dataclasses.dataclass(frozen=True)
 class ModelMetadata:
-    """Non-tensor configuration for an Anny model, serialized as JSON in the safetensors header."""
-    model_type: Literal["tail", "procrustes"]
-    bone_parents: list
-    bone_labels: list
+    """Non-tensor configuration for a RiggedModelWithLinearBlendShapes."""
+    bone_parents: list[int]
+    bone_labels: list[str]
+    pose_parameterization: PoseParameterization
+    skinning_method: SkinningMethod | None
+    bone_orientation: BoneOrientation
+
+@dataclasses.dataclass(frozen=True)
+class AnnyModelMetadata(ModelMetadata):
+    """Non-tensor configuration for an Anny model"""
     local_change_labels: list
-    pose_parameterization: str
-    skinning_method: Optional[str]
     all_phenotypes: bool
     extrapolate_phenotypes: bool
-    bone_orientation: Optional[str]
-    version: int = CURRENT_DATA_VERSION 
-    anny_version: str = ANNY_VERSION
-
 
 
 @dataclasses.dataclass(frozen=True)
 class ModelData:
-    """Typed, immutable container for all data needed to construct any Anny model.
+    """Typed, immutable container for all data needed to construct any RiggedModelWithLinearBlendShapes model.
 
     Tensor fields are stored directly; non-tensor configuration lives in ``metadata``.
-    Use :meth:`save_safetensors` / :meth:`load_safetensors` for portable serialization and
-    :func:`model_from_model_data` to instantiate the correct model class.
+    Use :meth:`save_safetensors` / :meth:`load_safetensors` for portable serialization 
     """
     metadata: ModelMetadata
     # Always present
     template_vertices: torch.Tensor
     faces: torch.Tensor
     blendshapes: torch.Tensor
-    stacked_phenotype_blend_shapes_mask: torch.Tensor
+    stacked_phenotype_blend_shapes_mask: torch.Tensor | None
     template_bone_heads: torch.Tensor
     bone_heads_blendshapes: torch.Tensor
     vertex_bone_weights: torch.Tensor
     vertex_bone_indices: torch.Tensor
     base_mesh_vertex_indices: torch.Tensor
     # Optional / topology-dependent
-    texture_coordinates: Optional[torch.Tensor] = None
-    face_texture_coordinate_indices: Optional[torch.Tensor] = None
-    # Tail-based orientation (model_type == "tail")
-    template_bone_tails: Optional[torch.Tensor] = None
-    bone_tails_blendshapes: Optional[torch.Tensor] = None
-    bone_rolls_rotmat: Optional[torch.Tensor] = None
-    # Procrustes-based orientation (model_type == "procrustes")
-    bone_nonzeroweight_mask: Optional[torch.Tensor] = None
-    bone_vertex_indices: Optional[torch.Tensor] = None
-    bone_vertex_weights: Optional[torch.Tensor] = None
-    template_bone_vertices: Optional[torch.Tensor] = None
-    reference_bone_orientations: Optional[torch.Tensor] = None
+    texture_coordinates: torch.Tensor | None = None
+    face_texture_coordinate_indices: torch.Tensor | None = None
+    # Tail-based orientation (bone_orientation != "procrustes")
+    template_bone_tails: torch.Tensor | None = None
+    bone_tails_blendshapes: torch.Tensor | None = None
+    bone_rolls_rotmat: torch.Tensor | None = None
+    # Procrustes-based orientation (bone_orientation == "procrustes")
+    bone_nonzeroweight_mask: torch.Tensor | None = None
+    bone_vertex_indices: torch.Tensor | None = None
+    bone_vertex_weights: torch.Tensor | None = None
+    template_bone_vertices: torch.Tensor | None = None
+    reference_bone_orientations: torch.Tensor | None = None
+
 
     @property
     def device(self) -> torch.device:
@@ -85,35 +87,37 @@ class ModelData:
             if f.name != "metadata" and getattr(self, f.name) is not None
         }
         meta_json = json.dumps(dataclasses.asdict(self.metadata))
-        safetensors.torch.save_file(tensors, path, metadata={"metadata": meta_json})
+        safetensors.torch.save_file(tensors, path,
+            metadata={
+                "metadata": meta_json,
+                "metadata_class": self.metadata.__class__.__name__,
+                "data_version": str(CURRENT_DATA_VERSION),
+                "anny_version": ANNY_VERSION}
+        )
 
     @classmethod
     def load_safetensors(cls, path: PathLike) -> ModelData:
         """Deserialize from a safetensors file previously written by :meth:`save_safetensors`."""
         from safetensors import safe_open
         tensors = {}
+        
         with safe_open(path, framework="pt") as f:
+            data_version = f.metadata().get("data_version", 1)
+            if int(data_version) != CURRENT_DATA_VERSION:
+                raise ValueError(f"Data version mismatch: file {path} has data_version={data_version}, but current code expects data_version={CURRENT_DATA_VERSION}")
+
+            metadata_class = f.metadata().get("metadata_class", "AnnyModelMetadata")
+            if metadata_class not in ["ModelMetadata", "AnnyModelMetadata"]:
+                raise ValueError(f"Unknown metadata class {metadata_class} in safetensors file {path}")
+                
             meta_str = f.metadata().get("metadata", "{}")
             for k in f.keys():
                 tensors[k] = f.get_tensor(k)
+            
         meta_dict = json.loads(meta_str)
-        meta_dict.setdefault("version", 1)
-        # Backward compat: old files may not have base_mesh_vertex_indices
-        if "base_mesh_vertex_indices" not in tensors:
-            tensors["base_mesh_vertex_indices"] = torch.arange(len(tensors["template_vertices"]))
-        return cls(metadata=ModelMetadata(**meta_dict), **tensors)
-
-
-def model_from_model_data(data: ModelData) -> RiggedModelWithLinearBlendShapes:
-    """Instantiate the correct concrete model class from a :class:`ModelData`."""
-    from anny.models.phenotype import (
-        RiggedModelWithPhenotypeParameters,
-        RiggedModelWithProcrustesAndPhenotypeParameters,
-    )
-    if data.metadata.model_type == "procrustes":
-        return RiggedModelWithProcrustesAndPhenotypeParameters.from_model_data(data)
-    return RiggedModelWithPhenotypeParameters.from_model_data(data)
-
+        metadata = ModelMetadata(**meta_dict) if metadata_class == "ModelMetadata" else AnnyModelMetadata(**meta_dict)
+        
+        return cls(metadata=metadata, **tensors)
 
 def _get_builder_metadata(f: Callable[..., ModelData], *args, **kwargs) -> dict[str, str | int | bool]:
     all_kwargs = {}
@@ -142,7 +146,7 @@ def cache_builder(f: Callable[..., ModelData]) -> Callable[..., ModelData]:
     def wrapper(*args, **kwargs) -> ModelData:
         cache_path = get_anny_cache_path()
         if cache_path is None:
-            print("No cache directory specified, building model data without caching...")
+            logger.info("No cache directory specified, building model data without caching...")
             return f(*args, **kwargs)
             
         metadata = _get_builder_metadata(f, *args, **kwargs)
@@ -150,12 +154,12 @@ def cache_builder(f: Callable[..., ModelData]) -> Callable[..., ModelData]:
         cache_path = Path(cache_path) / f"v{CURRENT_DATA_VERSION}" / f"{f.__name__}_{hex}.safetensors"
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         if cache_path.exists():
-            print(f"Loading cached model data from {cache_path}")
+            logger.info(f"Loading cached model data from {cache_path}")
             data = ModelData.load_safetensors(cache_path)
         else:
-            print(f"No cached model data found at {cache_path}, building model data...")
+            logger.info(f"No cached model data found at {cache_path}, building model data...")
             data = f(*args, **kwargs)
             data.save_safetensors(cache_path)
-            print(f"Saved built model data to cache at {cache_path}")
+            logger.info(f"Saved built model data to cache at {cache_path}")
         return data
     return wrapper

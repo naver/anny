@@ -1,20 +1,16 @@
 # Anny
 # Copyright (C) 2025 NAVER Corp.
 # Apache License, Version 2.0
-import hashlib
-from typing import Literal
-import torch
-import os
 import json
+import logging
+import os
 import pathlib
 import warnings
 import gzip
+
 import roma
-import anny.utils.obj_utils
-from anny.models.phenotype import PHENOTYPE_VARIATIONS
-from anny.models.model_data import ModelData, ModelMetadata, cache_builder
-from anny.paths import ANNY_ROOT_DIR, PathLike
-import logging
+import torch
+
 from anny.models.model_transforms import (
     LocalChanges,
     filter_local_changes,
@@ -24,16 +20,14 @@ from anny.models.model_transforms import (
     compact_skinning_weights,
     set_metadata,
 )
+import anny.utils.obj_utils
+from anny.models.phenotype import PHENOTYPE_VARIATIONS
+from anny.models.model_data import ModelData, AnnyModelMetadata, cache_builder
+from anny.paths import ANNY_ROOT_DIR, PathLike
 import anny.models.model_transforms as model_transforms
+from anny.typing import RigPreset, SkinningMethod
 
 logger = logging.getLogger(__name__)
-
-RigPreset = Literal["default", "default_no_toes", "cmu_mb", "game_engine", "mixamo"]
-SkinningMethod = Literal["lbs", "dqs", "warp_lbs"]
-
-
-
-
 
 def load_blend_shape(filename, vertices_count, world_transformation, dtype):
     blend_shape = torch.zeros((vertices_count, 3), dtype=dtype)
@@ -61,7 +55,7 @@ def load_macrodetails(root_dirname,
         newborn_blend_shape_scaling = torch.as_tensor([0.922,0.922,0.75], dtype=dtype) # Empirical values to scale down the body for newborns
         normalizing_factor = 3. # the cumulated weight of newborn blend shapes when the age is set to newborn
 
-        logger.info(f"Loading macrodetails blend shapes...")
+        logger.info("Loading macrodetails blend shapes...")
 
         # Load macrodetails_components
         macrodetails_dir=os.path.join(root_dirname, "data/mpfb2/targets/macrodetails")
@@ -151,8 +145,7 @@ def _get_coordinates_regressor(groups, data):
 
 def _build_model_data_from_raw(d: dict, bone_labels, bone_parents, local_change_labels) -> ModelData:
     """Assemble a ModelData from the raw tensors computed in load_data."""
-    metadata = ModelMetadata(
-        model_type="tail",
+    metadata = AnnyModelMetadata(
         bone_parents=bone_parents,
         bone_labels=bone_labels,
         local_change_labels=local_change_labels,
@@ -516,6 +509,16 @@ def build_model_data(rig: RigPreset | PathLike = "default",
                  bone_orientation: str = "blender-rootidentity",
                  root_dirname: PathLike = ANNY_ROOT_DIR,
                  weights_filename: PathLike | None = None)-> ModelData:
+    if rig == "default_no_toes":
+        standard_dir = os.path.join(root_dirname, "data/mpfb2/rigs/standard")
+        with open(os.path.join(standard_dir, "rig.default.json"), "r") as f:
+            default_rig_data = json.load(f)
+        with open(os.path.join(standard_dir, "rig.default_no_toes.json"), "r") as f:
+            no_toes_rig_data = json.load(f)
+        bones_to_remove = set(bones_to_remove)
+        bones_to_remove.update(set(default_rig_data) - set(no_toes_rig_data))
+        rig = "default"
+
     rig_filename, weights_filename = _filenames_from_rig(rig, weights_filename, root_dirname)
     data = load_data(
         rig_filename=rig_filename,

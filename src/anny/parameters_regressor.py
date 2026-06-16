@@ -1,10 +1,13 @@
 # Anny
 # Copyright (C) 2025 NAVER Corp.
 # Apache License, Version 2.0
-import pdb
+import logging
+from typing import Dict, Any, Tuple, List, Optional
+
 import torch
 import roma
-from typing import Dict, Any, Tuple, List, Optional
+
+logger = logging.getLogger(__name__)
 
 class ParametersRegressor:
     """
@@ -382,7 +385,6 @@ class ParametersRegressor:
 
         # Global alignment init
         R0, t0 = roma.rigid_points_registration(v_ref, vertices_target, compute_scaling=False)
-        # print('R0', R0[0])
         pose_parameters[:, 0, :3, :3] = R0
         pose_parameters[:, 0, :3, -1] = t0
         output = self.model(pose_parameters=pose_parameters, phenotype_kwargs=phenotype_kwargs, local_changes_kwargs=local_changes_kwargs, pose_parameterization='local-bone')
@@ -392,7 +394,6 @@ class ParametersRegressor:
         for iter in range(max_n_iters):
             # 1. Estimate Pose (Rigid Registration) - TODO use pose_parameters (R0+t0) inside _jointwise_registration_to_pose ??
             pose_parameters, v_hat = self._jointwise_registration_to_pose(v_ref, vertices_target, b_ref, phenotype_kwargs, local_changes_kwargs)
-            # print('R1', pose_parameters[0,0,:3,:3])
             
             # 2. Optimize Phenotypes (Optional)
             if optimize_phenotypes:
@@ -438,7 +439,7 @@ class ParametersRegressor:
 
             if self.verbose:
                 pve = 1000. * torch.norm(v_hat - vertices_target, dim=-1).mean()
-                print(f"PVE: {pve:.2f} mm")
+                logger.info(f"PVE: {pve:.2f} mm")
 
             v_ref = v_hat
 
@@ -501,7 +502,7 @@ class ParametersRegressor:
             best_heights[update_mask] = _macros['height'][update_mask]
 
             if self.verbose:
-                print(f"Age {anchor:.2f} → mean PVE: {pve.mean().item():.2f} mm")
+                logger.info(f"Age {anchor:.2f} → mean PVE: {pve.mean().item():.2f} mm")
 
         # Prepare final macro kwargs with selected age per sample
         macros['age'] = best_ages

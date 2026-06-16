@@ -3,6 +3,7 @@
 # Apache License, Version 2.0
 import torch
 from typing import Literal
+from anny.typing import Topology
 from anny.utils import obj_utils
 from anny.models.full_model import RigPreset, build_model_data
 from anny.models.model_transforms import apply_retopology, apply_retopology_from_mesh
@@ -14,7 +15,6 @@ import math
 
 logger = logging.getLogger(__name__)
 
-Topology = Literal["default", "makehuman", "smplx", "soma", "notoes", "notoes_collapse3pc", "notoes_collapse5pc", "notoes_collapse10pc", "anny_from_soma"]
 
 def _load_target_topology_mesh(root_dirname: PathLike, topology: Topology):
     if topology == "soma":
@@ -33,10 +33,11 @@ def build_smplx_topology_model_data(rig: RigPreset | PathLike = "default",
                                 bones_to_remove=set(),
                                 all_phenotypes=False,
                                 skinning_method=None,
-                                pose_parameterization: str = "root_relative_world",
+                                pose_parameterization: str = "local-bone",
                                 extrapolate_phenotypes=False,
                                 local_changes="none",
-                                bone_orientation="default",
+                                bone_orientation="default-rootidentity",
+                                remove_skinning_islands=True,
                                 root_dirname=ANNY_ROOT_DIR,
                                 weights_filename: PathLike | None = None):
     ref_data = build_model_data(rig=rig,
@@ -49,6 +50,7 @@ def build_smplx_topology_model_data(rig: RigPreset | PathLike = "default",
                                         pose_parameterization=pose_parameterization,
                                         extrapolate_phenotypes=extrapolate_phenotypes,
                                         local_changes=local_changes,
+                                        remove_skinning_islands=remove_skinning_islands,
                                         bone_orientation=bone_orientation,
                                         root_dirname=root_dirname,
                                         weights_filename=weights_filename)
@@ -119,10 +121,10 @@ def build_soma_topology_model_data(rig: RigPreset | PathLike ="default",
                                 bones_to_remove=set(),
                                 all_phenotypes=False,
                                 skinning_method=None,
-                                pose_parameterization: str = "root_relative_world",
+                                pose_parameterization: str = "local-bone",
                                 extrapolate_phenotypes=False,
                                 local_changes="none",
-                                bone_orientation="default",
+                                bone_orientation="default-rootidentity",
                                 root_dirname=ANNY_ROOT_DIR,
                                 weights_filename: PathLike | None = None):
     return build_alternative_topology_model_data(rig=rig,
@@ -144,10 +146,10 @@ def build_alternative_topology_model_data(rig: RigPreset | PathLike ="default",
                                 bones_to_remove=set(),
                                 all_phenotypes=False,
                                 skinning_method=None,
-                                pose_parameterization: str = "root_relative_world",
+                                pose_parameterization: str = "local-bone",
                                 extrapolate_phenotypes=False,
                                 local_changes="none",
-                                bone_orientation="default",
+                                bone_orientation="default-rootidentity",
                                 root_dirname=ANNY_ROOT_DIR,
                                 weights_filename: PathLike | None = None,
                                 reference_topology: Literal["default", "anny_from_soma"]="default"):

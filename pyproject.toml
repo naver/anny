@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "anny"
-version = "0.5"
+version = "0.6-dev0"
 authors = [
     { name = "Romain Brégier", email = "romain.bregier@naverlabs.com" }
 ]

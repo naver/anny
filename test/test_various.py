@@ -63,6 +63,25 @@ class TestVarious(unittest.TestCase):
         self.assertEqual(results["vertices"].shape[0], batch_size)
         self.assertEqual(results["bone_poses"].shape[0], batch_size)
 
+    def test_tensor_phenotype_kwargs_forward(self):
+        batch_size = 3
+        dtype = torch.float64
+        device = torch.device("cpu")
+        model = anny.Anny().to(dtype=dtype, device=device)
+
+        phenotype_tensor = torch.full(
+            (batch_size, len(model.phenotype_labels)),
+            0.5,
+            dtype=dtype,
+            device=device,
+        )
+
+        results = model(phenotype_kwargs=phenotype_tensor)
+
+        self.assertEqual(results["vertices"].shape[0], batch_size)
+        self.assertEqual(results["rest_vertices"].shape[0], batch_size)
+        self.assertEqual(results["bone_poses"].shape[0], batch_size)
+
     def test_local_changes(self):
         """
         Ensure that default local changes params have no impact on 

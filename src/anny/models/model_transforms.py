@@ -6,29 +6,22 @@ from __future__ import annotations
 import collections
 import dataclasses
 import logging
-from typing import Sequence, Literal
 
+import roma
 import torch
 import trimesh.graph
 
-from anny.models.model_data import ModelData, model_from_model_data
+from anny.models.phenotype import Anny
+from anny.models.model_data import ModelData
+from anny.typing import LocalChanges
 from anny.utils.mesh_utils import (
     get_edge_vertex_indices,
     get_symmetric_vertex_indices,
     triangulate_faces,
     triangulate_faces_with_texture_coordinates,
 )
-import roma
 
 logger = logging.getLogger(__name__)
-
-# `local_changes` selector for create_model / create_fullbody_model:
-#   "none"    -> no local change blend shapes
-#   "default" -> all local change blend shapes except nipple-related ones
-#   "all"     -> every local change blend shape
-#   Sequence[str] -> exactly the listed labels (must match `local_change_labels`)
-LocalChanges = Literal["none", "default", "all"] | Sequence[str]
-
 
 def _get_symmetric_bone_name(bone_name: str) -> str:
     """Return the mirror counterpart of a bone name across the body's symmetry plane.
@@ -49,6 +42,7 @@ def _get_symmetric_bone_name(bone_name: str) -> str:
 
 
 def filter_local_changes(data: ModelData, local_changes: LocalChanges) -> ModelData:
+    assert data.metadata is not None, "ModelData.metadata must be set to filter local changes"
     labels = data.metadata.local_change_labels
     if local_changes == "none":
         local_changes_mask = [False] * len(labels)
@@ -352,7 +346,14 @@ def apply_retopology(
         texture_coordinates=None,
         face_texture_coordinate_indices=None,
         base_mesh_vertex_indices=base_mesh_vertex_indices,
-        metadata=dataclasses.replace(data.metadata, model_type="tail"),
+        metadata=dataclasses.replace(
+            data.metadata,
+            bone_orientation=(
+                data.metadata.bone_orientation
+                if data.metadata.bone_orientation != "procrustes"
+                else "blender-rootidentity"
+            ),
+        ),
     )
     # data is used as source_model: ModelData exposes .vertex_bone_indices/.vertex_bone_weights directly
     return interpolate_skinning_weights(
@@ -451,7 +452,8 @@ def apply_procrustes_retopology(
         face_texture_coordinate_indices=None,
         base_mesh_vertex_indices=base_mesh_vertex_indices,
         metadata=dataclasses.replace(
-            data.metadata, model_type="procrustes", bone_orientation=None
+            data.metadata,
+            bone_orientation="procrustes",
         ),
     )
     target_data = interpolate_skinning_weights(
@@ -481,7 +483,7 @@ def apply_procrustes_retopology(
     w = 1.0 - u - v
     ref2target_bary = torch.stack([u, v, w], dim=0)
 
-    source = model_from_model_data(source_model)
+    source = Anny.from_model_data(source_model)
     rest_bone_poses = source.get_rest_model(
         torch.zeros(
             (1, source_model.blendshapes.shape[0]),
@@ -605,10 +607,9 @@ def apply_soma_rig(data: ModelData, soma_rig_data: dict) -> ModelData:
         data,
         metadata=dataclasses.replace(
             data.metadata,
-            model_type="procrustes",
             bone_parents=bone_parents,
             bone_labels=bone_labels,
-            bone_orientation=None,
+            bone_orientation="procrustes",
         ),
         template_bone_heads=template_bone_heads,
         bone_heads_blendshapes=bone_heads_blendshapes,
@@ -619,7 +620,7 @@ def apply_soma_rig(data: ModelData, soma_rig_data: dict) -> ModelData:
         bone_vertex_weights=bone_vertex_weights,
         template_bone_vertices=template_bone_vertices,
         reference_bone_orientations=reference_bone_orientations,
-        # Tail-based orientation fields don't apply to procrustes
+        # Tail-based orientation fields don't apply when bone_orientation="procrustes"
         template_bone_tails=None,
         bone_tails_blendshapes=None,
         bone_rolls_rotmat=None,

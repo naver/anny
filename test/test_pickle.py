@@ -1,10 +1,17 @@
+# Anny
+# Copyright (C) 2025 NAVER Corp.
+# Apache License, Version 2.0
 import unittest
-import torch
 import io
 import tempfile
 import os
+
+import torch
+
 from anny.models.rigged_model import RiggedModelWithLinearBlendShapes
-from anny.models.phenotype import RiggedModelWithPhenotypeParameters
+from anny.models.phenotype import Anny
+from anny.models.model_data import ModelData, ModelMetadata, AnnyModelMetadata
+from anny.typing import SkinningMethod
 
 class TestPickle(unittest.TestCase):
 
@@ -31,13 +38,16 @@ class TestPickle(unittest.TestCase):
         blendshapes = torch.randn(bs_count, v_count, 3, dtype=dtype)
         template_bone_heads = torch.randn(b_count, 3, dtype=dtype)
         bone_heads_blendshapes = torch.randn(bs_count, b_count, 3, dtype=dtype)
+        template_bone_tails = template_bone_heads + torch.tensor([0.0, 1.0, 0.0], dtype=dtype)
+        bone_tails_blendshapes = torch.randn(bs_count, b_count, 3, dtype=dtype)
+        bone_rolls_rotmat = torch.eye(3, dtype=dtype).unsqueeze(0).unsqueeze(0).expand(1, b_count, 3, 3).clone()
         bone_parents = [-1, 0, 1]
         bone_labels = ["root", "spine", "head"]
         vertex_bone_weights = torch.rand(v_count, max_bones, dtype=dtype)
         vertex_bone_weights /= vertex_bone_weights.sum(dim=-1, keepdim=True)
         vertex_bone_indices = torch.randint(0, b_count, (v_count, max_bones), dtype=torch.long)
 
-        skinning_methods = ["lbs", "dqs"]
+        skinning_methods: list[SkinningMethod] = ["lbs", "dqs"]
         try:
             import warp
             skinning_methods.append("warp_lbs")
@@ -58,8 +68,12 @@ class TestPickle(unittest.TestCase):
                     bone_labels=bone_labels,
                     vertex_bone_weights=vertex_bone_weights,
                     vertex_bone_indices=vertex_bone_indices,
+                    base_mesh_vertex_indices=torch.arange(v_count, dtype=torch.long),
                     skinning_method=method,
-                    pose_parameterization="local-bone"
+                    pose_parameterization="local-bone",
+                    template_bone_tails=template_bone_tails,
+                    bone_tails_blendshapes=bone_tails_blendshapes,
+                    bone_rolls_rotmat=bone_rolls_rotmat,
                 ).to(device=device, dtype=dtype)
 
                 # Test pickling with a buffer
@@ -89,10 +103,9 @@ class TestPickle(unittest.TestCase):
 
                 torch.testing.assert_close(out_orig, out_unpickled)
 
-
 class TestSafetensors(unittest.TestCase):
 
-    def _make_phenotype_model(self, dtype=torch.float64):
+    def _make_tail_model_data(self, dtype=torch.float64):
         v_count = 8
         f_count = 4
         b_count = 3
@@ -104,7 +117,7 @@ class TestSafetensors(unittest.TestCase):
         blendshapes = torch.randn(n_pheno_bs, v_count, 3, dtype=dtype)
         stacked_phenotype_blend_shapes_mask = torch.rand(n_pheno_bs, 26, dtype=dtype).clamp(0, 1).round()
         template_bone_heads = torch.randn(b_count, 3, dtype=dtype)
-        template_bone_tails = torch.randn(b_count, 3, dtype=dtype)
+        template_bone_tails = template_bone_heads + torch.tensor([0.0, 1.0, 0.0], dtype=dtype)
         bone_heads_blendshapes = torch.randn(n_pheno_bs, b_count, 3, dtype=dtype)
         bone_tails_blendshapes = torch.randn(n_pheno_bs, b_count, 3, dtype=dtype)
         bone_rolls_rotmat = torch.eye(3, dtype=dtype).unsqueeze(0).unsqueeze(0).expand(1, b_count, 3, 3).clone()
@@ -112,55 +125,65 @@ class TestSafetensors(unittest.TestCase):
         vertex_bone_weights /= vertex_bone_weights.sum(dim=-1, keepdim=True)
         vertex_bone_indices = torch.randint(0, b_count, (v_count, max_bones), dtype=torch.long)
 
-        return RiggedModelWithPhenotypeParameters(
+        return ModelData(
+            metadata=AnnyModelMetadata(
+                bone_parents=[-1, 0, 1],
+                bone_labels=["root", "spine", "head"],
+                pose_parameterization="local-bone",
+                skinning_method="lbs",
+                bone_orientation="blender-rootidentity",
+                local_change_labels=[],
+                all_phenotypes=False,
+                extrapolate_phenotypes=False,
+            ),
             template_vertices=template_vertices,
             faces=faces,
             texture_coordinates=None,
             face_texture_coordinate_indices=None,
             blendshapes=blendshapes,
+            stacked_phenotype_blend_shapes_mask=stacked_phenotype_blend_shapes_mask,
             template_bone_heads=template_bone_heads,
-            template_bone_tails=template_bone_tails,
             bone_heads_blendshapes=bone_heads_blendshapes,
-            bone_tails_blendshapes=bone_tails_blendshapes,
-            bone_rolls_rotmat=bone_rolls_rotmat,
-            bone_parents=[-1, 0, 1],
-            bone_labels=["root", "spine", "head"],
             vertex_bone_weights=vertex_bone_weights,
             vertex_bone_indices=vertex_bone_indices,
-            skinning_method="lbs",
-            pose_parameterization="local-bone",
-            stacked_phenotype_blend_shapes_mask=stacked_phenotype_blend_shapes_mask,
-            local_change_labels=[],
             base_mesh_vertex_indices=torch.arange(v_count, dtype=torch.long),
-            extrapolate_phenotypes=False,
-            all_phenotypes=False,
-            bone_orientation="blender-rootidentity",
+            template_bone_tails=template_bone_tails,
+            bone_tails_blendshapes=bone_tails_blendshapes,
+            bone_rolls_rotmat=bone_rolls_rotmat,
         )
 
-    def test_safetensors_round_trip(self):
-        model = self._make_phenotype_model()
+    def _make_phenotype_model(self, dtype=torch.float64):
+        return Anny.from_model_data(self._make_tail_model_data(dtype=dtype))
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            path = os.path.join(tmpdir, "model.safetensors")
-            model.save_safetensors(path)
-
-            loaded = RiggedModelWithLinearBlendShapes.load_safetensors(path)
-
-        self.assertIsInstance(loaded, RiggedModelWithPhenotypeParameters)
-        torch.testing.assert_close(model.template_vertices, loaded.template_vertices)
-        torch.testing.assert_close(model.blendshapes, loaded.blendshapes)
-        self.assertEqual(model.bone_labels, loaded.bone_labels)
-        self.assertEqual(model.bone_parents, loaded.bone_parents)
-        self.assertEqual(model.pose_parameterization, loaded.pose_parameterization)
-        self.assertEqual(model.all_phenotypes, loaded.all_phenotypes)
-        self.assertEqual(model.bone_orientation, loaded.bone_orientation)
-
-        # Forward pass should produce the same output
-        batch_size = 2
-        with torch.no_grad():
-            out_orig = model(phenotype_kwargs={})['vertices']
-            out_loaded = loaded(phenotype_kwargs={})['vertices']
-        torch.testing.assert_close(out_orig, out_loaded)
+    def _make_procrustes_model_data(self, dtype=torch.float64):
+        data = self._make_tail_model_data(dtype=dtype)
+        b_count = len(data.metadata.bone_labels)
+        vertex_ids = torch.arange(0, 6, dtype=torch.long).reshape(3, 2)
+        return ModelData(
+            metadata=ModelMetadata(
+                bone_parents=data.metadata.bone_parents,
+                bone_labels=data.metadata.bone_labels,
+                pose_parameterization=data.metadata.pose_parameterization,
+                skinning_method=data.metadata.skinning_method,
+                bone_orientation="procrustes",
+            ),
+            template_vertices=data.template_vertices,
+            faces=data.faces,
+            texture_coordinates=data.texture_coordinates,
+            face_texture_coordinate_indices=data.face_texture_coordinate_indices,
+            blendshapes=data.blendshapes,
+            stacked_phenotype_blend_shapes_mask=data.stacked_phenotype_blend_shapes_mask,
+            template_bone_heads=data.template_bone_heads,
+            bone_heads_blendshapes=data.bone_heads_blendshapes,
+            vertex_bone_weights=data.vertex_bone_weights,
+            vertex_bone_indices=data.vertex_bone_indices,
+            base_mesh_vertex_indices=data.base_mesh_vertex_indices,
+            bone_nonzeroweight_mask=torch.ones(b_count, dtype=torch.bool),
+            bone_vertex_indices=vertex_ids,
+            bone_vertex_weights=torch.ones(b_count, 2, dtype=dtype),
+            template_bone_vertices=torch.randn(b_count, 2, 3, dtype=dtype),
+            reference_bone_orientations=torch.eye(3, dtype=dtype).expand(b_count, 3, 3).clone(),
+        )
 
     def test_model_data_round_trip(self):
         model = self._make_phenotype_model()
@@ -170,13 +193,14 @@ class TestSafetensors(unittest.TestCase):
             path = os.path.join(tmpdir, "model_data.safetensors")
             data.save_safetensors(path)
 
-            from anny.models.model_data import ModelData
             loaded_data = ModelData.load_safetensors(path)
 
-        self.assertEqual(data.metadata.model_type, loaded_data.metadata.model_type)
+        self.assertEqual(data.metadata.bone_orientation, loaded_data.metadata.bone_orientation)
         self.assertEqual(data.metadata.bone_labels, loaded_data.metadata.bone_labels)
         torch.testing.assert_close(data.template_vertices, loaded_data.template_vertices)
         torch.testing.assert_close(data.blendshapes, loaded_data.blendshapes)
+
+
 
 
 if __name__ == "__main__":

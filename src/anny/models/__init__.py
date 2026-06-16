@@ -14,7 +14,7 @@ from anny.models.full_model import (
     ANNY_ROOT_DIR,
 )
 
-from anny.models.model_data import ModelData, ModelMetadata, model_from_model_data, cache_builder
+from anny.models.model_data import ModelData, ModelMetadata, AnnyModelMetadata, cache_builder
 from anny.paths import PathLike
 from anny.face_segmentation import get_face_segmentation_mask
 import anny.models.model_transforms as model_transforms
@@ -238,7 +238,7 @@ def build_fullbody_model_data(
         local_changes = "default" if local_changes else "none"
 
     bones_to_remove = set()
-    if rig.startswith("default"):
+    if isinstance(rig, str) and rig.startswith("default-"):
         rig_specs = rig.split("-")
         assert rig_specs[0] == "default"
         for spec in rig_specs[1:]:
@@ -321,6 +321,8 @@ def build_fullbody_model_data(
                 local_changes=local_changes,
                 skinning_method=skinning_method,
                 bone_orientation=bone_orientation,
+                remove_skinning_islands=remove_skinning_islands,
+                weights_filename=weights_filename,
             )
         elif topology == "smpl":
             return anny.models.retopology.build_smpl_topology_model_data(
@@ -343,6 +345,7 @@ def build_fullbody_model_data(
                 local_changes=local_changes,
                 skinning_method=skinning_method,
                 bone_orientation=bone_orientation,
+                weights_filename=weights_filename,
             )
         else:
             return anny.models.retopology.build_alternative_topology_model_data(
@@ -355,6 +358,7 @@ def build_fullbody_model_data(
                 local_changes=local_changes,
                 skinning_method=skinning_method,
                 bone_orientation=bone_orientation,
+                weights_filename=weights_filename,
             )
 
 def create_fullbody_model(
@@ -372,7 +376,7 @@ def create_fullbody_model(
     skinning_method: SkinningMethod | None = None,
     weights_filename: PathLike | None = None,
 ):
-    data = build_fullbody_model_data(
+    return Anny(
         rig=rig,
         topology=topology,
         local_changes=local_changes,
@@ -387,8 +391,6 @@ def create_fullbody_model(
         skinning_method=skinning_method,
         weights_filename=weights_filename,
     )
-
-    return model_from_model_data(data)
 
 
 @cache_builder
@@ -466,7 +468,7 @@ def create_hand_model(
     bone_orientation: str = "blender-rootidentity",
 ):
 
-    return model_from_model_data(
+    return Anny.from_model_data(
         build_hand_model_data(
             side=side,
             local_changes=local_changes,
@@ -556,7 +558,7 @@ def create_head_model(
     triangulate_faces: bool = False,
     bone_orientation: str = "blender-rootidentity",
 ):
-    return model_from_model_data(
+    return Anny.from_model_data(
         build_head_model_data(
             eyes=eyes,
             tongue=tongue,
@@ -581,5 +583,5 @@ __all__ = [
     "create_head_model",
     "ModelData",
     "ModelMetadata",
-    "model_from_model_data",
+    "AnnyModelMetadata"
 ]

@@ -16,7 +16,7 @@ if __name__ == "__main__":
     model = smplx.create(args.smplx_model_path, model_type="smpl", gender="neutral")
     model_wrapper = SMPL(args.smplx_model_path, gender="neutral", pose_corrective=args.pose_corrective, topology=args.topology).to(dtype=dtype)
 
-    bone_count = model_wrapper.rigged_model.bone_count
+    bone_count = model_wrapper.bone_count
 
     betas = 0.5 * torch.randn((1, model.num_betas), dtype=torch.float32)
     global_orient = 0.3 * torch.randn((1, 3), dtype=torch.float32)

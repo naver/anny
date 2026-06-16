@@ -202,10 +202,13 @@ class TestUtils(unittest.TestCase):
         age_mapping = MorphologicalAgeMapping()
         age_mapping.load_state_dict(boys_state_dict["morphological_age_mapping"])
 
+        from anny.paths import download_noncommercial_data, get_anny_cache_path
+        download_noncommercial_data()
+        data_dir = get_anny_cache_path() / "noncommercial" / "smplx_examples"
         obj_files = [
-            "smplx_male_template.obj",
-            "smplx_female_template.obj",
-            "smplx_neutral_template.obj"
+            data_dir / "smplx_male_template.obj",
+            data_dir / "smplx_female_template.obj",
+            data_dir / "smplx_neutral_template.obj"
         ]
 
         fitter = anny.ParametersRegressor(
@@ -230,9 +233,9 @@ class TestUtils(unittest.TestCase):
 
             # initialize phenotype parameters to neutral values
             initial_phenotype_kwargs = {key: 0.5 * torch.ones(1, dtype=dtype, device=device) for key in model.phenotype_labels}
-            if 'female' in obj_path:
+            if 'female' in str(obj_path):
                 initial_phenotype_kwargs['gender'] = 1.0 * torch.ones(1, dtype=dtype, device=device)
-            elif 'male' in obj_path:
+            elif 'male' in str(obj_path):
                 initial_phenotype_kwargs['gender'] = 0.0 * torch.ones(1, dtype=dtype, device=device)
             else:
                 initial_phenotype_kwargs['gender'] = 0.5 * torch.ones(1, dtype=dtype, device=device)
