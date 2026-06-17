@@ -113,7 +113,7 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
         return dict(rest_vertices=rest_vertices, rest_bone_heads=rest_bone_heads, rest_bone_poses=rest_bone_poses)
 
 
-    def parse_delta_transforms_dict(self, delta_transforms_dict, batch_size=None):
+    def parse_delta_transforms_dict(self, delta_transforms_dict):
         """
         Converts a dictionary, namedtuple, or tensor representation of delta transforms
         into a batched tensor of homogeneous transformation matrices.
@@ -145,7 +145,7 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
             delta_transforms_dict = delta_transforms_dict._asdict()
 
         if isinstance(delta_transforms_dict, dict):
-            batch_size = batch_size if batch_size is not None else len(next(iter(delta_transforms_dict.values())))
+            batch_size = len(next(iter(delta_transforms_dict.values())))
             identity = torch.eye(4, dtype=self.template_vertices.dtype, device=self.template_vertices.device)[None].repeat(batch_size, 1, 1)
             delta_transforms = []
             for bone_id, bone_label in enumerate(self.bone_labels):
@@ -160,7 +160,8 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
             return torch.stack(delta_transforms, dim=1)
 
         elif delta_transforms_dict is None:
-            identity = torch.eye(4, dtype=self.template_vertices.dtype, device=self.template_vertices.device)[None].repeat(batch_size, len(self.bone_labels), 1, 1)
+            # No pose supplied: return batch-1 identity deltas.
+            identity = torch.eye(4, dtype=self.template_vertices.dtype, device=self.template_vertices.device)[None].repeat(1, len(self.bone_labels), 1, 1)
             return identity
 
         elif isinstance(delta_transforms_dict, torch.Tensor):
