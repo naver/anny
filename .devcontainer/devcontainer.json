@@ -12,7 +12,8 @@
   "workspaceFolder": "/workspace",
   "mounts": [
     "source=${localEnv:HOME}/.claude,target=/root/.claude,type=bind",
-    "source=${localEnv:HOME}/.claude.json,target=/root/.claude.json,type=bind"
+    "source=${localEnv:HOME}/.claude.json,target=/root/.claude.json,type=bind",
+    "source=${localEnv:HOME}/.cache/anny,target=/root/.cache/anny,type=bind"
   ],
   "initializeCommand": "mkdir -p ${localEnv:HOME}/.claude && touch ${localEnv:HOME}/.claude.json",
   "remoteEnv": {
