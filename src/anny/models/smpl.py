@@ -23,7 +23,7 @@ class SMPLX(torch.nn.Module):
     def __init__(self, *smplx_args, pose_corrective=True, topology="smplx", **smplx_kwargs):
         super().__init__()
         # Original model
-        model = smplx.create(*smplx_args, **smplx_kwargs)
+        model = smplx.create(*smplx_args, model_type="smplx", **smplx_kwargs)
 
         # Parse useful data
         template_vertices = model.v_template
@@ -184,7 +184,7 @@ class SMPL(torch.nn.Module):
     def __init__(self, *smpl_args, pose_corrective=True, topology="smpl", **smpl_kwargs):
         super().__init__()
         # Original model
-        model = smplx.create(*smpl_args, **smpl_kwargs)
+        model = smplx.create(*smpl_args, model_type="smpl", **smpl_kwargs)
 
         # Parse useful data
         template_vertices = model.v_template

@@ -14,7 +14,7 @@ if __name__ == "__main__":
 
     dtype = torch.float32
     model = smplx.create(args.smplx_model_path, model_type="smpl", gender="neutral")
-    model_wrapper = SMPL(args.smplx_model_path, model_type="smpl", gender="neutral", pose_corrective=args.pose_corrective, topology=args.topology).to(dtype=dtype)
+    model_wrapper = SMPL(args.smplx_model_path, gender="neutral", pose_corrective=args.pose_corrective, topology=args.topology).to(dtype=dtype)
 
     bone_count = model_wrapper.rigged_model.bone_count
 

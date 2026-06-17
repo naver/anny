@@ -15,7 +15,7 @@ if __name__ == "__main__":
 
     dtype = torch.float32
     model = smplx.create(args.smplx_model_path, model_type="smplx", gender="neutral", use_pca=args.use_pca).to(dtype=dtype)
-    model_wrapper = SMPLX(args.smplx_model_path, model_type="smplx", gender="neutral", use_pca=args.use_pca, pose_corrective=args.pose_corrective, topology=args.topology).to(dtype=dtype)
+    model_wrapper = SMPLX(args.smplx_model_path, gender="neutral", use_pca=args.use_pca, pose_corrective=args.pose_corrective, topology=args.topology).to(dtype=dtype)
 
     betas = 0.5 * torch.randn((1, model.num_betas), dtype=torch.float32)
     expression = 0.5 * torch.randn((1, model.num_expression_coeffs), dtype=torch.float32)
