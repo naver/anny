@@ -322,6 +322,17 @@ def build_fullbody_model_data(
                 skinning_method=skinning_method,
                 bone_orientation=bone_orientation,
             )
+        elif topology == "smpl":
+            return anny.models.retopology.build_smpl_topology_model_data(
+                            rig=rig,
+                            all_phenotypes=all_phenotypes,
+                            bones_to_remove=bones_to_remove,
+                            pose_parameterization=pose_parameterization,
+                            extrapolate_phenotypes=extrapolate_phenotypes,
+                            local_changes=local_changes,
+                            skinning_method=skinning_method,
+                            bone_orientation=bone_orientation,
+                        )
         elif topology == "soma":
             return anny.models.retopology.build_soma_topology_model_data(
                 rig=rig,

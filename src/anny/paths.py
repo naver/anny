@@ -41,7 +41,22 @@ def get_anny2smplx_data_path() -> pathlib.Path:
     Returns:
         pathlib.Path: The path to the Anny2SMPLX data file.
     """
-    return get_anny_cache_path() / "noncommercial/anny2smplx.pth"
+    path = get_anny_cache_path() / "noncommercial/anny2smplx.pth"
+    if not path.exists():
+            download_noncommercial_data()
+    return path
+
+def get_anny2smpl_data_path() -> pathlib.Path:
+    """
+    Get the path to the Anny2SMPL data file.
+
+    Returns:
+        pathlib.Path: The path to the Anny2SMPL data file.
+    """
+    path = get_anny_cache_path() / "noncommercial/anny2smpl.pth"
+    if not path.exists():
+        download_noncommercial_data()
+    return path
 
 def download_noncommercial_data():
     cache_dir = get_anny_cache_path()

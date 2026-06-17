@@ -139,6 +139,8 @@ def main(server_name : str = None, server_port : int = None):
                 model = anny.create_fullbody_model(rig=rig, topology="notoes_collapse5pc", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes, remove_unattached_vertices=True, bone_orientation="blender-rootidentity")
             elif model_type == "smplx":
                 model = anny.create_fullbody_model(rig=rig, topology="smplx", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes, remove_unattached_vertices=True, bone_orientation="blender-rootidentity")
+            elif model_type == "smpl":
+                model = anny.create_fullbody_model(rig=rig, topology="smpl", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes, remove_unattached_vertices=True, bone_orientation="blender-rootidentity")
             elif model_type == "soma":
                 model = anny.create_fullbody_model(rig=rig, topology="soma", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes, remove_unattached_vertices=True, bone_orientation="blender-rootidentity")
             elif model_type == "right hand":
@@ -203,7 +205,7 @@ def main(server_name : str = None, server_port : int = None):
             with gr.Row():
                 with gr.Column("compact", elem_id="control-column"):
                     model_dropdown = gr.Dropdown(label="Topology",
-                                                    choices=["default", "left hand", "right hand", "head", "notoes_collapse10pc", "notoes_collapse5pc", "smplx", "soma"], value=default_model_value)
+                                                    choices=["default", "left hand", "right hand", "head", "notoes_collapse10pc", "notoes_collapse5pc", "smplx", "smpl", "soma"], value=default_model_value)
                     rig_dropdown = gr.Dropdown(label="Rig",
                                                     choices=["default", "mixamo", "default-noeyes-notongue-noexpression-nobreasts-notoes", "default-noeyes-notongue-noexpression-nobreasts-notoes-nohands", "soma"],
                                                     value=default_rig_value)

@@ -1,7 +1,7 @@
 import os
 import torch
-import smplx
 from anny.models.smpl import SMPLX
+import smplx
 import trimesh
 
 if __name__ == "__main__":
@@ -40,7 +40,7 @@ if __name__ == "__main__":
     # Export both meshes to a glb file for visual comparison in a 3D viewer
     scene = trimesh.Scene()
 
-    mesh = trimesh.Trimesh(vertices=anny_output["vertices"][0].detach().numpy(), faces=model_wrapper.rigged_model.faces.numpy())
+    mesh = trimesh.Trimesh(vertices=anny_output["vertices"][0].detach().numpy(), faces=model_wrapper.faces.numpy())
     mesh.visual.vertex_colors = [200, 200, 200, 255]
     scene.add_geometry(mesh, node_name="anny")
 

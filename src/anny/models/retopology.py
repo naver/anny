@@ -7,7 +7,7 @@ from anny.utils import obj_utils
 from anny.models.full_model import RigPreset, build_model_data
 from anny.models.model_transforms import apply_retopology, apply_retopology_from_mesh
 import os
-from anny.paths import ANNY_ROOT_DIR, get_anny2smplx_data_path, PathLike, download_noncommercial_data
+from anny.paths import ANNY_ROOT_DIR, get_anny2smplx_data_path, get_anny2smpl_data_path, PathLike
 import roma
 import logging
 import math
@@ -54,8 +54,6 @@ def build_smplx_topology_model_data(rig: RigPreset | PathLike = "default",
                                         weights_filename=weights_filename)
 
     # Load the SMPL-X topology
-    if not os.path.exists(get_anny2smplx_data_path()):
-        download_noncommercial_data()
     state_dict = torch.load(get_anny2smplx_data_path(),
                             map_location="cpu",
                             weights_only=True)
@@ -74,6 +72,48 @@ def build_smplx_topology_model_data(rig: RigPreset | PathLike = "default",
     )
     return data
 
+def build_smpl_topology_model_data(rig: RigPreset | PathLike = "default",
+                                bones_to_remove=set(),
+                                all_phenotypes=False,
+                                skinning_method=None,
+                                pose_parameterization: str = "root_relative_world",
+                                extrapolate_phenotypes=False,
+                                local_changes="none",
+                                bone_orientation="default",
+                                root_dirname=ANNY_ROOT_DIR,
+                                weights_filename: PathLike | None = None):
+    ref_data = build_model_data(rig=rig,
+                                        eyes=True,
+                                        tongue=False,
+                                        bones_to_remove=bones_to_remove,
+                                        remove_unattached_vertices=False,
+                                        all_phenotypes=all_phenotypes,
+                                        skinning_method=skinning_method,
+                                        pose_parameterization=pose_parameterization,
+                                        extrapolate_phenotypes=extrapolate_phenotypes,
+                                        local_changes=local_changes,
+                                        bone_orientation=bone_orientation,
+                                        root_dirname=root_dirname,
+                                        weights_filename=weights_filename)
+
+    # Load the SMPL topology
+    state_dict = torch.load(get_anny2smpl_data_path(),
+                            map_location="cpu",
+                            weights_only=True)
+    barycentric_coordinates = state_dict["anny2dst_barycentric_coordinates"]
+    reference_vertex_indices = state_dict["anny2dst_vertex_indices"]
+    vertices = barycentric_coordinates[0][:,None] * ref_data.template_vertices[reference_vertex_indices[:,0]] + \
+               barycentric_coordinates[1][:,None] * ref_data.template_vertices[reference_vertex_indices[:,1]] + \
+               barycentric_coordinates[2][:,None] * ref_data.template_vertices[reference_vertex_indices[:,2]]
+    faces = state_dict["dst_faces"]
+    data = apply_retopology(
+        ref_data,
+        vertices=vertices,
+        faces=faces,
+        reference_vertex_indices=reference_vertex_indices,
+        barycentric_coordinates=barycentric_coordinates,
+    )
+    return data
 
 def build_soma_topology_model_data(rig: RigPreset | PathLike ="default",
                                 bones_to_remove=set(),

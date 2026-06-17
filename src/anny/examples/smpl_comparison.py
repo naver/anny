@@ -1,7 +1,7 @@
 import os
 import torch
-import smplx
 from anny.models.smpl import SMPL
+import smplx
 import trimesh
 
 if __name__ == "__main__":
@@ -9,10 +9,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Compare SMPL and Anny implementations of the SMPL model.")
     parser.add_argument("--smplx_model_path", type=str, default=os.environ.get("SMPLX_MODEL_PATH"), help="Path to the SMPLX models directory.")
     parser.add_argument("--pose_corrective", action=argparse.BooleanOptionalAction, default=True, help="Include pose corrective blend shapes.")
+    parser.add_argument("--topology", type=str, default="anny", help="Output mesh topology.")
     args = parser.parse_args()
 
+    dtype = torch.float32
     model = smplx.create(args.smplx_model_path, model_type="smpl", gender="neutral")
-    model_wrapper = SMPL(args.smplx_model_path, model_type="smpl", gender="neutral", pose_corrective=args.pose_corrective)
+    model_wrapper = SMPL(args.smplx_model_path, model_type="smpl", gender="neutral", pose_corrective=args.pose_corrective, topology=args.topology).to(dtype=dtype)
 
     bone_count = model_wrapper.rigged_model.bone_count
 
@@ -27,7 +29,7 @@ if __name__ == "__main__":
     # Export both meshes to a glb file for visual comparison in a 3D viewer
     scene = trimesh.Scene()
 
-    mesh = trimesh.Trimesh(vertices=anny_output["vertices"][0].detach().numpy(), faces=model.faces_tensor.numpy())
+    mesh = trimesh.Trimesh(vertices=anny_output["vertices"][0].detach().numpy(), faces=model_wrapper.faces.numpy())
     mesh.visual.vertex_colors = [200, 200, 200, 255]
     scene.add_geometry(mesh, node_name="anny")
 
