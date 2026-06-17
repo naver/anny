@@ -21,7 +21,7 @@ uv run python -m unittest test.test_full_model  # run a single test file
 
 ### Documentation
 ```bash
-bash build_doc.bash  # build HTML docs from Jupyter notebooks in tutorials/
+bash build_doc.bash  # build HTML docs from the jupytext py:percent tutorials in tutorials/*.py
 ```
 
 ## Architecture

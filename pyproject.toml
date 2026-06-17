@@ -44,7 +44,7 @@ examples = [
     "ipykernel",
     "notebook",
     "scipy",
-    "nbstripout",
+    "jupytext",
     "py-soma-x==0.1.0"
 ]
 warp = [
