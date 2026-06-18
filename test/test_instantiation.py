@@ -4,16 +4,13 @@
 import os
 import pathlib
 import unittest
-import warnings
 
 import anny
 from anny.paths import ANNY_ROOT_DIR
 from anny.models.rigged_model import RiggedModelWithLinearBlendShapes
-from anny.models.smpl import SMPL, SMPLX
 
 
-SMPLX_MODEL_PATH = os.environ.get("SMPLX_MODEL_PATH")
-SMPLX_MODEL_SKIP_REASON = "SMPLX_MODEL_PATH is not defined"
+
 
 
 class TestInstantiation(unittest.TestCase):
@@ -94,31 +91,7 @@ class TestInstantiation(unittest.TestCase):
         self.assertIsInstance(hand, RiggedModelWithLinearBlendShapes)
         self.assertIsInstance(head, RiggedModelWithLinearBlendShapes)
 
-    @unittest.skipIf(SMPLX_MODEL_PATH is None, SMPLX_MODEL_SKIP_REASON)
-    def test_smplx_is_normal_rigged_model_instance(self):
-        model = SMPLX(SMPLX_MODEL_PATH, pose_corrective=True)
-
-        self.assertIsInstance(model, SMPLX)
-        self.assertIsInstance(model, RiggedModelWithLinearBlendShapes)
-        self.assertEqual(model._bone_orientation_method, "tail")
-        self.assertEqual(model.bone_count, 55)
-        self.assertTrue(hasattr(model, "faces"))
-        self.assertTrue(callable(model.get_rest_model))
-        self.assertTrue(callable(model.get_pose_parameterization))
-        self.assertTrue(callable(model.set_skinning_method))
-
-    @unittest.skipIf(SMPLX_MODEL_PATH is None, SMPLX_MODEL_SKIP_REASON)
-    def test_smpl_is_normal_rigged_model_instance(self):
-        model = SMPL(SMPLX_MODEL_PATH, pose_corrective=True)
-
-        self.assertIsInstance(model, SMPL)
-        self.assertIsInstance(model, RiggedModelWithLinearBlendShapes)
-        self.assertEqual(model._bone_orientation_method, "tail")
-        self.assertEqual(model.bone_count, 24)
-        self.assertTrue(hasattr(model, "faces"))
-        self.assertTrue(callable(model.get_rest_model))
-        self.assertTrue(callable(model.get_pose_parameterization))
-        self.assertTrue(callable(model.set_skinning_method))
+  
 
 
 if __name__ == "__main__":

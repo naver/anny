@@ -27,7 +27,6 @@ with warnings.catch_warnings():
 
 class SMPLX(RiggedModelWithLinearBlendShapes):
     def __init__(self, *smplx_args, model_type="smplx", pose_corrective=True, topology="smplx", **smplx_kwargs):
-        torch.nn.Module.__init__(self)
         # Original model
         model = smplx.create(*smplx_args, model_type="smplx", **smplx_kwargs)
 
@@ -51,8 +50,10 @@ class SMPLX(RiggedModelWithLinearBlendShapes):
         vertex_bone_indices = torch.arange(bone_count).unsqueeze(0).expand(vertex_bone_weights.shape[0], -1)
         bone_labels = [f"bone_{i}" for i in range(bone_count)]
 
-        self.pose_mean = model.pose_mean.reshape(1,-1,3)
+        self.pose_mean = model.pose_mean.reshape(1, -1, 3)
         self.use_pca = model.use_pca
+        self.left_hand_components: torch.Tensor | None = None
+        self.right_hand_components: torch.Tensor | None = None
         if self.use_pca:
             self.left_hand_components = model.left_hand_components
             self.right_hand_components = model.right_hand_components
@@ -100,7 +101,7 @@ class SMPLX(RiggedModelWithLinearBlendShapes):
         if topology == "anny":
             data = anny_data
             # Store the validity mask regarding Anny vertices
-            self.vertex_mask = torch.nn.Buffer(anny2smplx_state_dict["anny_vertex_mask"], persistent = False)
+            vertex_mask = anny2smplx_state_dict["anny_vertex_mask"]
         elif topology == "smpl":
             # Load the SMPL topology
             state_dict = torch.load(get_anny2smpl_data_path(),
@@ -120,8 +121,9 @@ class SMPLX(RiggedModelWithLinearBlendShapes):
                 barycentric_coordinates=barycentric_coordinates,
             )
             # No vertex masking
-            self.vertex_mask = torch.nn.Buffer(torch.ones(len(vertices), dtype=torch.float64), persistent = False)
+            vertex_mask = torch.ones(len(vertices), dtype=torch.float64)
         else:
+            vertex_mask = None
             assert topology == "smplx"
 
         bone_labels = [f"bone_{i}" for i in range(bone_count)]
@@ -157,8 +159,11 @@ class SMPLX(RiggedModelWithLinearBlendShapes):
             reference_bone_orientations=data.reference_bone_orientations,
             pose_parameterization=data.metadata.pose_parameterization,)
 
+        self.vertex_mask = torch.nn.Buffer(vertex_mask, persistent = False) if vertex_mask is not None else None
+
 
     def forward(self, betas, expression, global_orient, transl, body_pose, leye_pose, reye_pose, left_hand_pose, right_hand_pose, jaw_pose):
+
         if self.use_pca:
             left_hand_pose = torch.einsum(
                 'bi,ij->bj', [left_hand_pose, self.left_hand_components])
@@ -174,25 +179,25 @@ class SMPLX(RiggedModelWithLinearBlendShapes):
                                 right_hand_pose.reshape(-1, 15, 3)],
                                 dim=1)
 
-        pose_parameters = torch.eye(4).unsqueeze(0).expand(1, self.bone_count, 4, 4).clone()
-        pose_parameters[:, :, :3, :3] = roma.rotvec_to_rotmat(rotvec + self.pose_mean)
+        batch_size = rotvec.shape[0]
+        pose_parameters = torch.eye(4, dtype=rotvec.dtype, device=rotvec.device).unsqueeze(0).expand(batch_size, self.bone_count, 4, 4).clone()
+        pose_parameters[:, :, :3, :3] = roma.rotvec_to_rotmat(rotvec + self.pose_mean.to(dtype=rotvec.dtype, device=rotvec.device))
         pose_parameters[:, 0, :3, 3] = transl
         blendshape_coeffs = torch.cat((betas, expression), dim=1)
 
         if self.pose_corrective:
             batch_size = len(pose_parameters)
-            pose_corrective_blendshape_coeffs = (pose_parameters[:, 1:, :3, :3] - torch.eye(3, dtype=pose_parameters.dtype)[None, None]).view(batch_size, -1)
+            identity_rotmat = torch.eye(3, dtype=pose_parameters.dtype, device=pose_parameters.device)
+            pose_corrective_blendshape_coeffs = (pose_parameters[:, 1:, :3, :3] - identity_rotmat[None, None]).view(batch_size, -1)
             full_blendshape_coeffs = torch.concatenate((blendshape_coeffs, pose_corrective_blendshape_coeffs), dim=-1)
         else:
             full_blendshape_coeffs = blendshape_coeffs
 
-        
 
-        return self.rigged_model(pose_parameters=pose_parameters, blendshape_coeffs=full_blendshape_coeffs)
+        return super().forward(pose_parameters=pose_parameters, blendshape_coeffs=full_blendshape_coeffs)
     
 class SMPL(RiggedModelWithLinearBlendShapes):
     def __init__(self, *smpl_args, pose_corrective=True, topology="smpl", **smpl_kwargs):
-        torch.nn.Module.__init__(self)
         # Original model
         model = smplx.create(*smpl_args, model_type="smpl", **smpl_kwargs)
 
@@ -238,7 +243,7 @@ class SMPL(RiggedModelWithLinearBlendShapes):
                                     stacked_phenotype_blend_shapes_mask=None,
                                     )
         if topology == "smpl":
-            pass
+            vertex_mask = None
         else:
             # Load the SMPL/Anny correspondences
             anny_state_dict = torch.load(get_anny2smpl_data_path(),
@@ -260,7 +265,7 @@ class SMPL(RiggedModelWithLinearBlendShapes):
 
             if topology == "anny":
                 # Store the validity mask regarding Anny vertices
-                self.vertex_mask = torch.nn.Buffer(anny_state_dict["anny_vertex_mask"], persistent = False)
+                vertex_mask = anny_state_dict["anny_vertex_mask"]
             elif topology == "smplx":
                 # Load the SMPLX topology
                 state_dict = torch.load(get_anny2smplx_data_path(),
@@ -280,7 +285,7 @@ class SMPL(RiggedModelWithLinearBlendShapes):
                     barycentric_coordinates=barycentric_coordinates,
                 )
                 # No vertex masking
-                self.vertex_mask = torch.nn.Buffer(torch.ones(len(vertices), dtype=torch.float64), persistent = False)
+                vertex_mask = torch.ones(len(vertices), dtype=torch.float64)
             else:
                 raise ValueError()
 
@@ -304,20 +309,24 @@ class SMPL(RiggedModelWithLinearBlendShapes):
             pose_parameterization=data.metadata.pose_parameterization,
             base_mesh_vertex_indices=data.base_mesh_vertex_indices
         )
+        
+        self.vertex_mask = torch.nn.Buffer(vertex_mask, persistent = False) if vertex_mask is not None else None
 
     def forward(self, betas, global_orient, transl, body_pose):
         rotvec = torch.cat([global_orient.reshape(-1, 1, 3),
                                 body_pose.reshape(-1, self.bone_count - 1, 3)],
                                 dim=1)
 
-        pose_parameters = torch.eye(4).unsqueeze(0).expand(1, self.bone_count, 4, 4).clone()
+        batch_size = rotvec.shape[0]
+        pose_parameters = torch.eye(4, dtype=rotvec.dtype, device=rotvec.device).unsqueeze(0).expand(batch_size, self.bone_count, 4, 4).clone()
         pose_parameters[:, :, :3, :3] = roma.rotvec_to_rotmat(rotvec)
         pose_parameters[:, 0, :3, 3] = transl
         blendshape_coeffs = betas
 
         if self.pose_corrective:
             batch_size = len(pose_parameters)
-            pose_corrective_blendshape_coeffs = (pose_parameters[:, 1:, :3, :3] - torch.eye(3, dtype=pose_parameters.dtype)[None, None]).view(batch_size, -1)
+            identity_rotmat = torch.eye(3, dtype=pose_parameters.dtype, device=pose_parameters.device)
+            pose_corrective_blendshape_coeffs = (pose_parameters[:, 1:, :3, :3] - identity_rotmat[None, None]).view(batch_size, -1)
             full_blendshape_coeffs = torch.concatenate((blendshape_coeffs, pose_corrective_blendshape_coeffs), dim=-1)
         else:
             full_blendshape_coeffs = blendshape_coeffs
