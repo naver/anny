@@ -18,10 +18,11 @@ from anny.paths import PathLike, get_anny_cache_path
 from anny.typing import BoneOrientation, PoseParameterization, SkinningMethod
 
 ANNY_VERSION = importlib.metadata.version("anny")
-# Increase this if there are any non-backwards-compatible changes to the data/metadata format
-CURRENT_DATA_VERSION = 2
 
-logger = logging.getLogger(__name__)
+# Increase this if there are any non-backwards-compatible changes to the data/metadata format,
+# or to bundled data whose content changed under an unchanged path (the cache keys on argument
+# values, not file content). v2: default skinning weights rebaked (symmetric + island-free).
+CURRENT_DATA_VERSION = 2
 
 @dataclasses.dataclass(frozen=True)
 class ModelMetadata:

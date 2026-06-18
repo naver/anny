@@ -98,7 +98,7 @@ for rig, topology in [("default", "default"),
                       ("default-notoes-noexpression-nobreasts", "default"),
                       ("default-notoes-nohands-noexpression-nobreasts", "notoes_collapse5pc"),
                       ]:
-    model = anny.Anny(rig=rig, topology=topology, remove_unattached_vertices=True, remove_skinning_islands=False)
+    model = anny.Anny(rig=rig, topology=topology, remove_unattached_vertices=True)
     output = model(return_bone_ends=True)
 
     mesh = trimesh.Trimesh(

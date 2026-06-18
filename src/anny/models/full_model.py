@@ -29,6 +29,15 @@ from anny.typing import RigPreset, SkinningMethod
 
 logger = logging.getLogger(__name__)
 
+RigPreset = Literal[
+    "default", "default_no_toes", "legacy", "legacy_no_toes", "cmu_mb", "game_engine", "mixamo"
+]
+SkinningMethod = Literal["lbs", "dqs", "warp_lbs"]
+
+
+
+
+
 def load_blend_shape(filename, vertices_count, world_transformation, dtype):
     blend_shape = torch.zeros((vertices_count, 3), dtype=dtype)
     with gzip.open(filename, "rt") as archive:
@@ -462,10 +471,14 @@ def get_edited_mesh_faces(faces: torch.Tensor, face_texture_coordinate_indices: 
 
 
 # Maps a `RigPreset` name to (rig basename, weights basename) under data/mpfb2/rigs/standard/.
-# `default_no_toes` shares the default weights file.
+# `default`/`default_no_toes` use the cleaned weights baked by scripts/compute_skinning_weights.py;
+# `legacy`/`legacy_no_toes` use the original raw MakeHuman weights (no symmetry/island cleanup).
+# Each pair shares its weights file across the toed and no-toes rig variants.
 _RIG_PRESET_FILES: dict[str, tuple[str, str]] = {
     "default":         ("rig.default.json",         "weights.default.json"),
     "default_no_toes": ("rig.default_no_toes.json", "weights.default.json"),
+    "legacy":          ("rig.default.json",         "weights.legacy.json"),
+    "legacy_no_toes":  ("rig.default_no_toes.json", "weights.legacy.json"),
     "cmu_mb":          ("rig.cmu_mb.json",          "weights.cmu_mb.json"),
     "game_engine":     ("rig.game_engine.json",     "weights.game_engine.json"),
     "mixamo":          ("rig.mixamo.json",          "weights.mixamo.json"),
@@ -500,8 +513,6 @@ def build_model_data(rig: RigPreset | PathLike = "default",
                  local_changes: LocalChanges = "none",
                  skinning_method: SkinningMethod | None = None,
                  remove_unattached_vertices: bool = False,
-                 remove_skinning_islands: bool = True,
-                 enforce_skinning_weights_symmetry: bool = True,
                  triangulate_faces: bool = False,
                  all_phenotypes: bool = False,
                  pose_parameterization: str = "local-bone",
@@ -541,12 +552,6 @@ def build_model_data(rig: RigPreset | PathLike = "default",
 
     if remove_unattached_vertices:
         data = model_transforms.remove_unattached_vertices(data)
-
-    if enforce_skinning_weights_symmetry:
-        data = model_transforms.symmetrize_skinning_weights(data)
-
-    if remove_skinning_islands:
-        data = model_transforms.remove_skinning_islands(data)
 
     data = compact_skinning_weights(data)
 

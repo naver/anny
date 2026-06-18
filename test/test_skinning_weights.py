@@ -15,12 +15,11 @@ from anny.utils.mesh_utils import get_edge_vertex_indices, get_symmetric_vertex_
 class TestSkinningWeightCompactness(unittest.TestCase):
     def test_each_bone_skinning_region_is_connected(self):
         model = anny.Anny(
-            rig="default", topology="default", remove_unattached_vertices=True, remove_skinning_islands=True
+            rig="default", topology="default", remove_unattached_vertices=True
         )
         edges = get_edge_vertex_indices(model.faces).cpu().numpy()
 
-        # Body shell = largest connected component of the mesh. Restricting the check
-        # to it mirrors the cleanup in `full_model.create_model` (remove_skinning_islands).
+        # Body shell = largest connected component; other shells (eyes, teeth) are excluded.
         mesh_components = trimesh.graph.connected_components(edges=edges)
         body_vertex_mask = torch.zeros(model.template_vertices.shape[0], dtype=torch.bool)
         body_vertex_mask[torch.as_tensor(max(mesh_components, key=len), dtype=torch.int64)] = True
@@ -63,7 +62,7 @@ class TestSkinningWeightSymmetry(unittest.TestCase):
     def test_lr_bone_pairs_have_mirrored_skinning_weights(self):
         model = anny.Anny(
             rig="default", topology="default",
-            remove_unattached_vertices=True, remove_skinning_islands=True,
+            remove_unattached_vertices=True,
         )
         N = model.template_vertices.shape[0]
         B = len(model.bone_labels)
