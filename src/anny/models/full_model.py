@@ -29,9 +29,7 @@ from anny.typing import RigPreset, SkinningMethod
 
 logger = logging.getLogger(__name__)
 
-RigPreset = Literal[
-    "default", "default_no_toes", "legacy", "legacy_no_toes", "cmu_mb", "game_engine", "mixamo"
-]
+RigPreset = Literal["default", "legacy", "cmu_mb", "game_engine", "mixamo"]
 SkinningMethod = Literal["lbs", "dqs", "warp_lbs"]
 
 
@@ -471,17 +469,14 @@ def get_edited_mesh_faces(faces: torch.Tensor, face_texture_coordinate_indices: 
 
 
 # Maps a `RigPreset` name to (rig basename, weights basename) under data/mpfb2/rigs/standard/.
-# `default`/`default_no_toes` use the cleaned weights baked by scripts/compute_skinning_weights.py;
-# `legacy`/`legacy_no_toes` use the original raw MakeHuman weights (no symmetry/island cleanup).
-# Each pair shares its weights file across the toed and no-toes rig variants.
+# `default` uses the cleaned weights baked by scripts/compute_skinning_weights.py;
+# `legacy` uses the original raw MakeHuman weights (no symmetry/island cleanup).
 _RIG_PRESET_FILES: dict[str, tuple[str, str]] = {
-    "default":         ("rig.default.json",         "weights.default.json"),
-    "default_no_toes": ("rig.default_no_toes.json", "weights.default.json"),
-    "legacy":          ("rig.default.json",         "weights.legacy.json"),
-    "legacy_no_toes":  ("rig.default_no_toes.json", "weights.legacy.json"),
-    "cmu_mb":          ("rig.cmu_mb.json",          "weights.cmu_mb.json"),
-    "game_engine":     ("rig.game_engine.json",     "weights.game_engine.json"),
-    "mixamo":          ("rig.mixamo.json",          "weights.mixamo.json"),
+    "default":     ("rig.default.json",     "weights.default.json"),
+    "legacy":      ("rig.default.json",     "weights.legacy.json"),
+    "cmu_mb":      ("rig.cmu_mb.json",      "weights.cmu_mb.json"),
+    "game_engine": ("rig.game_engine.json", "weights.game_engine.json"),
+    "mixamo":      ("rig.mixamo.json",      "weights.mixamo.json"),
 }
 
 
