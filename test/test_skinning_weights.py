@@ -8,6 +8,7 @@ import torch
 import trimesh.graph
 
 import anny
+from anny.models.full_model import _RIG_PRESET_FILES
 from anny.models.model_transforms import _get_symmetric_bone_name
 from anny.utils.mesh_utils import get_edge_vertex_indices, get_symmetric_vertex_indices
 
@@ -47,15 +48,17 @@ class TestSkinningWeightCompactness(unittest.TestCase):
 
 class TestSkinningWeightNormalization(unittest.TestCase):
     def test_per_vertex_weights_sum_to_one(self):
-        model = anny.Anny(
-            rig="default", topology="default", remove_unattached_vertices=True,
-        )
-        row_sums = model.vertex_bone_weights.sum(dim=-1)
-        torch.testing.assert_close(
-            row_sums,
-            torch.ones_like(row_sums),
-            atol=1e-6, rtol=0,
-        )
+        for rig in _RIG_PRESET_FILES:
+            with self.subTest(rig=rig):
+                model = anny.Anny(
+                    rig=rig, topology="default", remove_unattached_vertices=True,
+                )
+                row_sums = model.vertex_bone_weights.sum(dim=-1)
+                torch.testing.assert_close(
+                    row_sums,
+                    torch.ones_like(row_sums),
+                    atol=1e-6, rtol=0,
+                )
 
 
 class TestSkinningWeightSymmetry(unittest.TestCase):
