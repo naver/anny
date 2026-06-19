@@ -74,6 +74,11 @@ class Anny(RiggedModelWithLinearBlendShapes):
         weights_filename: "PathLike | None" = None,
     ) -> None:
         from anny.models import build_fullbody_model_data
+        if bone_orientation == "procrustes" and rig != "soma":
+            # TODO: fix this, procrustes bone orientation should be supported for all rigs, but currently it is only implemented for the soma rig
+            raise NotImplementedError(
+                "bone_orientation='procrustes' is only supported for rig='soma'."
+            )
 
         data = build_fullbody_model_data(
             rig=rig,

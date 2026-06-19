@@ -22,6 +22,13 @@ class TestInstantiation(unittest.TestCase):
                     model = anny.Anny(rig=rig, topology=topology)
                     self.assertIsNotNone(model)
 
+    def test_procrustes_model(self):
+        for rig in ["soma"]:
+            for topology in ["default", "soma"]:
+                with self.subTest(rig=rig, topology=topology):
+                    model = anny.Anny(rig=rig, topology=topology, bone_orientation="procrustes")
+                    self.assertIsNotNone(model)
+
     def test_anny_is_normal_rigged_model_instance(self):
         model = anny.Anny()
 
