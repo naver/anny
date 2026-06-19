@@ -44,58 +44,6 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
         template_bone_vertices: torch.Tensor | None = None,
     ) -> None:
         super().__init__()
-        self._init_buffers(
-            template_vertices=template_vertices,
-            faces=faces,
-            texture_coordinates=texture_coordinates,
-            face_texture_coordinate_indices=face_texture_coordinate_indices,
-            blendshapes=blendshapes,
-            template_bone_heads=template_bone_heads,
-            bone_heads_blendshapes=bone_heads_blendshapes,
-            bone_parents=bone_parents,
-            bone_labels=bone_labels,
-            vertex_bone_weights=vertex_bone_weights,
-            vertex_bone_indices=vertex_bone_indices,
-            base_mesh_vertex_indices=base_mesh_vertex_indices,
-            skinning_method=skinning_method,
-            reference_bone_orientations=reference_bone_orientations,
-            pose_parameterization=pose_parameterization,
-            template_bone_tails=template_bone_tails,
-            bone_tails_blendshapes=bone_tails_blendshapes,
-            bone_rolls_rotmat=bone_rolls_rotmat,
-            bone_orientation=bone_orientation,
-            bone_nonzeroweight_mask=bone_nonzeroweight_mask,
-            bone_vertex_indices=bone_vertex_indices,
-            bone_vertex_weights=bone_vertex_weights,
-            template_bone_vertices=template_bone_vertices,
-        )
-
-
-    def _init_buffers(self,
-        template_vertices: torch.Tensor,
-        faces: torch.Tensor,
-        texture_coordinates: torch.Tensor | None,
-        face_texture_coordinate_indices: torch.Tensor | None,
-        blendshapes: torch.Tensor,
-        template_bone_heads: torch.Tensor,
-        bone_heads_blendshapes: torch.Tensor,
-        bone_parents: list[int],
-        bone_labels: list[str],
-        vertex_bone_weights: torch.Tensor,
-        vertex_bone_indices: torch.Tensor,
-        base_mesh_vertex_indices: torch.Tensor,
-        skinning_method: SkinningMethod | None = None,
-        reference_bone_orientations: torch.Tensor | None = None,
-        pose_parameterization: PoseParameterization = "local-bone",
-        template_bone_tails: torch.Tensor | None = None,
-        bone_tails_blendshapes: torch.Tensor | None = None,
-        bone_rolls_rotmat: torch.Tensor | None = None,
-        bone_orientation: BoneOrientation = "blender-rootidentity",
-        bone_nonzeroweight_mask: torch.Tensor | None = None,
-        bone_vertex_indices: torch.Tensor | None = None,
-        bone_vertex_weights: torch.Tensor | None = None,
-        template_bone_vertices: torch.Tensor | None = None
-    ):
         self.template_vertices = torch.nn.Buffer(template_vertices, persistent=False)
         self.faces = faces
         self.texture_coordinates = torch.nn.Buffer(texture_coordinates, persistent=False) if texture_coordinates is not None else None
@@ -218,8 +166,8 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
             raise NotImplementedError
 
     def _init_from_model_data(self, data: "ModelData") -> None:
-        super().__init__()
-        self._init_buffers(
+        RiggedModelWithLinearBlendShapes.__init__(
+                self,
                 template_vertices=data.template_vertices,
                 faces=data.faces,
                 texture_coordinates=data.texture_coordinates,
