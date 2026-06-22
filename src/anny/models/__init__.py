@@ -237,8 +237,12 @@ def build_fullbody_model_data(
         )
         local_changes = "default" if local_changes else "none"
 
+    
+
     bones_to_remove = set()
-    if isinstance(rig, str) and rig.startswith("default-"):
+    if isinstance(rig, str) and rig.startswith("default"):
+        if face_units != "none":
+            bones_to_remove.update(_facial_expression_bone_labels)
         rig_specs = rig.split("-")
         assert rig_specs[0] == "default"
         for spec in rig_specs[1:]:
@@ -495,7 +499,8 @@ def build_head_model_data(
     bone_orientation: str = "blender-rootidentity",
 ):
     face_bones = {"neck01", "neck02", "neck03", "head"}
-    face_bones.update(_facial_expression_bone_labels)
+    if face_units == "none":
+        face_bones.update(_facial_expression_bone_labels)
     if eyes:
         face_bones.update(_eye_bone_labels)
     if tongue:
