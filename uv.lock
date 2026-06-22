@@ -39,6 +39,7 @@ source = { editable = "." }
 dependencies = [
     { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "packaging" },
     { name = "pillow" },
     { name = "pyyaml" },
     { name = "requests" },
@@ -78,6 +79,7 @@ requires-dist = [
     { name = "matplotlib", marker = "extra == 'examples'", specifier = ">=3.10.9" },
     { name = "notebook", marker = "extra == 'examples'" },
     { name = "numpy" },
+    { name = "packaging" },
     { name = "pillow" },
     { name = "py-soma-x", marker = "extra == 'examples'", specifier = "==0.1.0" },
     { name = "pyyaml" },

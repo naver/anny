@@ -22,6 +22,7 @@ dependencies = [
     "numpy",
     "pyyaml",
     "pillow",
+    "packaging",
     "requests",
     "safetensors",
     "trimesh"

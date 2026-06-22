@@ -2,11 +2,16 @@ import os
 import json
 import torch
 
-from anny.models.model_transforms import apply_soma_rig, apply_procrustes_retopology, LocalChanges
-from anny.utils.warp_mesh_utils import point_to_mesh_distance_and_face_uvs
+from anny.models.model_transforms import (
+    LocalChanges,
+    apply_procrustes_retopology,
+    apply_soma_rig,
+    point_to_mesh_distance_and_face_uvs,
+)
 from anny.utils.mesh_utils import triangulate_faces as _triangulate_faces
 from anny.paths import ANNY_ROOT_DIR
 from anny.models import retopology
+from anny.typing import FaceUnits
 
 
 def _load_soma_rig(root_dirname):
@@ -31,7 +36,8 @@ def build_soma_rig_and_topology_model_data(all_phenotypes=False,
                                        skinning_method=None,
                                        pose_parameterization="local-bone",
                                        extrapolate_phenotypes=False,
-                                       local_changes: LocalChanges ="none"):
+                                       local_changes: LocalChanges ="none",
+                                       face_units: bool = False):
     soma_rig_data = _load_soma_rig(ANNY_ROOT_DIR)
 
     soma_data = retopology.build_soma_topology_model_data(rig="default",
@@ -39,7 +45,8 @@ def build_soma_rig_and_topology_model_data(all_phenotypes=False,
                                            skinning_method=skinning_method,
                                            pose_parameterization=pose_parameterization,
                                            extrapolate_phenotypes=extrapolate_phenotypes,
-                                           local_changes=local_changes)
+                                           local_changes=local_changes,
+                                           face_units=face_units)
 
     data = apply_soma_rig(soma_data, soma_rig_data)
     return data
@@ -52,6 +59,7 @@ def build_soma_rig_model_data(
         pose_parameterization="local-bone",
         extrapolate_phenotypes=False,
         local_changes: LocalChanges="none",
+        face_units: bool = False,
         remove_unattached_vertices=True,
         triangulate_faces=False):
 
@@ -61,6 +69,7 @@ def build_soma_rig_model_data(
         pose_parameterization=pose_parameterization,
         extrapolate_phenotypes=extrapolate_phenotypes,
         local_changes=local_changes,
+        face_units=face_units,
     )
 
     if topology == "soma":

@@ -3,8 +3,12 @@ import torch
 import torch.autograd
 import anny
 import anny.skinning.skinning
-import anny.skinning.warp_skinning
 import roma
+
+try:
+    import anny.skinning.warp_skinning as warp_skinning
+except ImportError:
+    warp_skinning = None
 
 class TestSkinning(unittest.TestCase):
 
@@ -36,6 +40,7 @@ class TestSkinning(unittest.TestCase):
                                                 atol=1e-4,
                                                 rtol=1e-4))
 
+    @unittest.skipIf(warp_skinning is None, "Warp is not installed")
     def test_warp_lbs_gradient(self):
         dtype = torch.float64
         batch_size = 2
@@ -50,7 +55,7 @@ class TestSkinning(unittest.TestCase):
 
         def my_func(vertices, bone_weights, bone_rotations, bone_translations):
             bone_transforms = roma.Rigid(bone_rotations, bone_translations).to_homogeneous()
-            return anny.skinning.warp_skinning.linear_blend_skinning(vertices=vertices,
+            return warp_skinning.linear_blend_skinning(vertices=vertices,
                                                                         bone_weights=bone_weights,
                                                                         bone_indices=bone_indices,
                                                                         bone_transforms=bone_transforms)
@@ -63,6 +68,7 @@ class TestSkinning(unittest.TestCase):
                                 rtol=1e-4)
 
 
+    @unittest.skipIf(warp_skinning is None, "Warp is not installed")
     def test_warp_lbs_consistency(self):
         """
         Test that the LBS and Warp skinning results are consistent.
@@ -80,7 +86,7 @@ class TestSkinning(unittest.TestCase):
         
         
         bone_transforms = roma.Rigid(bone_rotations, bone_translations).to_homogeneous()
-        warp_result = anny.skinning.warp_skinning.linear_blend_skinning(vertices=vertices,
+        warp_result = warp_skinning.linear_blend_skinning(vertices=vertices,
                                                                bone_weights=bone_weights,
                                                                bone_indices=bone_indices,
                                                                bone_transforms=bone_transforms)
@@ -114,6 +120,5 @@ class TestSkinning(unittest.TestCase):
         self.assertTrue(torch.isclose(lbs_bone_translations_grad, warp_bone_translations_grad, atol=1e-6).all(), "LBS and Warp translation gradients do not match")
         self.assertTrue(torch.isclose(lbs_bone_weights_grad, warp_bone_weights_grad, atol=1e-6).all(), "LBS and Warp weight gradients do not match") # Replacing warp_bone_weights_grad with warp_bone_weights_grad/2 passed the test, but it is not correct.
         self.assertTrue(torch.isclose(lbs_vertices_grad, warp_vertices_grad, atol=1e-6).all(), "LBS and Warp vertex gradients do not match") # Replacing warp_vertices_grad with warp_vertices_grad/2 passed the test, but it is not correct.
-
 
 

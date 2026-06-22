@@ -22,11 +22,12 @@ from anny.models.model_transforms import (
     set_metadata,
 )
 import anny.utils.obj_utils
+from anny.models.face_units import load_face_unit_blendshapes, normalize_face_units
 from anny.models.phenotype import PHENOTYPE_VARIATIONS
 from anny.models.model_data import ModelData, AnnyModelMetadata, cache_builder
 from anny.paths import ANNY_ROOT_DIR, PathLike
 import anny.models.model_transforms as model_transforms
-from anny.typing import RigPreset, SkinningMethod
+from anny.typing import FaceUnits, RigPreset, SkinningMethod
 
 logger = logging.getLogger(__name__)
 
@@ -149,12 +150,19 @@ def _get_coordinates_regressor(groups, data):
 
 
 
-def _build_model_data_from_raw(d: dict, bone_labels, bone_parents, local_change_labels) -> ModelData:
+def _build_model_data_from_raw(
+    d: dict,
+    bone_labels,
+    bone_parents,
+    local_change_labels,
+    face_unit_labels,
+) -> ModelData:
     """Assemble a ModelData from the raw tensors computed in load_data."""
     metadata = AnnyModelMetadata(
         bone_parents=bone_parents,
         bone_labels=bone_labels,
         local_change_labels=local_change_labels,
+        face_unit_labels=face_unit_labels,
         pose_parameterization="local-bone",
         skinning_method=None,
         all_phenotypes=False,
@@ -187,6 +195,7 @@ def load_data(
             tongue : bool = False,
             remove_zero_weights_bones : bool = False,
             bones_to_remove: set[str] = set(),
+            face_units: bool = False,
             root_dirname : PathLike = ANNY_ROOT_DIR,
 ) -> ModelData:
     # Copy so we never mutate a caller-owned set, and so the shared default never accumulates state across calls.
@@ -360,8 +369,27 @@ def load_data(
                             local_blend_shapes.append(pos_blend_shape)
                             local_blend_shapes.append(neg_blend_shape)
 
-    logger.info(f"{len(universal_blend_shapes)=}, {len(race_blend_shapes)=}, {len(height_blend_shapes)=}, {len(proportions_blend_shapes)=}, {len(breast_blend_shapes)=}, {len(local_blend_shapes)=}")
-    stacked_phenotype_blend_shapes = torch.stack(l_blend_shape + local_blend_shapes) # [564,19158,3]
+    face_units = normalize_face_units(face_units)
+    face_unit_labels = []
+    face_unit_blend_shapes = []
+    if face_units:
+        face_unit_labels, face_unit_blend_shape_tensor = load_face_unit_blendshapes(
+            root_dirname=root_dirname,
+            vertices_count=len(template_vertices),
+            world_transformation=world_transformation,
+            dtype=template_vertices.dtype,
+        )
+        face_unit_blend_shapes = list(face_unit_blend_shape_tensor)
+
+    logger.info(
+        f"{len(universal_blend_shapes)=}, {len(race_blend_shapes)=}, "
+        f"{len(height_blend_shapes)=}, {len(proportions_blend_shapes)=}, "
+        f"{len(breast_blend_shapes)=}, {len(face_unit_blend_shapes)=}, "
+        f"{len(local_blend_shapes)=}"
+    )
+    stacked_phenotype_blend_shapes = torch.stack(
+        l_blend_shape + face_unit_blend_shapes + local_blend_shapes
+    ) # [564,19158,3]
     stacked_phenotype_blend_shapes_mask = torch.stack(l_mask) # [564,25]
 
     bones_count = len(bone_labels)
@@ -401,6 +429,7 @@ def load_data(
         bone_labels=bone_labels,
         bone_parents=bone_parents,
         local_change_labels=local_change_labels,
+        face_unit_labels=face_unit_labels,
     )
     return data
 
@@ -505,6 +534,7 @@ def build_model_data(rig: RigPreset | PathLike = "default",
                  bones_to_remove: set[str] = set(),
                  faces_to_keep: torch.Tensor | None = None,
                  local_changes: LocalChanges = "none",
+                 face_units: FaceUnits = "none",
                  skinning_method: SkinningMethod | None = None,
                  remove_unattached_vertices: bool = False,
                  triangulate_faces: bool = False,
@@ -531,6 +561,7 @@ def build_model_data(rig: RigPreset | PathLike = "default",
         eyes=eyes,
         tongue=tongue,
         bones_to_remove=bones_to_remove,
+        face_units=face_units,
         root_dirname=root_dirname,
     )
 

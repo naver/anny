@@ -119,6 +119,31 @@ scene.apply_transform(trimesh_scene_transform)  # Rotate the scene to have a bet
 scene.show()  # This will open a window to visualize the scene with all the faces in
 
 # %% [markdown]
+# ## ARKit face units
+#
+# Full-body and head models can optionally expose ARKit-compatible face units.
+# The dictionary form is convenient for sparse edits, while tensor input is convenient for batched optimization.
+
+# %%
+face_model = anny.create_head_model(face_units="arkit").to(device=device, dtype=dtype)
+
+arkit_face_units = {
+    "jawOpen": torch.tensor([0.0, 0.6], dtype=dtype, device=device),
+    "mouthSmileLeft": torch.tensor([0.0, 0.4], dtype=dtype, device=device),
+    "mouthSmileRight": torch.tensor([0.0, 0.4], dtype=dtype, device=device),
+}
+dict_output = face_model(arkit_face_units=arkit_face_units)
+
+values = torch.zeros((2, len(face_model.face_unit_labels)), dtype=dtype, device=device)
+values[:, face_model.face_unit_labels.index("jawOpen")] = torch.tensor([0.0, 0.6], dtype=dtype, device=device)
+values[:, face_model.face_unit_labels.index("mouthSmileLeft")] = torch.tensor([0.0, 0.4], dtype=dtype, device=device)
+values[:, face_model.face_unit_labels.index("mouthSmileRight")] = torch.tensor([0.0, 0.4], dtype=dtype, device=device)
+tensor_output = face_model(arkit_face_units=values)
+
+torch.testing.assert_close(dict_output["vertices"], tensor_output["vertices"])
+display(Markdown("**ARKit face unit labels:** " + ", ".join(face_model.face_unit_labels)))
+
+# %% [markdown]
 # ## Phenotype distribution
 
 # %%

@@ -47,6 +47,24 @@ By default the cache is stored in `~/.cache/anny/`. To use a different location,
 export ANNY_CACHE_DIR=/path/to/cache
 ```
 
+## Face units
+
+Full-body and head Anny models can optionally load face units:
+
+```python
+import torch
+import anny
+
+model = anny.Anny(face_units=True)
+out = model(face_units={"jawOpen": 0.8, "mouthSmileLeft": 0.4})
+
+values = torch.zeros(1, len(model.face_unit_labels), dtype=model.dtype, device=model.device)
+values[:, model.face_unit_labels.index("jawOpen")] = 0.8
+out = model(face_units=values)
+```
+
+The default is `face_units=False`, which keeps the existing model behavior. Face unit values are normalized in `[0, 1]`; tensor input is ordered by `model.face_unit_labels`.
+
 ## Tutorials
 
 To get started with Anny, you can have a look at the different tutorials in the `tutorials` directory:

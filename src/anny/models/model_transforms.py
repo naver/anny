@@ -9,6 +9,7 @@ import logging
 
 import roma
 import torch
+import trimesh
 import trimesh.graph
 
 from anny.models.phenotype import Anny
@@ -69,10 +70,10 @@ def filter_local_changes(data: ModelData, local_changes: LocalChanges) -> ModelD
     local_change_labels = [
         label for i, label in enumerate(labels) if local_changes_mask[i]
     ]
-    phenotype_count = len(data.blendshapes) - 2 * len(labels)
+    non_local_count = len(data.blendshapes) - 2 * len(labels)
     blend_shapes_mask = torch.concatenate(
         (
-            torch.ones(phenotype_count, dtype=torch.bool),
+            torch.ones(non_local_count, dtype=torch.bool),
             torch.as_tensor(local_changes_mask, dtype=torch.bool).repeat_interleave(2),
         )
     )
@@ -383,7 +384,6 @@ def apply_retopology_from_mesh(
     must share the same ordering as data. source_faces may be pre-triangulated (shape (N, 3)) or not.
     The new topology's template vertices are derived by bary-interpolating data.template_vertices.
     """
-    from anny.utils.warp_mesh_utils import point_to_mesh_distance_and_face_uvs
     assert data.template_vertices.shape[0] == len(source_vertices), (
         "source_vertices must have the same number of vertices as data.template_vertices"
     )
@@ -441,8 +441,6 @@ def apply_procrustes_retopology(
     """Apply a new topology with procrustes-based bone orientation, reusing *source_model* buffers."""
     if base_mesh_vertex_indices is None:
         base_mesh_vertex_indices = torch.arange(len(vertices), dtype=torch.int64)
-    from anny.utils.warp_mesh_utils import point_to_mesh_distance_and_face_uvs
-
     blendshapes = sum(
         data.blendshapes[:, reference_vertex_indices[:, i]]
         * barycentric_coordinates[i][None, :, None]

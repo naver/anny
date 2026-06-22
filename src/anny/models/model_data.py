@@ -38,6 +38,7 @@ class AnnyModelMetadata(ModelMetadata):
     local_change_labels: list
     all_phenotypes: bool
     extrapolate_phenotypes: bool
+    face_unit_labels: list[str] = dataclasses.field(default_factory=list)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -121,23 +122,28 @@ class ModelData:
 
 def _get_builder_metadata(f: Callable[..., ModelData], *args, **kwargs) -> dict[str, str | int | bool]:
     all_kwargs = {}
+
     def _to_valid(x):
         if isinstance(x, Path):
             return str(x)
         if isinstance(x, (set, frozenset)):
             return sorted(x)
         return x
+
     for i, param in enumerate(inspect.signature(f).parameters.values()):
         if i < len(args):
-            all_kwargs[param.name] = _to_valid(args[i])
+            value = _to_valid(args[i])
+        elif kwargs.get(param.name) is not None:
+            value = _to_valid(kwargs[param.name])
+        elif param.default is not param.empty:
+            value = _to_valid(param.default)
+        else:
+            raise ValueError(f"Missing value for parameter {param.name} of builder function {f.__name__}")
+
+        if param.name == "face_units" and value == "none":
             continue
-        if kwargs.get(param.name) is not None:
-            all_kwargs[param.name] = _to_valid(kwargs[param.name])
-            continue
-        if param.default is not param.empty:
-            all_kwargs[param.name] = _to_valid(param.default)
-            continue
-        raise ValueError(f"Missing value for parameter {param.name} of builder function {f.__name__}")
+
+        all_kwargs[param.name] = value
     return all_kwargs
 
 

@@ -28,7 +28,14 @@ class TestVarious(unittest.TestCase):
         phenotype_kwargs = { key : torch.rand((batch_size,), dtype=self.dtype, device=self.device, generator=generator) for key in model.phenotype_labels}
 
         epsilon = 1e-8
-        for skinning_method in ['lbs', 'dqs', 'warp_lbs']:
+        skinning_methods = ['lbs', 'dqs']
+        try:
+            import warp
+            skinning_methods.append('warp_lbs')
+        except ImportError:
+            pass
+
+        for skinning_method in skinning_methods:
             model.set_skinning_method(skinning_method)
 
             # Run the model

@@ -3,7 +3,7 @@
 # Apache License, Version 2.0
 import torch
 from typing import Literal
-from anny.typing import Topology
+from anny.typing import FaceUnits, Topology
 from anny.utils import obj_utils
 from anny.models.full_model import RigPreset, build_model_data
 from anny.models.model_transforms import apply_retopology, apply_retopology_from_mesh
@@ -36,6 +36,7 @@ def build_smplx_topology_model_data(rig: RigPreset | PathLike = "default",
                                 pose_parameterization: str = "local-bone",
                                 extrapolate_phenotypes=False,
                                 local_changes="none",
+                                face_units: bool = False,
                                 bone_orientation="default-rootidentity",
                                 root_dirname=ANNY_ROOT_DIR,
                                 weights_filename: PathLike | None = None):
@@ -49,6 +50,7 @@ def build_smplx_topology_model_data(rig: RigPreset | PathLike = "default",
                                         pose_parameterization=pose_parameterization,
                                         extrapolate_phenotypes=extrapolate_phenotypes,
                                         local_changes=local_changes,
+                                        face_units=face_units,
                                         bone_orientation=bone_orientation,
                                         root_dirname=root_dirname,
                                         weights_filename=weights_filename)
@@ -79,6 +81,7 @@ def build_smpl_topology_model_data(rig: RigPreset | PathLike = "default",
                                 pose_parameterization: str = "root_relative_world",
                                 extrapolate_phenotypes=False,
                                 local_changes="none",
+                                face_units: bool = False,
                                 bone_orientation="default",
                                 root_dirname=ANNY_ROOT_DIR,
                                 weights_filename: PathLike | None = None):
@@ -92,6 +95,7 @@ def build_smpl_topology_model_data(rig: RigPreset | PathLike = "default",
                                         pose_parameterization=pose_parameterization,
                                         extrapolate_phenotypes=extrapolate_phenotypes,
                                         local_changes=local_changes,
+                                        face_units=face_units,
                                         bone_orientation=bone_orientation,
                                         root_dirname=root_dirname,
                                         weights_filename=weights_filename)
@@ -122,6 +126,7 @@ def build_soma_topology_model_data(rig: RigPreset | PathLike ="default",
                                 pose_parameterization: str = "local-bone",
                                 extrapolate_phenotypes=False,
                                 local_changes="none",
+                                face_units: bool = False,
                                 bone_orientation="default-rootidentity",
                                 root_dirname=ANNY_ROOT_DIR,
                                 weights_filename: PathLike | None = None):
@@ -133,6 +138,7 @@ def build_soma_topology_model_data(rig: RigPreset | PathLike ="default",
                                       pose_parameterization=pose_parameterization,
                                       extrapolate_phenotypes=extrapolate_phenotypes,
                                       local_changes=local_changes,
+                                      face_units=face_units,
                                       bone_orientation=bone_orientation,
                                       root_dirname=root_dirname,
                                       weights_filename=weights_filename,
@@ -147,6 +153,7 @@ def build_alternative_topology_model_data(rig: RigPreset | PathLike ="default",
                                 pose_parameterization: str = "local-bone",
                                 extrapolate_phenotypes=False,
                                 local_changes="none",
+                                face_units: bool = False,
                                 bone_orientation="default-rootidentity",
                                 root_dirname=ANNY_ROOT_DIR,
                                 weights_filename: PathLike | None = None,
@@ -165,6 +172,7 @@ def build_alternative_topology_model_data(rig: RigPreset | PathLike ="default",
                                 pose_parameterization=pose_parameterization,
                                 extrapolate_phenotypes=extrapolate_phenotypes,
                                 local_changes=local_changes,
+                                face_units=face_units,
                                 remove_unattached_vertices=is_soma,
                                 bone_orientation=bone_orientation,
                                 root_dirname=root_dirname, weights_filename=weights_filename)
