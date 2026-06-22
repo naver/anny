@@ -28,8 +28,9 @@ class TestUtils(unittest.TestCase):
         device = torch.device("cpu")
 
         # create model
-        rig = 'default-noeyes-notongue-noexpression-notoes-nohands-nobreasts'
+        # rig = 'default-noeyes-notongue-noexpression-notoes-nohands-nobreasts'
         # rig = 'mixamo'
+        rig = 'soma'
         model = anny.Anny(rig=rig).to(dtype=dtype, device=device)
         batch_size = 32
 
@@ -260,4 +261,84 @@ class TestUtils(unittest.TestCase):
                 pve < epsilon,
                 f"Reconstruction error too high for {obj_path}: {1000.*pve:.4f} mm"
             )
+
+    def test_fit_smplx_random_mesh(self):
+        """
+        Fit Anny model to a random SMPL-X mesh and verify reconstruction error.
+
+        Random SMPLX- parameters are sampled to generate a target mesh using the
+        SMPL-X topology. The ParametersRegressor then optimizes both pose and
+        phenotype parameters to fit this target mesh using a Anny model with a specific rig.
+        The test verifies that the mean per-vertex error (PVE) is below a reasonable threshold (i.e. 25 mm).
+        """
+
+        torch.manual_seed(0)
+
+        dtype = torch.float32
+        device = torch.device("cpu")
+        batch_size = 32
+
+        for topology in ['smplx', 'smpl']:
+
+            #-----------Generating fake random SMPL-X meshes------------------#
+
+            ## 1) Defining the body model using SMPLX wrapper
+            from anny.models.smpl import SMPLX, SMPL
+            model_path = "smplx_models"
+            try:
+                if topology == 'smplx':
+                    bone_count = 21
+                    model2 = SMPLX(topology=topology, model_path=model_path, use_pca=False, flat_hand_mean=False).to(dtype=dtype, device=device)
+                elif topology == 'smpl':
+                    bone_count = 23
+                    model2 = SMPL(topology=topology, model_path=model_path).to(dtype=dtype, device=device)
+                else:
+                    raise ValueError(f"Unknown topology: {topology}")
+            except Exception as e:
+                self.skipTest(f"Skipping SMPL-X fitting test: SMPLX instantiation failed: {e}")
+
+            # 2) Generating random pose/shape
+            global_orient = 0.2 * torch.randn((batch_size, 3), dtype=dtype, device=device)
+            body_pose = 0.2 * torch.randn((batch_size, bone_count*3), dtype=dtype, device=device)
+            jaw_pose = 0.2 * torch.randn((batch_size, 3), dtype=dtype, device=device)
+            leye_pose = 0.2 * torch.randn((batch_size, 3), dtype=dtype, device=device)
+            reye_pose = 0.2 * torch.randn((batch_size, 3), dtype=dtype, device=device)
+            left_hand_pose = 0.2 * torch.randn((batch_size, 15*3), dtype=dtype, device=device)
+            right_hand_pose = 0.2 * torch.randn((batch_size, 15*3), dtype=dtype, device=device)
+            expression = 0.2 * torch.randn((batch_size, 10), dtype=dtype, device=device)
+            transl = 0.2 * torch.randn((batch_size, 3), dtype=dtype, device=device)
+            betas = 1.0 * torch.randn((batch_size, 10), dtype=dtype, device=device)
+
+            # 3) Forward to get the target meshes
+            with torch.no_grad():
+                if topology == 'smplx':
+                    output = model2(betas, expression, global_orient, transl, body_pose, leye_pose, reye_pose, left_hand_pose, right_hand_pose, jaw_pose)
+                elif topology == 'smpl':
+                    output = model2(betas, global_orient, transl, body_pose)
+                else:
+                    raise NameError(f"Unknown topology: {topology}")
+            vertices_target = output['vertices'] # torch.Tensor of shape [batch_size, 13784, 3]
+            #--------------------------------------------------------------------#
+        
+            # Instantate the Anny body model and the fitter
+            rig = 'default-noeyes-notongue-noexpression-notoes-nohands-nobreasts'
+            # rig = 'soma'
+            model1 = anny.Anny(rig=rig, topology=topology).to(dtype=dtype, device=device)
+            fitter = anny.ParametersRegressor(model=model1, verbose=True, max_n_iters=5)
+
+            # Run the fitting procedure
+            pose, phenotype, vertices_hat = fitter(vertices_target=vertices_target, 
+                                            optimize_phenotypes=True, 
+                                            excluded_phenotypes=['age', 'gender'],
+                                            )
+
+            # Compute reconstruction error
+            pve = torch.norm(vertices_hat - vertices_target, dim=-1).mean() # in mm
+            print(f"Mean PVE: {1000.*pve:.4f} mm")
+
+            epsilon = 0.025 # 25 mm tolerance
+            self.assertTrue(
+                    pve < epsilon,
+                    f"Reconstruction error too high: {1000.*pve:.4f} mm"
+                )
     

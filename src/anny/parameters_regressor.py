@@ -77,7 +77,7 @@ class ParametersRegressor:
             }
         """
         W, I = self.model.vertex_bone_weights[self.unique_ids], self.model.vertex_bone_indices[self.unique_ids]
-        V, J = W.shape[0], int(I.max().item()) + 1
+        V, J = W.shape[0], len(self.model.bone_labels)
         jvs, vjw = [[] for _ in range(J)], [[] for _ in range(J)]
 
         for i in range(V):
@@ -136,7 +136,7 @@ class ParametersRegressor:
         if initial_pose_parameters is not None:
             pose_parameters = initial_pose_parameters # [bs,k,4,4]
         else:
-            pose_parameters = roma.Rigid.Identity(dim=3, batch_shape=(batch_size, self.model.bone_count), dtype=self.dtype, device=self.device).to_homogeneous()
+            pose_parameters = roma.Rigid.identity(dim=3, batch_shape=(batch_size, self.model.bone_count), dtype=self.dtype, device=self.device).to_homogeneous()
 
         phenotype_kwargs = {k: torch.full((batch_size,), 0.5, dtype=self.dtype, device=self.device) for k in self.model.phenotype_labels}
         phenotype_kwargs['age'] = torch.tensor([0.7], dtype=self.dtype, device=self.device).repeat(batch_size) # starting from an adult average age to help convergence
