@@ -30,9 +30,9 @@ class TestFaceUnits(unittest.TestCase):
         return values
 
     def test_arkit_label_count_and_order(self):
-        self.assertEqual(len(ARKIT_FACE_UNIT_LABELS), 52)
-        self.assertEqual(len(set(ARKIT_FACE_UNIT_LABELS)), 52)
-        self.assertEqual(self.model.face_unit_labels, ARKIT_FACE_UNIT_LABELS)
+        self.assertEqual(len(FACE_UNIT_LABELS), 52)
+        self.assertEqual(len(set(FACE_UNIT_LABELS)), 52)
+        self.assertEqual(self.model.face_unit_labels, FACE_UNIT_LABELS)
         self.assertEqual(self.model.face_unit_labels[0], "browDownLeft")
         self.assertEqual(self.model.face_unit_labels[-1], "tongueOut")
         self.assertIn("jawOpen", self.model.face_unit_labels)
@@ -49,7 +49,7 @@ class TestFaceUnits(unittest.TestCase):
             dtype=self.dtype,
         )
 
-        self.assertEqual(labels, ARKIT_FACE_UNIT_LABELS)
+        self.assertEqual(labels, FACE_UNIT_LABELS)
         self.assertEqual(
             blendshapes.shape,
             (52, self.model.template_vertices.shape[0], 3),
@@ -62,8 +62,8 @@ class TestFaceUnits(unittest.TestCase):
             anny.Anny(face_units="made_up")
 
     def test_dict_input_changes_output_vertices(self):
-        zero_output = self.model(arkit_face_units={})
-        moved_output = self.model(arkit_face_units={"jawOpen": 1.0})
+        zero_output = self.model(face_units={})
+        moved_output = self.model(face_units={"jawOpen": 1.0})
 
         self.assertFalse(
             torch.allclose(
@@ -87,17 +87,17 @@ class TestFaceUnits(unittest.TestCase):
             "eyeBlinkRight": torch.full((2,), 0.25, dtype=self.dtype, device=self.device),
         }
 
-        tensor_output = self.model(arkit_face_units=values)
-        dict_output = self.model(arkit_face_units=dict_values)
+        tensor_output = self.model(face_units=values)
+        dict_output = self.model(face_units=dict_values)
 
         torch.testing.assert_close(tensor_output["rest_vertices"], dict_output["rest_vertices"])
         torch.testing.assert_close(tensor_output["vertices"], dict_output["vertices"])
 
     def test_out_of_range_dict_values_raise_value_error(self):
-        with self.assertRaisesRegex(ValueError, "ARKit face unit values must be in \\[0, 1\\]"):
-            self.model(arkit_face_units={"jawOpen": -0.1})
-        with self.assertRaisesRegex(ValueError, "ARKit face unit values must be in \\[0, 1\\]"):
-            self.model(arkit_face_units={"jawOpen": 1.1})
+        with self.assertRaisesRegex(ValueError, "Face unit values must be in \\[0, 1\\]"):
+            self.model(face_units={"jawOpen": -0.1})
+        with self.assertRaisesRegex(ValueError, "Face unit values must be in \\[0, 1\\]"):
+            self.model(face_units={"jawOpen": 1.1})
 
     def test_out_of_range_tensor_values_raise_value_error(self):
         values = self._values(jawOpen=0.5)
