@@ -26,13 +26,18 @@ logger = logging.getLogger(__name__)
 def _get_symmetric_bone_name(bone_name: str) -> str:
     """Return the mirror counterpart of a bone name across the body's symmetry plane.
 
-    `.L` and `.R` suffixes are swapped (e.g. `upperarm02.L` -> `upperarm02.R`).
-    Central bones (no `.L`/`.R` suffix) are their own mirror and returned unchanged.
+    Supports the built-in MakeHuman ``.L``/``.R`` suffixes and rigs that use
+    ``Left``/``Right`` tokens, such as Mixamo and SOMA. Central bones are their
+    own mirror and returned unchanged.
     """
     if bone_name.endswith(".L"):
         return bone_name[:-2] + ".R"
     if bone_name.endswith(".R"):
         return bone_name[:-2] + ".L"
+    if "Left" in bone_name:
+        return bone_name.replace("Left", "Right", 1)
+    if "Right" in bone_name:
+        return bone_name.replace("Right", "Left", 1)
     return bone_name
 
 

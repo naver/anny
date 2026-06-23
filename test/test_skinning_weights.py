@@ -62,6 +62,20 @@ class TestSkinningWeightNormalization(unittest.TestCase):
 
 
 class TestSkinningWeightSymmetry(unittest.TestCase):
+    def test_symmetric_bone_name_supports_builtin_rig_naming_schemes(self):
+        cases = {
+            "upperarm02.L": "upperarm02.R",
+            "upperarm02.R": "upperarm02.L",
+            "mixamorig:LeftArm": "mixamorig:RightArm",
+            "mixamorig:RightForeArm": "mixamorig:LeftForeArm",
+            "LeftHandThumb1": "RightHandThumb1",
+            "RightEye": "LeftEye",
+            "spine": "spine",
+        }
+        for bone_name, expected in cases.items():
+            with self.subTest(bone_name=bone_name):
+                self.assertEqual(_get_symmetric_bone_name(bone_name), expected)
+
     def test_lr_bone_pairs_have_mirrored_skinning_weights(self):
         model = anny.Anny(
             rig="default", topology="default",
