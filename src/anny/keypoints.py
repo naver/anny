@@ -3,6 +3,7 @@
 # Apache License, Version 2.0
 import torch
 from anny.paths import ANNY_ROOT_DIR
+from anny.torch_compat import make_buffer
 from pathlib import Path
 
 class KeypointsRegressor(torch.nn.Module):
@@ -41,7 +42,7 @@ class KeypointsRegressor(torch.nn.Module):
             weights = keypoints_data[label][model.base_mesh_vertex_indices].to(dtype=dtype, device=device)
             assert torch.abs(weights.sum() - 1) < 1e-3
             regression_weights[k] = weights
-        self.regression_weights = torch.nn.Buffer(regression_weights, persistent=False)
+        self.regression_weights = make_buffer(self, "regression_weights", regression_weights, persistent=False)
         self.labels = labels
 
     def forward(self, model_output):

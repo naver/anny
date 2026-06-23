@@ -9,6 +9,7 @@ import torch
 from anny.models.rigged_model import RiggedModelWithLinearBlendShapes
 import anny.models.model_transforms
 from anny.paths import get_anny2smpl_data_path, get_anny2smplx_data_path
+from anny.torch_compat import make_buffer
 
 
 with warnings.catch_warnings():
@@ -159,7 +160,7 @@ class SMPLX(RiggedModelWithLinearBlendShapes):
             reference_bone_orientations=data.reference_bone_orientations,
             pose_parameterization=data.metadata.pose_parameterization,)
 
-        self.vertex_mask = torch.nn.Buffer(vertex_mask, persistent = False) if vertex_mask is not None else None
+        self.vertex_mask = make_buffer(self, "vertex_mask", vertex_mask, persistent=False) if vertex_mask is not None else None
 
 
     def forward(self, betas, expression, global_orient, transl, body_pose, leye_pose, reye_pose, left_hand_pose, right_hand_pose, jaw_pose):
@@ -310,7 +311,7 @@ class SMPL(RiggedModelWithLinearBlendShapes):
             base_mesh_vertex_indices=data.base_mesh_vertex_indices
         )
         
-        self.vertex_mask = torch.nn.Buffer(vertex_mask, persistent = False) if vertex_mask is not None else None
+        self.vertex_mask = make_buffer(self, "vertex_mask", vertex_mask, persistent=False) if vertex_mask is not None else None
 
     def forward(self, betas, global_orient, transl, body_pose):
         rotvec = torch.cat([global_orient.reshape(-1, 1, 3),

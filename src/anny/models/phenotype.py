@@ -7,6 +7,7 @@ from typing import TYPE_CHECKING, Union
 
 import torch
 
+from anny.torch_compat import make_buffer
 from anny.models.rigged_model import BoneOrientation, PoseParameterization, RiggedModelWithLinearBlendShapes
 
 if TYPE_CHECKING:
@@ -116,7 +117,7 @@ class Anny(RiggedModelWithLinearBlendShapes):
                                    base_mesh_vertex_indices,
                                    extrapolate_phenotypes,
                                    all_phenotypes):
-        self.stacked_phenotype_blend_shapes_mask = torch.nn.Buffer(stacked_phenotype_blend_shapes_mask, persistent=False)
+        self.stacked_phenotype_blend_shapes_mask = make_buffer(self, "stacked_phenotype_blend_shapes_mask", stacked_phenotype_blend_shapes_mask, persistent=False)
         self.local_change_labels = local_change_labels
         self.base_mesh_vertex_indices = base_mesh_vertex_indices
         self.extrapolate_phenotypes = extrapolate_phenotypes
