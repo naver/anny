@@ -9,12 +9,10 @@ The default skinning weights used to be cleaned up at model-build time by two pa
 have been removed; instead this one-shot script applies the same passes offline and writes
 the cleaned weights back to `weights.default.json`.
 
-It reads the raw weights from `weights.legacy.json` (the original MakeHuman export) and
-writes the improved weights to `weights.default.json`. `edit_mesh` only rewrites faces, not
-vertex indices, so the cleaned per-vertex weights stay keyed to the same raw vertex IDs and
-can be written straight back into the sparse JSON format.
+It reads the raw weights from `weights.makehuman.json` (the original default from MakeHuman) and
+writes the improved weights to `weights.default.json`.
 
-Re-run this script whenever the legacy weights or the cleanup transforms change:
+Re-run this script whenever the original weights or the cleanup transforms change:
 
     uv run python scripts/compute_skinning_weights.py
 """
@@ -26,7 +24,7 @@ from anny.models.full_model import ANNY_ROOT_DIR, load_data
 
 _STANDARD_DIR = os.path.join(ANNY_ROOT_DIR, "data/mpfb2/rigs/standard")
 _RIG_FILENAME = os.path.join(_STANDARD_DIR, "rig.default.json")
-_SRC_WEIGHTS = os.path.join(_STANDARD_DIR, "weights.legacy.json")
+_SRC_WEIGHTS = os.path.join(_STANDARD_DIR, "weights.makehuman.json")
 _OUT_WEIGHTS = os.path.join(_STANDARD_DIR, "weights.default.json")
 
 

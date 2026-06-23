@@ -24,6 +24,8 @@ ANNY_VERSION = importlib.metadata.version("anny")
 # values, not file content). v2: default skinning weights rebaked (symmetric + island-free).
 CURRENT_DATA_VERSION = 2
 
+logger = logging.getLogger(__name__)
+
 @dataclasses.dataclass(frozen=True)
 class ModelMetadata:
     """Non-tensor configuration for a RiggedModelWithLinearBlendShapes."""

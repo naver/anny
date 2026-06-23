@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import pathlib
+from typing import Literal
 import warnings
 import gzip
 
@@ -29,10 +30,8 @@ from anny.typing import RigPreset, SkinningMethod
 
 logger = logging.getLogger(__name__)
 
-RigPreset = Literal["default", "legacy", "cmu_mb", "game_engine", "mixamo"]
+RigPreset = Literal["default", "makehuman", "cmu_mb", "game_engine", "mixamo"]
 SkinningMethod = Literal["lbs", "dqs", "warp_lbs"]
-
-
 
 
 
@@ -470,10 +469,10 @@ def get_edited_mesh_faces(faces: torch.Tensor, face_texture_coordinate_indices: 
 
 # Maps a `RigPreset` name to (rig basename, weights basename) under data/mpfb2/rigs/standard/.
 # `default` uses the cleaned weights baked by scripts/compute_skinning_weights.py;
-# `legacy` uses the original raw MakeHuman weights (no symmetry/island cleanup).
+# `makehuman` uses the original default MakeHuman weights (no symmetry/island cleanup).
 _RIG_PRESET_FILES: dict[str, tuple[str, str]] = {
     "default":     ("rig.default.json",     "weights.default.json"),
-    "legacy":      ("rig.default.json",     "weights.legacy.json"),
+    "makehuman":      ("rig.default.json",     "weights.makehuman.json"),
     "cmu_mb":      ("rig.cmu_mb.json",      "weights.cmu_mb.json"),
     "game_engine": ("rig.game_engine.json", "weights.game_engine.json"),
     "mixamo":      ("rig.mixamo.json",      "weights.mixamo.json"),
