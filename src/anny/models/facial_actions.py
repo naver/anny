@@ -98,7 +98,7 @@ def load_plain_target(
     return world_transformation.apply(blend_shape)
 
 
-def load_face_unit_blendshapes(
+def load_facial_action_blendshapes(
     root_dirname: PathLike = ANNY_ROOT_DIR,
     vertices_count: int | None = None,
     world_transformation=None,

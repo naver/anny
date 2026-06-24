@@ -22,7 +22,7 @@ from anny.models.model_transforms import (
     set_metadata,
 )
 import anny.utils.obj_utils
-from anny.models.facial_actions import load_face_unit_blendshapes
+from anny.models.facial_actions import load_facial_action_blendshapes
 from anny.models.phenotype import PHENOTYPE_VARIATIONS
 from anny.models.model_data import ModelData, AnnyModelMetadata, cache_builder
 from anny.paths import ANNY_ROOT_DIR, PathLike
@@ -150,14 +150,14 @@ def _build_model_data_from_raw(
     bone_labels,
     bone_parents,
     local_change_labels,
-    face_unit_labels,
+    facial_action_labels,
 ) -> ModelData:
     """Assemble a ModelData from the raw tensors computed in load_data."""
     metadata = AnnyModelMetadata(
         bone_parents=bone_parents,
         bone_labels=bone_labels,
         local_change_labels=local_change_labels,
-        face_unit_labels=face_unit_labels,
+        facial_action_labels=facial_action_labels,
         pose_parameterization="local-bone",
         skinning_method=None,
         all_phenotypes=False,
@@ -364,25 +364,25 @@ def load_data(
                             local_blend_shapes.append(pos_blend_shape)
                             local_blend_shapes.append(neg_blend_shape)
 
-    face_unit_labels = []
-    face_unit_blend_shapes = []
+    facial_action_labels = []
+    facial_action_blend_shapes = []
     if facial_actions:
-        face_unit_labels, face_unit_blend_shape_tensor = load_face_unit_blendshapes(
+        facial_action_labels, facial_action_blend_shape_tensor = load_facial_action_blendshapes(
             root_dirname=root_dirname,
             vertices_count=len(template_vertices),
             world_transformation=world_transformation,
             dtype=template_vertices.dtype,
         )
-        face_unit_blend_shapes = list(face_unit_blend_shape_tensor)
+        facial_action_blend_shapes = list(facial_action_blend_shape_tensor)
 
     logger.info(
         f"{len(universal_blend_shapes)=}, {len(race_blend_shapes)=}, "
         f"{len(height_blend_shapes)=}, {len(proportions_blend_shapes)=}, "
-        f"{len(breast_blend_shapes)=}, {len(face_unit_blend_shapes)=}, "
+        f"{len(breast_blend_shapes)=}, {len(facial_action_blend_shapes)=}, "
         f"{len(local_blend_shapes)=}"
     )
     stacked_phenotype_blend_shapes = torch.stack(
-        l_blend_shape + face_unit_blend_shapes + local_blend_shapes
+        l_blend_shape + facial_action_blend_shapes + local_blend_shapes
     ) # [564,19158,3]
     stacked_phenotype_blend_shapes_mask = torch.stack(l_mask) # [564,25]
 
@@ -423,7 +423,7 @@ def load_data(
         bone_labels=bone_labels,
         bone_parents=bone_parents,
         local_change_labels=local_change_labels,
-        face_unit_labels=face_unit_labels,
+        facial_action_labels=facial_action_labels,
     )
     return data
 

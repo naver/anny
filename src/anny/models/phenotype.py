@@ -106,7 +106,7 @@ class Anny(RiggedModelWithLinearBlendShapes):
         self._init_phenotype_parameters(
             stacked_phenotype_blend_shapes_mask=data.stacked_phenotype_blend_shapes_mask,
             local_change_labels=data.metadata.local_change_labels,
-            face_unit_labels=data.metadata.face_unit_labels,
+            facial_action_labels=data.metadata.facial_action_labels,
             base_mesh_vertex_indices=data.base_mesh_vertex_indices,
             extrapolate_phenotypes=data.metadata.extrapolate_phenotypes,
             all_phenotypes=data.metadata.all_phenotypes,
@@ -115,13 +115,13 @@ class Anny(RiggedModelWithLinearBlendShapes):
     def _init_phenotype_parameters(self,
                                    stacked_phenotype_blend_shapes_mask,
                                    local_change_labels,
-                                   face_unit_labels,
+                                   facial_action_labels,
                                    base_mesh_vertex_indices,
                                    extrapolate_phenotypes,
                                    all_phenotypes):
         self.stacked_phenotype_blend_shapes_mask = make_buffer(self, "stacked_phenotype_blend_shapes_mask", stacked_phenotype_blend_shapes_mask, persistent=False)
         self.local_change_labels = local_change_labels
-        self.face_unit_labels = face_unit_labels
+        self.facial_action_labels = facial_action_labels
         self.base_mesh_vertex_indices = base_mesh_vertex_indices
         self.extrapolate_phenotypes = extrapolate_phenotypes
         self.all_phenotypes = all_phenotypes
@@ -137,8 +137,8 @@ class Anny(RiggedModelWithLinearBlendShapes):
         return anchors
 
     def _parse_facial_actions(self, facial_actions: dict | torch.Tensor | None) -> torch.Tensor:
-        face_unit_count = len(self.face_unit_labels)
-        if face_unit_count == 0:
+        facial_action_count = len(self.facial_action_labels)
+        if facial_action_count == 0:
             if facial_actions is None:
                 return torch.zeros((1, 0), dtype=self.dtype, device=self.device)
             if isinstance(facial_actions, dict) and len(facial_actions) == 0:
@@ -146,21 +146,21 @@ class Anny(RiggedModelWithLinearBlendShapes):
             raise ValueError("facial_actions were passed, but this model was built with facial_actions='none'.")
 
         if facial_actions is None:
-            return torch.zeros((1, face_unit_count), dtype=self.dtype, device=self.device)
+            return torch.zeros((1, facial_action_count), dtype=self.dtype, device=self.device)
 
         if isinstance(facial_actions, torch.Tensor):
             values = torch.as_tensor(facial_actions, dtype=self.dtype, device=self.device)
-            if values.dim() != 2 or values.shape[1] != face_unit_count:
+            if values.dim() != 2 or values.shape[1] != facial_action_count:
                 raise ValueError(
-                    f"facial_actions tensor must have shape [B, {face_unit_count}], got {tuple(values.shape)}."
+                    f"facial_actions tensor must have shape [B, {facial_action_count}], got {tuple(values.shape)}."
                 )
             return values
 
         if isinstance(facial_actions, dict):
-            unknown = sorted(set(facial_actions) - set(self.face_unit_labels))
+            unknown = sorted(set(facial_actions) - set(self.facial_action_labels))
             if unknown:
                 raise ValueError(
-                    f"Unknown face unit labels {unknown}; available labels are {self.face_unit_labels}."
+                    f"Unknown face unit labels {unknown}; available labels are {self.facial_action_labels}."
                 )
 
             coerced: dict[str, torch.Tensor] = {}
@@ -170,8 +170,8 @@ class Anny(RiggedModelWithLinearBlendShapes):
                 batch_size = max(batch_size, value.shape[0])
                 coerced[label] = value
 
-            values = torch.zeros((batch_size, face_unit_count), dtype=self.dtype, device=self.device)
-            for i, label in enumerate(self.face_unit_labels):
+            values = torch.zeros((batch_size, facial_action_count), dtype=self.dtype, device=self.device)
+            for i, label in enumerate(self.facial_action_labels):
                 if label in coerced:
                     values[:, i] = coerced[label].expand(batch_size)
             return values
@@ -222,13 +222,13 @@ class Anny(RiggedModelWithLinearBlendShapes):
             key: to_batched_tensor(value, self.device, self.dtype)
             for key, value in phenotype_inputs.items()
         }
-        face_unit_weights = self._parse_facial_actions(facial_actions)
+        facial_action_weights = self._parse_facial_actions(facial_actions)
 
         local_change_tensors: dict[str, torch.Tensor] = {}
         batch_size = 1
         for key, value in phenotype_tensors.items():
             batch_size = max(batch_size, value.shape[0])
-        batch_size = max(batch_size, face_unit_weights.shape[0])
+        batch_size = max(batch_size, facial_action_weights.shape[0])
         for key in self.local_change_labels:
             if key in local_changes:
                 value = to_batched_tensor(local_changes[key], self.device, self.dtype)
@@ -266,8 +266,8 @@ class Anny(RiggedModelWithLinearBlendShapes):
         wi = torch.prod(masked_phens + (1 - self.stacked_phenotype_blend_shapes_mask.unsqueeze(0)), dim=-1)
 
         coefficient_groups = [wi]
-        if len(self.face_unit_labels) > 0:
-            coefficient_groups.append(face_unit_weights.expand(batch_size, -1))
+        if len(self.facial_action_labels) > 0:
+            coefficient_groups.append(facial_action_weights.expand(batch_size, -1))
 
         if len(self.local_change_labels) > 0:
             local_weights = torch.zeros((batch_size, 2 * len(self.local_change_labels)), device=device, dtype=dtype)
@@ -305,7 +305,7 @@ class Anny(RiggedModelWithLinearBlendShapes):
         model_data = dataclasses.replace(model_data, metadata=AnnyModelMetadata(
             **dataclasses.asdict(model_data.metadata),
             local_change_labels=self.local_change_labels,
-            face_unit_labels=self.face_unit_labels,
+            facial_action_labels=self.facial_action_labels,
             all_phenotypes=self.all_phenotypes,
             extrapolate_phenotypes=self.extrapolate_phenotypes,
         ))

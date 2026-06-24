@@ -137,13 +137,13 @@ dict_output = face_model(facial_actions=facial_actions)
 
 # Using with batched Bx52 tensor input 
 batch_size= 5
-values = torch.zeros((batch_size, len(face_model.face_unit_labels)), dtype=dtype, device=device)
-values[:, face_model.face_unit_labels.index("jawOpen")] = torch.linspace(0.0, 1.0, batch_size, dtype=dtype, device=device)
-values[:, face_model.face_unit_labels.index("mouthSmileLeft")] = torch.linspace(0.0, 1.0, batch_size, dtype=dtype, device=device)
-values[:, face_model.face_unit_labels.index("mouthSmileRight")] = torch.linspace(0.0, 1.0, batch_size, dtype=dtype, device=device)
+values = torch.zeros((batch_size, len(face_model.facial_action_labels)), dtype=dtype, device=device)
+values[:, face_model.facial_action_labels.index("jawOpen")] = torch.linspace(0.0, 1.0, batch_size, dtype=dtype, device=device)
+values[:, face_model.facial_action_labels.index("mouthSmileLeft")] = torch.linspace(0.0, 1.0, batch_size, dtype=dtype, device=device)
+values[:, face_model.facial_action_labels.index("mouthSmileRight")] = torch.linspace(0.0, 1.0, batch_size, dtype=dtype, device=device)
 output = face_model(facial_actions=values)
 
-display(Markdown("**Face unit labels:** " + ", ".join(face_model.face_unit_labels)))
+display(Markdown("**Face unit labels:** " + ", ".join(face_model.facial_action_labels)))
 
 scene = trimesh.Scene()
 for i in range(batch_size):

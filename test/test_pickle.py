@@ -134,7 +134,7 @@ class TestSafetensors(unittest.TestCase):
                 skinning_method="lbs",
                 bone_orientation="blender-rootidentity",
                 local_change_labels=[],
-                face_unit_labels=[],
+                facial_action_labels=[],
                 all_phenotypes=False,
                 extrapolate_phenotypes=False,
             ),
@@ -199,11 +199,11 @@ class TestSafetensors(unittest.TestCase):
 
         self.assertEqual(data.metadata.bone_orientation, loaded_data.metadata.bone_orientation)
         self.assertEqual(data.metadata.bone_labels, loaded_data.metadata.bone_labels)
-        self.assertEqual(data.metadata.face_unit_labels, loaded_data.metadata.face_unit_labels)
+        self.assertEqual(data.metadata.facial_action_labels, loaded_data.metadata.facial_action_labels)
         torch.testing.assert_close(data.template_vertices, loaded_data.template_vertices)
         torch.testing.assert_close(data.blendshapes, loaded_data.blendshapes)
 
-    def test_anny_metadata_face_unit_labels_default_empty(self):
+    def test_anny_metadata_facial_action_labels_default_empty(self):
         metadata = AnnyModelMetadata(
             bone_parents=[-1],
             bone_labels=["root"],
@@ -215,14 +215,14 @@ class TestSafetensors(unittest.TestCase):
             extrapolate_phenotypes=False,
         )
 
-        self.assertEqual(metadata.face_unit_labels, [])
+        self.assertEqual(metadata.facial_action_labels, [])
 
-    def test_face_unit_labels_round_trip(self):
+    def test_facial_action_labels_round_trip(self):
         data = self._make_tail_model_data()
         labels = ["jawOpen", "mouthSmileLeft"]
         data = dataclasses.replace(
             data,
-            metadata=dataclasses.replace(data.metadata, face_unit_labels=labels),
+            metadata=dataclasses.replace(data.metadata, facial_action_labels=labels),
         )
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -230,7 +230,7 @@ class TestSafetensors(unittest.TestCase):
             data.save_safetensors(path)
             loaded_data = ModelData.load_safetensors(path)
 
-        self.assertEqual(loaded_data.metadata.face_unit_labels, labels)
+        self.assertEqual(loaded_data.metadata.facial_action_labels, labels)
 
 
 

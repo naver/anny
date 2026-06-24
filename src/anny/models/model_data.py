@@ -38,7 +38,7 @@ class AnnyModelMetadata(ModelMetadata):
     local_change_labels: list
     all_phenotypes: bool
     extrapolate_phenotypes: bool
-    face_unit_labels: list[str] = dataclasses.field(default_factory=list)
+    facial_action_labels: list[str] = dataclasses.field(default_factory=list)
 
 
 @dataclasses.dataclass(frozen=True)

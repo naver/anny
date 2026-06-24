@@ -5,7 +5,7 @@ import torch
 
 import anny
 from anny.paths import ANNY_ROOT_DIR
-from anny.models.facial_actions import FACIAL_ACTION_LABELS, load_face_unit_blendshapes
+from anny.models.facial_actions import FACIAL_ACTION_LABELS, load_facial_action_blendshapes
 
 
 class TestFacialActions(unittest.TestCase):
@@ -21,28 +21,28 @@ class TestFacialActions(unittest.TestCase):
 
     def _values(self, batch_size=1, **kwargs):
         values = torch.zeros(
-            (batch_size, len(self.model.face_unit_labels)),
+            (batch_size, len(self.model.facial_action_labels)),
             dtype=self.dtype,
             device=self.device,
         )
         for label, value in kwargs.items():
-            values[:, self.model.face_unit_labels.index(label)] = value
+            values[:, self.model.facial_action_labels.index(label)] = value
         return values
 
-    def test_face_unit_label_count_and_order(self):
+    def test_facial_action_label_count_and_order(self):
         self.assertEqual(len(FACIAL_ACTION_LABELS), 52)
         self.assertEqual(len(set(FACIAL_ACTION_LABELS)), 52)
-        self.assertEqual(self.model.face_unit_labels, FACIAL_ACTION_LABELS)
-        self.assertEqual(self.model.face_unit_labels[0], "browDownLeft")
-        self.assertEqual(self.model.face_unit_labels[-1], "tongueOut")
-        self.assertIn("jawOpen", self.model.face_unit_labels)
-        self.assertIn("mouthSmileLeft", self.model.face_unit_labels)
+        self.assertEqual(self.model.facial_action_labels, FACIAL_ACTION_LABELS)
+        self.assertEqual(self.model.facial_action_labels[0], "browDownLeft")
+        self.assertEqual(self.model.facial_action_labels[-1], "tongueOut")
+        self.assertIn("jawOpen", self.model.facial_action_labels)
+        self.assertIn("mouthSmileLeft", self.model.facial_action_labels)
 
     def test_plain_target_loader_returns_canonical_stack(self):
         world_transformation = roma.Linear(
             0.1 * roma.euler_to_rotmat("X", [90], degrees=True, dtype=self.dtype)
         )[None]
-        labels, blendshapes = load_face_unit_blendshapes(
+        labels, blendshapes = load_facial_action_blendshapes(
             root_dirname=ANNY_ROOT_DIR,
             vertices_count=self.model.template_vertices.shape[0],
             world_transformation=world_transformation,
@@ -105,7 +105,7 @@ class TestFacialActions(unittest.TestCase):
 
         self.assertEqual(output["vertices"].shape[0], 1)
 
-    def test_face_unit_scalar_dict_expands_to_pose_batch(self):
+    def test_facial_action_scalar_dict_expands_to_pose_batch(self):
         batch_size = 3
         pose_parameters = torch.eye(4, dtype=self.dtype, device=self.device)[
             None, None
@@ -119,7 +119,7 @@ class TestFacialActions(unittest.TestCase):
         self.assertEqual(output["vertices"].shape[0], batch_size)
         self.assertEqual(output["bone_poses"].shape[0], batch_size)
 
-    def test_face_unit_tensor_batch_defines_output_batch(self):
+    def test_facial_action_tensor_batch_defines_output_batch(self):
         values = self._values(batch_size=4, jawOpen=0.25)
 
         output = self.model(facial_actions=values)
@@ -135,7 +135,7 @@ class TestFacialActions(unittest.TestCase):
 
         output = model(facial_actions={"jawOpen": 0.5})
 
-        self.assertEqual(model.face_unit_labels, FACIAL_ACTION_LABELS)
+        self.assertEqual(model.facial_action_labels, FACIAL_ACTION_LABELS)
         self.assertEqual(output["vertices"].shape[0], 1)
         self.assertEqual(output["vertices"].shape[1], model.template_vertices.shape[0])
 
@@ -147,7 +147,7 @@ class TestFacialActions(unittest.TestCase):
 
         output = model(facial_actions={"jawOpen": 0.5})
 
-        self.assertEqual(model.face_unit_labels, FACIAL_ACTION_LABELS)
+        self.assertEqual(model.facial_action_labels, FACIAL_ACTION_LABELS)
         self.assertEqual(output["vertices"].shape[1], model.template_vertices.shape[0])
 
 
