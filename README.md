@@ -20,21 +20,37 @@ Anny models a large variety of human body shapes, from infants to elders, using 
  - **2025-11-21**: v0.2: support for different mesh topologies.
  - **2025-11-05**: v0.1: initial release.
 
-## Installation
+### Installation
 
-Full installation (depends on warp-lang, which may require some manual work to install):
 ```bash
-pip install anny[warp,examples]
+pip install anny[warp,smpl,examples] # Full install (non-free dependencies).
+pip install anny[warp,examples] # Free install.
+pip install anny # Minimal install (use more memory for large batch sizes).
+# Note that the free install may download non-commercial only assets when needed.
+pip install anny[warp,examples]@git+https://github.com/naver/anny.git # latest sources.
 ```
 
-Minimal dependency installation (will use more memory with large batch sizes):
-```bash
-pip install anny
-```
-
-Installation from latest sources:
-```bash
-pip install anny[warp,examples]@git+https://github.com/naver/anny.git
+### Quickstart example
+```python
+import torch, anny, trimesh
+model = anny.Anny(local_changes=True, facial_actions=True, triangulate_faces=True).to(dtype=torch.float32)
+# The model accept both dictionnary and stacked tensor inputs.
+# Skeletal rig pose parameters (see model.bone_labels).
+pose_parameters = torch.eye(4)[None, None].repeat(1, model.bone_count, 1, 1)
+# High-level shape parameters (within [0,1], see model.phenotype_labels):
+phenotype_kwargs = {key : 0.5 for key in model.phenotype_labels}
+# Local shape changes (within [-1,1], see model.local_change_labels):
+local_changes = {'stomach-pregnant-incr': 1.}
+# Facial expression changes (within [0,1], see model.facial_action_labels):
+facial_actions = {"jawOpen": 0.8, "mouthSmileLeft": 0.4}
+# Export default mesh output
+output = model(
+      pose_parameters=pose_parameters,
+      phenotype_kwargs=phenotype_kwargs,
+      local_changes_kwargs=local_changes,
+      facial_actions=facial_actions
+      )
+trimesh.Trimesh(vertices = output["vertices"].squeeze(dim=0).numpy(), faces=model.faces).export("anny_output.ply")
 ```
 
 ## Caching
@@ -46,25 +62,6 @@ By default the cache is stored in `~/.cache/anny/`. To use a different location,
 ```bash
 export ANNY_CACHE_DIR=/path/to/cache
 ```
-
-## Facial actions
-
-Full-body and head Anny models can optionally load facial actions:
-
-```python
-import torch
-import anny
-
-model = anny.Anny(facial_actions=True)
-out = model(facial_actions={"jawOpen": 0.8, "mouthSmileLeft": 0.4})
-
-values = torch.zeros(1, len(model.face_unit_labels), dtype=model.dtype, device=model.device)
-values[:, model.face_unit_labels.index("jawOpen")] = 0.8
-out = model(facial_actions=values)
-```
-
-The default is `facial_actions=False`, which keeps the existing model behavior. Face unit values are normalized in `[0, 1]`; tensor input is ordered by `model.face_unit_labels`.
-
 ## Tutorials
 
 To get started with Anny, you can have a look at the different tutorials in the `tutorials` directory:
