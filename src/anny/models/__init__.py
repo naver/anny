@@ -239,9 +239,7 @@ def build_fullbody_model_data(
     
 
     bones_to_remove = set()
-    if isinstance(rig, str) and rig.startswith("default"):
-        if face_units:
-            bones_to_remove.update(_facial_expression_bone_labels)
+    if isinstance(rig, str) and rig.startswith("default-"):
         rig_specs = rig.split("-")
         assert rig_specs[0] == "default"
         for spec in rig_specs[1:]:
