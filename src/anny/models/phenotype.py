@@ -15,7 +15,6 @@ if TYPE_CHECKING:
     from anny.models.model_transforms import LocalChanges
     from anny.models.retopology import Topology
     from anny.models.model_data import ModelData
-    from anny.typing import FaceUnits
     from anny.paths import PathLike
 from anny.models.model_data import AnnyModelMetadata
 import anny.utils.interpolation
@@ -64,7 +63,7 @@ class Anny(RiggedModelWithLinearBlendShapes):
         rig: "RigPreset | PathLike" = "default",
         topology: "Topology" = "default",
         local_changes: "LocalChanges" = "none",
-        face_units: "FaceUnits" = "none",
+        face_units: bool = False,
         remove_unattached_vertices: bool = True,
         triangulate_faces: bool = False,
         pose_parameterization: PoseParameterization = "local-bone",

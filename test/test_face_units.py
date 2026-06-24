@@ -29,7 +29,7 @@ class TestFaceUnits(unittest.TestCase):
             values[:, self.model.face_unit_labels.index(label)] = value
         return values
 
-    def test_arkit_label_count_and_order(self):
+    def test_face_unit_label_count_and_order(self):
         self.assertEqual(len(FACE_UNIT_LABELS), 52)
         self.assertEqual(len(set(FACE_UNIT_LABELS)), 52)
         self.assertEqual(self.model.face_unit_labels, FACE_UNIT_LABELS)
@@ -56,10 +56,6 @@ class TestFaceUnits(unittest.TestCase):
         )
         jaw_open = blendshapes[labels.index("jawOpen")]
         self.assertGreater(torch.count_nonzero(jaw_open).item(), 0)
-
-    def test_invalid_face_units_preset_raises_value_error(self):
-        with self.assertRaisesRegex(ValueError, "Unknown face_units preset"):
-            anny.Anny(face_units="made_up")
 
     def test_dict_input_changes_output_vertices(self):
         zero_output = self.model(face_units={})
@@ -103,29 +99,29 @@ class TestFaceUnits(unittest.TestCase):
         values = self._values(jawOpen=0.5)
         values[:, self.model.face_unit_labels.index("jawOpen")] = 1.2
 
-        with self.assertRaisesRegex(ValueError, "ARKit face unit values must be in \\[0, 1\\]"):
-            self.model(arkit_face_units=values)
+        with self.assertRaisesRegex(ValueError, "Face unit values must be in \\[0, 1\\]"):
+            self.model(face_units=values)
 
     def test_unknown_dict_label_raises_value_error(self):
-        with self.assertRaisesRegex(ValueError, "Unknown ARKit face unit labels"):
-            self.model(arkit_face_units={"notAUnit": 0.5})
+        with self.assertRaisesRegex(ValueError, "Unknown face unit labels"):
+            self.model(face_units={"notAUnit": 0.5})
 
     def test_wrong_tensor_shape_raises_value_error(self):
-        with self.assertRaisesRegex(ValueError, "arkit_face_units tensor must have shape"):
-            self.model(arkit_face_units=torch.zeros((1, 53), dtype=self.dtype))
-        with self.assertRaisesRegex(ValueError, "arkit_face_units tensor must have shape"):
-            self.model(arkit_face_units=torch.zeros((52,), dtype=self.dtype))
+        with self.assertRaisesRegex(ValueError, "face_units tensor must have shape"):
+            self.model(face_units=torch.zeros((1, 53), dtype=self.dtype))
+        with self.assertRaisesRegex(ValueError, "face_units tensor must have shape"):
+            self.model(face_units=torch.zeros((52,), dtype=self.dtype))
 
     def test_default_model_rejects_non_empty_face_units(self):
         model = anny.Anny().to(dtype=self.dtype, device=self.device)
         self.assertEqual(model.face_unit_labels, [])
 
         with self.assertRaisesRegex(ValueError, "built with face_units='none'"):
-            model(arkit_face_units={"jawOpen": 0.5})
+            model(face_units={"jawOpen": 0.5})
 
     def test_empty_face_units_are_allowed_on_default_model(self):
         model = anny.Anny().to(dtype=self.dtype, device=self.device)
-        output = model(arkit_face_units={})
+        output = model(face_units={})
 
         self.assertEqual(output["vertices"].shape[0], 1)
 
@@ -137,7 +133,7 @@ class TestFaceUnits(unittest.TestCase):
 
         output = self.model(
             pose_parameters=pose_parameters,
-            arkit_face_units={"jawOpen": 0.5},
+            face_units={"jawOpen": 0.5},
         )
 
         self.assertEqual(output["vertices"].shape[0], batch_size)
@@ -146,32 +142,32 @@ class TestFaceUnits(unittest.TestCase):
     def test_face_unit_tensor_batch_defines_output_batch(self):
         values = self._values(batch_size=4, jawOpen=0.25)
 
-        output = self.model(arkit_face_units=values)
+        output = self.model(face_units=values)
 
         self.assertEqual(output["vertices"].shape[0], 4)
         self.assertEqual(output["rest_vertices"].shape[0], 4)
 
     def test_head_model_exposes_labels_and_accepts_input(self):
-        model = anny.create_head_model(face_units="arkit").to(
+        model = anny.create_head_model(face_units=True).to(
             dtype=self.dtype,
             device=self.device,
         )
 
-        output = model(arkit_face_units={"jawOpen": 0.5})
+        output = model(face_units={"jawOpen": 0.5})
 
-        self.assertEqual(model.face_unit_labels, ARKIT_FACE_UNIT_LABELS)
+        self.assertEqual(model.face_unit_labels, FACE_UNIT_LABELS)
         self.assertEqual(output["vertices"].shape[0], 1)
         self.assertEqual(output["vertices"].shape[1], model.template_vertices.shape[0])
 
     def test_builtin_retopology_preserves_labels_and_accepts_input(self):
-        model = anny.Anny(topology="notoes", face_units="arkit").to(
+        model = anny.Anny(topology="notoes", face_units=True).to(
             dtype=self.dtype,
             device=self.device,
         )
 
-        output = model(arkit_face_units={"jawOpen": 0.5})
+        output = model(face_units={"jawOpen": 0.5})
 
-        self.assertEqual(model.face_unit_labels, ARKIT_FACE_UNIT_LABELS)
+        self.assertEqual(model.face_unit_labels, FACE_UNIT_LABELS)
         self.assertEqual(output["vertices"].shape[1], model.template_vertices.shape[0])
 
 

@@ -6,12 +6,11 @@ from anny.models.model_transforms import (
     LocalChanges,
     apply_procrustes_retopology,
     apply_soma_rig,
-    point_to_mesh_distance_and_face_uvs,
 )
 from anny.utils.mesh_utils import triangulate_faces as _triangulate_faces
+from anny.utils.warp_mesh_utils import point_to_mesh_distance_and_face_uvs
 from anny.paths import ANNY_ROOT_DIR
 from anny.models import retopology
-from anny.typing import FaceUnits
 
 
 def _load_soma_rig(root_dirname):

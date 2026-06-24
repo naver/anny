@@ -22,19 +22,14 @@ from anny.models.model_transforms import (
     set_metadata,
 )
 import anny.utils.obj_utils
-from anny.models.face_units import load_face_unit_blendshapes, normalize_face_units
+from anny.models.face_units import load_face_unit_blendshapes
 from anny.models.phenotype import PHENOTYPE_VARIATIONS
 from anny.models.model_data import ModelData, AnnyModelMetadata, cache_builder
 from anny.paths import ANNY_ROOT_DIR, PathLike
 import anny.models.model_transforms as model_transforms
-from anny.typing import FaceUnits, RigPreset, SkinningMethod
+from anny.typing import RigPreset, SkinningMethod
 
 logger = logging.getLogger(__name__)
-
-RigPreset = Literal["default", "makehuman", "cmu_mb", "game_engine", "mixamo"]
-SkinningMethod = Literal["lbs", "dqs", "warp_lbs"]
-
-
 
 def load_blend_shape(filename, vertices_count, world_transformation, dtype):
     blend_shape = torch.zeros((vertices_count, 3), dtype=dtype)
@@ -369,7 +364,6 @@ def load_data(
                             local_blend_shapes.append(pos_blend_shape)
                             local_blend_shapes.append(neg_blend_shape)
 
-    face_units = normalize_face_units(face_units)
     face_unit_labels = []
     face_unit_blend_shapes = []
     if face_units:
@@ -534,7 +528,7 @@ def build_model_data(rig: RigPreset | PathLike = "default",
                  bones_to_remove: set[str] = set(),
                  faces_to_keep: torch.Tensor | None = None,
                  local_changes: LocalChanges = "none",
-                 face_units: FaceUnits = "none",
+                 face_units: bool = False,
                  skinning_method: SkinningMethod | None = None,
                  remove_unattached_vertices: bool = False,
                  triangulate_faces: bool = False,

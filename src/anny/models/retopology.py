@@ -3,7 +3,7 @@
 # Apache License, Version 2.0
 import torch
 from typing import Literal
-from anny.typing import FaceUnits, Topology
+from anny.typing import Topology
 from anny.utils import obj_utils
 from anny.models.full_model import RigPreset, build_model_data
 from anny.models.model_transforms import apply_retopology, apply_retopology_from_mesh

@@ -5,7 +5,6 @@ import warnings
 from typing import Literal
 
 import anny.models.full_model
-from anny.typing import FaceUnits
 from anny.models.full_model import (
     RigPreset,
     SkinningMethod,
@@ -241,7 +240,7 @@ def build_fullbody_model_data(
 
     bones_to_remove = set()
     if isinstance(rig, str) and rig.startswith("default"):
-        if face_units != "none":
+        if face_units:
             bones_to_remove.update(_facial_expression_bone_labels)
         rig_specs = rig.split("-")
         assert rig_specs[0] == "default"
@@ -499,7 +498,7 @@ def build_head_model_data(
     bone_orientation: str = "blender-rootidentity",
 ):
     face_bones = {"neck01", "neck02", "neck03", "head"}
-    if face_units == "none":
+    if not face_units:
         face_bones.update(_facial_expression_bone_labels)
     if eyes:
         face_bones.update(_eye_bone_labels)

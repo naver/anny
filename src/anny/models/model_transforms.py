@@ -7,6 +7,7 @@ import collections
 import dataclasses
 import logging
 
+import numpy as np
 import roma
 import torch
 import trimesh
@@ -21,7 +22,7 @@ from anny.utils.mesh_utils import (
     triangulate_faces,
     triangulate_faces_with_texture_coordinates,
 )
-
+from anny.utils.warp_mesh_utils import point_to_mesh_distance_and_face_uvs
 logger = logging.getLogger(__name__)
 
 def _get_symmetric_bone_name(bone_name: str) -> str:
