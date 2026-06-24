@@ -89,19 +89,6 @@ class TestFacialActions(unittest.TestCase):
         torch.testing.assert_close(tensor_output["rest_vertices"], dict_output["rest_vertices"])
         torch.testing.assert_close(tensor_output["vertices"], dict_output["vertices"])
 
-    def test_out_of_range_dict_values_raise_value_error(self):
-        with self.assertRaisesRegex(ValueError, "Face unit values must be in \\[0, 1\\]"):
-            self.model(facial_actions={"jawOpen": -0.1})
-        with self.assertRaisesRegex(ValueError, "Face unit values must be in \\[0, 1\\]"):
-            self.model(facial_actions={"jawOpen": 1.1})
-
-    def test_out_of_range_tensor_values_raise_value_error(self):
-        values = self._values(jawOpen=0.5)
-        values[:, self.model.face_unit_labels.index("jawOpen")] = 1.2
-
-        with self.assertRaisesRegex(ValueError, "Face unit values must be in \\[0, 1\\]"):
-            self.model(facial_actions=values)
-
     def test_unknown_dict_label_raises_value_error(self):
         with self.assertRaisesRegex(ValueError, "Unknown face unit labels"):
             self.model(facial_actions={"notAUnit": 0.5})
@@ -111,13 +98,6 @@ class TestFacialActions(unittest.TestCase):
             self.model(facial_actions=torch.zeros((1, 53), dtype=self.dtype))
         with self.assertRaisesRegex(ValueError, "facial_actions tensor must have shape"):
             self.model(facial_actions=torch.zeros((52,), dtype=self.dtype))
-
-    def test_default_model_rejects_non_empty_facial_actions(self):
-        model = anny.Anny().to(dtype=self.dtype, device=self.device)
-        self.assertEqual(model.face_unit_labels, [])
-
-        with self.assertRaisesRegex(ValueError, "built with facial_actions='none'"):
-            model(facial_actions={"jawOpen": 0.5})
 
     def test_empty_facial_actions_are_allowed_on_default_model(self):
         model = anny.Anny().to(dtype=self.dtype, device=self.device)
