@@ -5,17 +5,17 @@ import torch
 
 import anny
 from anny.paths import ANNY_ROOT_DIR
-from anny.models.face_units import FACE_UNIT_LABELS, load_face_unit_blendshapes
+from anny.models.facial_actions import FACIAL_ACTION_LABELS, load_face_unit_blendshapes
 
 
-class TestFaceUnits(unittest.TestCase):
+class TestFacialActions(unittest.TestCase):
     dtype = torch.float64
     device = torch.device("cpu")
 
     @classmethod
     def setUpClass(cls):
         cls.model = anny.Anny(
-            face_units=True,
+            facial_actions=True,
             remove_unattached_vertices=False,
         ).to(dtype=cls.dtype, device=cls.device)
 
@@ -30,9 +30,9 @@ class TestFaceUnits(unittest.TestCase):
         return values
 
     def test_face_unit_label_count_and_order(self):
-        self.assertEqual(len(FACE_UNIT_LABELS), 52)
-        self.assertEqual(len(set(FACE_UNIT_LABELS)), 52)
-        self.assertEqual(self.model.face_unit_labels, FACE_UNIT_LABELS)
+        self.assertEqual(len(FACIAL_ACTION_LABELS), 52)
+        self.assertEqual(len(set(FACIAL_ACTION_LABELS)), 52)
+        self.assertEqual(self.model.face_unit_labels, FACIAL_ACTION_LABELS)
         self.assertEqual(self.model.face_unit_labels[0], "browDownLeft")
         self.assertEqual(self.model.face_unit_labels[-1], "tongueOut")
         self.assertIn("jawOpen", self.model.face_unit_labels)
@@ -49,7 +49,7 @@ class TestFaceUnits(unittest.TestCase):
             dtype=self.dtype,
         )
 
-        self.assertEqual(labels, FACE_UNIT_LABELS)
+        self.assertEqual(labels, FACIAL_ACTION_LABELS)
         self.assertEqual(
             blendshapes.shape,
             (52, self.model.template_vertices.shape[0], 3),
@@ -58,8 +58,8 @@ class TestFaceUnits(unittest.TestCase):
         self.assertGreater(torch.count_nonzero(jaw_open).item(), 0)
 
     def test_dict_input_changes_output_vertices(self):
-        zero_output = self.model(face_units={})
-        moved_output = self.model(face_units={"jawOpen": 1.0})
+        zero_output = self.model(facial_actions={})
+        moved_output = self.model(facial_actions={"jawOpen": 1.0})
 
         self.assertFalse(
             torch.allclose(
@@ -83,45 +83,45 @@ class TestFaceUnits(unittest.TestCase):
             "eyeBlinkRight": torch.full((2,), 0.25, dtype=self.dtype, device=self.device),
         }
 
-        tensor_output = self.model(face_units=values)
-        dict_output = self.model(face_units=dict_values)
+        tensor_output = self.model(facial_actions=values)
+        dict_output = self.model(facial_actions=dict_values)
 
         torch.testing.assert_close(tensor_output["rest_vertices"], dict_output["rest_vertices"])
         torch.testing.assert_close(tensor_output["vertices"], dict_output["vertices"])
 
     def test_out_of_range_dict_values_raise_value_error(self):
         with self.assertRaisesRegex(ValueError, "Face unit values must be in \\[0, 1\\]"):
-            self.model(face_units={"jawOpen": -0.1})
+            self.model(facial_actions={"jawOpen": -0.1})
         with self.assertRaisesRegex(ValueError, "Face unit values must be in \\[0, 1\\]"):
-            self.model(face_units={"jawOpen": 1.1})
+            self.model(facial_actions={"jawOpen": 1.1})
 
     def test_out_of_range_tensor_values_raise_value_error(self):
         values = self._values(jawOpen=0.5)
         values[:, self.model.face_unit_labels.index("jawOpen")] = 1.2
 
         with self.assertRaisesRegex(ValueError, "Face unit values must be in \\[0, 1\\]"):
-            self.model(face_units=values)
+            self.model(facial_actions=values)
 
     def test_unknown_dict_label_raises_value_error(self):
         with self.assertRaisesRegex(ValueError, "Unknown face unit labels"):
-            self.model(face_units={"notAUnit": 0.5})
+            self.model(facial_actions={"notAUnit": 0.5})
 
     def test_wrong_tensor_shape_raises_value_error(self):
-        with self.assertRaisesRegex(ValueError, "face_units tensor must have shape"):
-            self.model(face_units=torch.zeros((1, 53), dtype=self.dtype))
-        with self.assertRaisesRegex(ValueError, "face_units tensor must have shape"):
-            self.model(face_units=torch.zeros((52,), dtype=self.dtype))
+        with self.assertRaisesRegex(ValueError, "facial_actions tensor must have shape"):
+            self.model(facial_actions=torch.zeros((1, 53), dtype=self.dtype))
+        with self.assertRaisesRegex(ValueError, "facial_actions tensor must have shape"):
+            self.model(facial_actions=torch.zeros((52,), dtype=self.dtype))
 
-    def test_default_model_rejects_non_empty_face_units(self):
+    def test_default_model_rejects_non_empty_facial_actions(self):
         model = anny.Anny().to(dtype=self.dtype, device=self.device)
         self.assertEqual(model.face_unit_labels, [])
 
-        with self.assertRaisesRegex(ValueError, "built with face_units='none'"):
-            model(face_units={"jawOpen": 0.5})
+        with self.assertRaisesRegex(ValueError, "built with facial_actions='none'"):
+            model(facial_actions={"jawOpen": 0.5})
 
-    def test_empty_face_units_are_allowed_on_default_model(self):
+    def test_empty_facial_actions_are_allowed_on_default_model(self):
         model = anny.Anny().to(dtype=self.dtype, device=self.device)
-        output = model(face_units={})
+        output = model(facial_actions={})
 
         self.assertEqual(output["vertices"].shape[0], 1)
 
@@ -133,7 +133,7 @@ class TestFaceUnits(unittest.TestCase):
 
         output = self.model(
             pose_parameters=pose_parameters,
-            face_units={"jawOpen": 0.5},
+            facial_actions={"jawOpen": 0.5},
         )
 
         self.assertEqual(output["vertices"].shape[0], batch_size)
@@ -142,32 +142,32 @@ class TestFaceUnits(unittest.TestCase):
     def test_face_unit_tensor_batch_defines_output_batch(self):
         values = self._values(batch_size=4, jawOpen=0.25)
 
-        output = self.model(face_units=values)
+        output = self.model(facial_actions=values)
 
         self.assertEqual(output["vertices"].shape[0], 4)
         self.assertEqual(output["rest_vertices"].shape[0], 4)
 
     def test_head_model_exposes_labels_and_accepts_input(self):
-        model = anny.create_head_model(face_units=True).to(
+        model = anny.create_head_model(facial_actions=True).to(
             dtype=self.dtype,
             device=self.device,
         )
 
-        output = model(face_units={"jawOpen": 0.5})
+        output = model(facial_actions={"jawOpen": 0.5})
 
-        self.assertEqual(model.face_unit_labels, FACE_UNIT_LABELS)
+        self.assertEqual(model.face_unit_labels, FACIAL_ACTION_LABELS)
         self.assertEqual(output["vertices"].shape[0], 1)
         self.assertEqual(output["vertices"].shape[1], model.template_vertices.shape[0])
 
     def test_builtin_retopology_preserves_labels_and_accepts_input(self):
-        model = anny.Anny(topology="notoes", face_units=True).to(
+        model = anny.Anny(topology="notoes", facial_actions=True).to(
             dtype=self.dtype,
             device=self.device,
         )
 
-        output = model(face_units={"jawOpen": 0.5})
+        output = model(facial_actions={"jawOpen": 0.5})
 
-        self.assertEqual(model.face_unit_labels, FACE_UNIT_LABELS)
+        self.assertEqual(model.face_unit_labels, FACIAL_ACTION_LABELS)
         self.assertEqual(output["vertices"].shape[1], model.template_vertices.shape[0])
 
 

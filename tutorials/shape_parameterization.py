@@ -119,21 +119,21 @@ scene.apply_transform(trimesh_scene_transform)  # Rotate the scene to have a bet
 scene.show()  # This will open a window to visualize the scene with all the faces in
 
 # %% [markdown]
-# ## Face units
+# ## Facial actions
 #
-# Full-body and head models can optionally expose face units.
+# Full-body and head models can optionally expose facial actions.
 # The dictionary form is convenient for sparse edits, while tensor input is convenient for batched optimization.
 
 # %%
-face_model = anny.create_head_model(face_units=True).to(device=device, dtype=dtype)
+face_model = anny.create_head_model(facial_actions=True).to(device=device, dtype=dtype)
 
 # Using with dict unit -> tensor input
-face_units = {
+facial_actions = {
     "jawOpen": torch.tensor([0.0, 0.6], dtype=dtype, device=device),
     "mouthSmileLeft": torch.tensor([0.0, 0.4], dtype=dtype, device=device),
     "mouthSmileRight": torch.tensor([0.0, 0.4], dtype=dtype, device=device),
 }
-dict_output = face_model(face_units=face_units)
+dict_output = face_model(facial_actions=facial_actions)
 
 # Using with batched Bx52 tensor input 
 batch_size= 5
@@ -141,7 +141,7 @@ values = torch.zeros((batch_size, len(face_model.face_unit_labels)), dtype=dtype
 values[:, face_model.face_unit_labels.index("jawOpen")] = torch.linspace(0.0, 1.0, batch_size, dtype=dtype, device=device)
 values[:, face_model.face_unit_labels.index("mouthSmileLeft")] = torch.linspace(0.0, 1.0, batch_size, dtype=dtype, device=device)
 values[:, face_model.face_unit_labels.index("mouthSmileRight")] = torch.linspace(0.0, 1.0, batch_size, dtype=dtype, device=device)
-output = face_model(face_units=values)
+output = face_model(facial_actions=values)
 
 display(Markdown("**Face unit labels:** " + ", ".join(face_model.face_unit_labels)))
 

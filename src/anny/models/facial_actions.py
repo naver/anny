@@ -4,14 +4,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Literal
 
 import torch
 
 from anny.paths import ANNY_ROOT_DIR, PathLike
 
 
-FACE_UNIT_LABELS: list[str] = [
+FACIAL_ACTION_LABELS: list[str] = [
     "browDownLeft",
     "browDownRight",
     "browInnerUp",
@@ -106,14 +105,14 @@ def load_face_unit_blendshapes(
     dtype: torch.dtype = torch.float64,
 ) -> tuple[list[str], torch.Tensor]:
     if vertices_count is None:
-        raise ValueError("vertices_count must be provided to load face units.")
+        raise ValueError("vertices_count must be provided to load facial actions.")
     if world_transformation is None:
-        raise ValueError("world_transformation must be provided to load face units.")
+        raise ValueError("world_transformation must be provided to load facial actions.")
 
     faceunit_dir = Path(root_dirname) / "data/faceunits01/targets/faceunits"
     blendshapes: list[torch.Tensor] = []
     missing_files: list[str] = []
-    for label in FACE_UNIT_LABELS:
+    for label in FACIAL_ACTION_LABELS:
         filename = faceunit_dir / f"{label}.target"
         if not filename.exists():
             missing_files.append(str(filename))
@@ -131,10 +130,10 @@ def load_face_unit_blendshapes(
         joined = "\n".join(missing_files)
         raise FileNotFoundError(f"Missing faceunit target files:\n{joined}")
 
-    if len(blendshapes) != len(FACE_UNIT_LABELS):
+    if len(blendshapes) != len(FACIAL_ACTION_LABELS):
         raise ValueError(
-            f"Expected {len(FACE_UNIT_LABELS)} faceunit targets, "
+            f"Expected {len(FACIAL_ACTION_LABELS)} faceunit targets, "
             f"loaded {len(blendshapes)}."
         )
 
-    return list(FACE_UNIT_LABELS), torch.stack(blendshapes)
+    return list(FACIAL_ACTION_LABELS), torch.stack(blendshapes)

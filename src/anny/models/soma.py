@@ -36,7 +36,7 @@ def build_soma_rig_and_topology_model_data(all_phenotypes=False,
                                        pose_parameterization="local-bone",
                                        extrapolate_phenotypes=False,
                                        local_changes: LocalChanges ="none",
-                                       face_units: bool = False):
+                                       facial_actions: bool = False):
     soma_rig_data = _load_soma_rig(ANNY_ROOT_DIR)
 
     soma_data = retopology.build_soma_topology_model_data(rig="default",
@@ -45,7 +45,7 @@ def build_soma_rig_and_topology_model_data(all_phenotypes=False,
                                            pose_parameterization=pose_parameterization,
                                            extrapolate_phenotypes=extrapolate_phenotypes,
                                            local_changes=local_changes,
-                                           face_units=face_units)
+                                           facial_actions=facial_actions)
 
     data = apply_soma_rig(soma_data, soma_rig_data)
     return data
@@ -58,7 +58,7 @@ def build_soma_rig_model_data(
         pose_parameterization="local-bone",
         extrapolate_phenotypes=False,
         local_changes: LocalChanges="none",
-        face_units: bool = False,
+        facial_actions: bool = False,
         remove_unattached_vertices=True,
         triangulate_faces=False):
 
@@ -68,7 +68,7 @@ def build_soma_rig_model_data(
         pose_parameterization=pose_parameterization,
         extrapolate_phenotypes=extrapolate_phenotypes,
         local_changes=local_changes,
-        face_units=face_units,
+        facial_actions=facial_actions,
     )
 
     if topology == "soma":

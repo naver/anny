@@ -140,7 +140,7 @@ def _get_builder_metadata(f: Callable[..., ModelData], *args, **kwargs) -> dict[
         else:
             raise ValueError(f"Missing value for parameter {param.name} of builder function {f.__name__}")
 
-        if param.name == "face_units" and value == "none":
+        if param.name == "facial_actions" and value == "none":
             continue
 
         all_kwargs[param.name] = value

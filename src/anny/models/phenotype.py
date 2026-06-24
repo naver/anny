@@ -65,7 +65,7 @@ class Anny(RiggedModelWithLinearBlendShapes):
         rig: "RigPreset | PathLike" = "default",
         topology: "Topology" = "default",
         local_changes: "LocalChanges" = "none",
-        face_units: bool = False,
+        facial_actions: bool = False,
         remove_unattached_vertices: bool = True,
         triangulate_faces: bool = False,
         pose_parameterization: PoseParameterization = "local-bone",
@@ -86,7 +86,7 @@ class Anny(RiggedModelWithLinearBlendShapes):
             rig=rig,
             topology=topology,
             local_changes=local_changes,
-            face_units=face_units,
+            facial_actions=facial_actions,
             remove_unattached_vertices=remove_unattached_vertices,
             triangulate_faces=triangulate_faces,
             pose_parameterization=pose_parameterization,
@@ -146,28 +146,28 @@ class Anny(RiggedModelWithLinearBlendShapes):
             f"Batch size of {name} ({candidate}) must be 1 or match inferred batch size ({batch_size})."
         )
 
-    def _parse_face_units(self, face_units: dict | torch.Tensor | None) -> torch.Tensor:
+    def _parse_facial_actions(self, facial_actions: dict | torch.Tensor | None) -> torch.Tensor:
         face_unit_count = len(self.face_unit_labels)
         if face_unit_count == 0:
-            if face_units is None:
+            if facial_actions is None:
                 return torch.zeros((1, 0), dtype=self.dtype, device=self.device)
-            if isinstance(face_units, dict) and len(face_units) == 0:
+            if isinstance(facial_actions, dict) and len(facial_actions) == 0:
                 return torch.zeros((1, 0), dtype=self.dtype, device=self.device)
-            raise ValueError("face_units were passed, but this model was built with face_units='none'.")
+            raise ValueError("facial_actions were passed, but this model was built with facial_actions='none'.")
 
-        if face_units is None:
+        if facial_actions is None:
             return torch.zeros((1, face_unit_count), dtype=self.dtype, device=self.device)
 
-        if isinstance(face_units, torch.Tensor):
-            values = torch.as_tensor(face_units, dtype=self.dtype, device=self.device)
+        if isinstance(facial_actions, torch.Tensor):
+            values = torch.as_tensor(facial_actions, dtype=self.dtype, device=self.device)
             if values.dim() != 2 or values.shape[1] != face_unit_count:
                 raise ValueError(
-                    f"face_units tensor must have shape [B, {face_unit_count}], got {tuple(values.shape)}."
+                    f"facial_actions tensor must have shape [B, {face_unit_count}], got {tuple(values.shape)}."
                 )
             return values
 
-        if isinstance(face_units, dict):
-            unknown = sorted(set(face_units) - set(self.face_unit_labels))
+        if isinstance(facial_actions, dict):
+            unknown = sorted(set(facial_actions) - set(self.face_unit_labels))
             if unknown:
                 raise ValueError(
                     f"Unknown face unit labels {unknown}; available labels are {self.face_unit_labels}."
@@ -175,9 +175,9 @@ class Anny(RiggedModelWithLinearBlendShapes):
 
             coerced: dict[str, torch.Tensor] = {}
             batch_size = 1
-            for label, raw_value in face_units.items():
+            for label, raw_value in facial_actions.items():
                 value = to_batched_tensor(raw_value, self.device, self.dtype)
-                batch_size = self._merge_batch_size(batch_size, value.shape[0], f"face_units[{label!r}]")
+                batch_size = self._merge_batch_size(batch_size, value.shape[0], f"facial_actions[{label!r}]")
                 coerced[label] = value
 
             values = torch.zeros((batch_size, face_unit_count), dtype=self.dtype, device=self.device)
@@ -187,7 +187,7 @@ class Anny(RiggedModelWithLinearBlendShapes):
             return values
 
         raise ValueError(
-            f"face_units must be None, a dict, or a tensor, got {type(face_units)}."
+            f"facial_actions must be None, a dict, or a tensor, got {type(facial_actions)}."
         )
 
     def parse_phenotype_kwargs(self, phenotype_kwargs):
@@ -209,7 +209,7 @@ class Anny(RiggedModelWithLinearBlendShapes):
         asian: Union[float, torch.Tensor] = 0.5,
         caucasian: Union[float, torch.Tensor] = 0.5,
         local_changes: dict = dict(),
-        face_units: dict | torch.Tensor | None = None):
+        facial_actions: dict | torch.Tensor | None = None):
         """Return blendshape coefficients corresponding to the input phenotype description."""
         dtype = self.dtype
         device = self.device
@@ -232,13 +232,13 @@ class Anny(RiggedModelWithLinearBlendShapes):
             key: to_batched_tensor(value, self.device, self.dtype)
             for key, value in phenotype_inputs.items()
         }
-        face_unit_weights = self._parse_face_units(face_units)
+        face_unit_weights = self._parse_facial_actions(facial_actions)
 
         local_change_tensors: dict[str, torch.Tensor] = {}
         batch_size = 1
         for key, value in phenotype_tensors.items():
             batch_size = self._merge_batch_size(batch_size, value.shape[0], key)
-        batch_size = self._merge_batch_size(batch_size, face_unit_weights.shape[0], "face_units")
+        batch_size = self._merge_batch_size(batch_size, face_unit_weights.shape[0], "facial_actions")
         for key in self.local_change_labels:
             if key in local_changes:
                 value = to_batched_tensor(local_changes[key], self.device, self.dtype)
@@ -295,7 +295,7 @@ class Anny(RiggedModelWithLinearBlendShapes):
         pose_parameters: torch.Tensor | dict | tuple | None = None,
         phenotype_kwargs: dict | torch.Tensor = dict(),
         local_changes_kwargs: dict = dict(),
-        face_units: dict | torch.Tensor | None = None,
+        facial_actions: dict | torch.Tensor | None = None,
         pose_parameterization: PoseParameterization | None = None,
         return_bone_ends: bool = False,
     ) -> dict[str, torch.Tensor]:
@@ -304,7 +304,7 @@ class Anny(RiggedModelWithLinearBlendShapes):
         blendshape_coeffs = self.get_phenotype_blendshape_coefficients(
             **phenotype_kwargs,
             local_changes=local_changes_kwargs,
-            face_units=face_units,
+            facial_actions=facial_actions,
         )
             
         return super().forward(pose_parameters, blendshape_coeffs, pose_parameterization=pose_parameterization, return_bone_ends=return_bone_ends)

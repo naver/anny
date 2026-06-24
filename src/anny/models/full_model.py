@@ -22,7 +22,7 @@ from anny.models.model_transforms import (
     set_metadata,
 )
 import anny.utils.obj_utils
-from anny.models.face_units import load_face_unit_blendshapes
+from anny.models.facial_actions import load_face_unit_blendshapes
 from anny.models.phenotype import PHENOTYPE_VARIATIONS
 from anny.models.model_data import ModelData, AnnyModelMetadata, cache_builder
 from anny.paths import ANNY_ROOT_DIR, PathLike
@@ -190,7 +190,7 @@ def load_data(
             tongue : bool = False,
             remove_zero_weights_bones : bool = False,
             bones_to_remove: set[str] = set(),
-            face_units: bool = False,
+            facial_actions: bool = False,
             root_dirname : PathLike = ANNY_ROOT_DIR,
 ) -> ModelData:
     # Copy so we never mutate a caller-owned set, and so the shared default never accumulates state across calls.
@@ -366,7 +366,7 @@ def load_data(
 
     face_unit_labels = []
     face_unit_blend_shapes = []
-    if face_units:
+    if facial_actions:
         face_unit_labels, face_unit_blend_shape_tensor = load_face_unit_blendshapes(
             root_dirname=root_dirname,
             vertices_count=len(template_vertices),
@@ -528,7 +528,7 @@ def build_model_data(rig: RigPreset | PathLike = "default",
                  bones_to_remove: set[str] = set(),
                  faces_to_keep: torch.Tensor | None = None,
                  local_changes: LocalChanges = "none",
-                 face_units: bool = False,
+                 facial_actions: bool = False,
                  skinning_method: SkinningMethod | None = None,
                  remove_unattached_vertices: bool = False,
                  triangulate_faces: bool = False,
@@ -555,7 +555,7 @@ def build_model_data(rig: RigPreset | PathLike = "default",
         eyes=eyes,
         tongue=tongue,
         bones_to_remove=bones_to_remove,
-        face_units=face_units,
+        facial_actions=facial_actions,
         root_dirname=root_dirname,
     )
 

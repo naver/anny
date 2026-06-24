@@ -47,23 +47,23 @@ By default the cache is stored in `~/.cache/anny/`. To use a different location,
 export ANNY_CACHE_DIR=/path/to/cache
 ```
 
-## Face units
+## Facial actions
 
-Full-body and head Anny models can optionally load face units:
+Full-body and head Anny models can optionally load facial actions:
 
 ```python
 import torch
 import anny
 
-model = anny.Anny(face_units=True)
-out = model(face_units={"jawOpen": 0.8, "mouthSmileLeft": 0.4})
+model = anny.Anny(facial_actions=True)
+out = model(facial_actions={"jawOpen": 0.8, "mouthSmileLeft": 0.4})
 
 values = torch.zeros(1, len(model.face_unit_labels), dtype=model.dtype, device=model.device)
 values[:, model.face_unit_labels.index("jawOpen")] = 0.8
-out = model(face_units=values)
+out = model(facial_actions=values)
 ```
 
-The default is `face_units=False`, which keeps the existing model behavior. Face unit values are normalized in `[0, 1]`; tensor input is ordered by `model.face_unit_labels`.
+The default is `facial_actions=False`, which keeps the existing model behavior. Face unit values are normalized in `[0, 1]`; tensor input is ordered by `model.face_unit_labels`.
 
 ## Tutorials
 
@@ -89,9 +89,9 @@ The code of Anny, Copyright (c) 2025 NAVER Corp., is licensed under the Apache L
 
 **data/mpfb2**: *Anny* relies on [MakeHuman](https://static.makehumancommunity.org/) assets adapted from [MPFB2](https://github.com/makehumancommunity/mpfb2/) that are licensed under the [CC0 1.0 Universal](src/anny/data/mpfb2/LICENSE.md) License.
 
-**data/faceunits01**: [Face Units asset pack](https://static.makehumancommunity.org/assets/assetpacks/index.html#functional-asset-packs) by Mika Suominen, licensed under the [CC0 1.0 Universal](src/anny/data/mpfb2/LICENSE.md) License.
+**data/faceunits01**: Facial actions of *Anny* rely on [Face Units asset pack](https://static.makehumancommunity.org/assets/assetpacks/index.html#functional-asset-packs) by Mika Suominen, licensed under the [CC0 1.0 Universal](src/anny/data/mpfb2/LICENSE.md) License.
 
-**data/soma**: *Annny* provide a "soma" topology adapted from [SOMA-X](https://github.com/NVlabs/SOMA-X) which is licenced under the [Apache 2.0](https://github.com/NVlabs/SOMA-X/blob/main/LICENSE) license.
+**data/soma**: *Anny* provide a "soma" topology adapted from [SOMA-X](https://github.com/NVlabs/SOMA-X) which is licenced under the [Apache 2.0](https://github.com/NVlabs/SOMA-X/blob/main/LICENSE) license.
 
 **smplx**: A "smplx" topology can be downloaded for non-commercial use only, allowing interoperability with [SMPL-X](https://smpl-x.is.tue.mpg.de/). See LICENSE.txt and NOTICE.txt files in http://download.europe.naverlabs.com/humans/Anny/noncommercial.zip for more information.
 
