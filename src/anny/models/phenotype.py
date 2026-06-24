@@ -37,7 +37,7 @@ def to_batched_tensor(value, device, dtype):
     """
     value = torch.as_tensor(value, device=device, dtype=dtype)
     if value.dim() == 0:
-        return value.unsqueeze(dim=0)
+        value = value.unsqueeze(dim=0)
     if value.dim() != 1:
         raise ValueError(f"Must be a scalar or a 1-D tensor, got shape {tuple(value.shape)}.")
     return value
@@ -136,16 +136,6 @@ class Anny(RiggedModelWithLinearBlendShapes):
             anchors[label] = torch.linspace(0., 1., len(PHENOTYPE_VARIATIONS[label]), dtype=self.dtype, device=self.device)
         return anchors
 
-
-    def _merge_batch_size(self, batch_size: int, candidate: int, name: str) -> int:
-        if candidate == 1 or candidate == batch_size:
-            return max(batch_size, candidate)
-        if batch_size == 1:
-            return candidate
-        raise ValueError(
-            f"Batch size of {name} ({candidate}) must be 1 or match inferred batch size ({batch_size})."
-        )
-
     def _parse_facial_actions(self, facial_actions: dict | torch.Tensor | None) -> torch.Tensor:
         face_unit_count = len(self.face_unit_labels)
         if face_unit_count == 0:
@@ -177,13 +167,13 @@ class Anny(RiggedModelWithLinearBlendShapes):
             batch_size = 1
             for label, raw_value in facial_actions.items():
                 value = to_batched_tensor(raw_value, self.device, self.dtype)
-                batch_size = self._merge_batch_size(batch_size, value.shape[0], f"facial_actions[{label!r}]")
+                batch_size = max(batch_size, value.shape[0])
                 coerced[label] = value
 
             values = torch.zeros((batch_size, face_unit_count), dtype=self.dtype, device=self.device)
             for i, label in enumerate(self.face_unit_labels):
                 if label in coerced:
-                    values[:, i] = coerced[label].expand(batch_size, -1)
+                    values[:, i] = coerced[label].expand(batch_size)
             return values
 
         raise ValueError(
@@ -237,24 +227,24 @@ class Anny(RiggedModelWithLinearBlendShapes):
         local_change_tensors: dict[str, torch.Tensor] = {}
         batch_size = 1
         for key, value in phenotype_tensors.items():
-            batch_size = self._merge_batch_size(batch_size, value.shape[0], key)
-        batch_size = self._merge_batch_size(batch_size, face_unit_weights.shape[0], "facial_actions")
+            batch_size = max(batch_size, value.shape[0])
+        batch_size = max(batch_size, face_unit_weights.shape[0])
         for key in self.local_change_labels:
             if key in local_changes:
                 value = to_batched_tensor(local_changes[key], self.device, self.dtype)
-                batch_size = self._merge_batch_size(batch_size, value.shape[0], key)
+                batch_size = max(batch_size, value.shape[0])
                 local_change_tensors[key] = value
 
         weight_dicts = {}
         for feature in ['age', 'gender', 'muscle', 'weight', 'height', 'proportions', 'cupsize', 'firmness']:
-            value = phenotype_tensors[feature].expand(batch_size, -1)
+            value = phenotype_tensors[feature].expand(batch_size)
             interpolation_coeffs = anny.utils.interpolation.linear_interpolation_coefficients(
                 value, anchors[feature], extrapolate=self.extrapolate_phenotypes)
             weight_dicts[feature] = {key: interpolation_coeffs[:, i] for i, key in enumerate(PHENOTYPE_VARIATIONS[feature])}
 
         race_values = torch.stack(
             [
-                phenotype_tensors[key].expand(batch_size, -1)
+                phenotype_tensors[key].expand(batch_size)
                 for key in ("african", "asian", "caucasian")
             ],
             dim=1,
@@ -277,13 +267,13 @@ class Anny(RiggedModelWithLinearBlendShapes):
 
         coefficient_groups = [wi]
         if len(self.face_unit_labels) > 0:
-            coefficient_groups.append(face_unit_weights.expand(batch_size, ...))
+            coefficient_groups.append(face_unit_weights.expand(batch_size, -1))
 
         if len(self.local_change_labels) > 0:
             local_weights = torch.zeros((batch_size, 2 * len(self.local_change_labels)), device=device, dtype=dtype)
             for i, key in enumerate(self.local_change_labels):
                 if key in local_change_tensors:
-                    value = local_change_tensors[key].expand(batch_size, -1)
+                    value = local_change_tensors[key].expand(batch_size)
                     local_weights[:, 2*i] = anny.utils.relu.relu_with_gradient_at_zero(value)
                     local_weights[:, 2*i+1] = anny.utils.relu.relu_with_gradient_at_zero(-value)
             coefficient_groups.append(local_weights)
