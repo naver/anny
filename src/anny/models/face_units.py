@@ -110,7 +110,7 @@ def load_face_unit_blendshapes(
     if world_transformation is None:
         raise ValueError("world_transformation must be provided to load face units.")
 
-    faceunit_dir = Path(root_dirname) / "data/mpfb2/faceunits01/targets/faceunits"
+    faceunit_dir = Path(root_dirname) / "data/faceunits01/targets/faceunits"
     blendshapes: list[torch.Tensor] = []
     missing_files: list[str] = []
     for label in FACE_UNIT_LABELS:
