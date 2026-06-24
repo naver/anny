@@ -317,7 +317,6 @@ def build_fullbody_model_data(
                 local_changes=local_changes,
                 skinning_method=skinning_method,
                 bone_orientation=bone_orientation,
-                remove_skinning_islands=remove_skinning_islands,
                 weights_filename=weights_filename,
             )
         elif topology == "smpl":

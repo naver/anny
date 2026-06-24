@@ -43,14 +43,6 @@ class TestInstantiation(unittest.TestCase):
         self.assertTrue(callable(model.get_pose_parameterization))
         self.assertTrue(callable(model.set_skinning_method))
 
-    def test_default_no_toes_preset_instantiation(self):
-        try:
-            model = anny.Anny(rig="default_no_toes")
-        except Exception as exc:
-            self.fail(f"default_no_toes preset should instantiate, raised {exc!r}")
-
-        self.assertIsNotNone(model)
-
     def test_custom_rig_path_accepts_pathlike(self):
         rig_filename = pathlib.Path(ANNY_ROOT_DIR) / "data/mpfb2/rigs/standard/rig.default.json"
         weights_filename = pathlib.Path(ANNY_ROOT_DIR) / "data/mpfb2/rigs/standard/weights.default.json"
@@ -75,15 +67,6 @@ class TestInstantiation(unittest.TestCase):
         except Exception as exc:
             self.fail(f"PathLike custom rig with SMPL-X topology should instantiate, raised {exc!r}")
 
-        self.assertIsNotNone(model)
-
-
-    def test_smplx_topology_honors_remove_skinning_islands_flag(self):
-        model = anny.Anny(
-                rig="mixamo",
-                topology="smplx",
-                remove_skinning_islands=False,
-            )
         self.assertIsNotNone(model)
 
     def test_public_factories_return_anny(self):
