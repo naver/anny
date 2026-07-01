@@ -54,6 +54,15 @@ smpl = [
     "smplx",
     "chumpy"
 ]
+cu129 = ["torch"]
 
 [tool.uv.extra-build-dependencies]
 chumpy = ["pip"]
+
+[tool.uv.sources]
+torch = { index = "torch-cu129", extra = "cu129" }
+
+[[tool.uv.index]]
+name = "torch-cu129"
+url = "https://download.pytorch.org/whl/cu129"
+explicit = true
