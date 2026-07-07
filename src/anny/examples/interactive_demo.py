@@ -30,6 +30,7 @@ def main(server_name : str = None, server_port : int = None):
         phenotype_kwargs = None
         local_changes_kwargs = None
         show_bones = False
+        show_bone_axes = False
         show_self_intersections = False
         extrapolate_phenotypes = False
         self_intersection_module = None
@@ -55,11 +56,12 @@ def main(server_name : str = None, server_port : int = None):
             axis = trimesh.creation.axis(origin_size = 0.01, axis_radius=0.005, axis_length=1.0)
             scene.add_geometry(axis)
             mesh = trimesh.Trimesh(vertices=vertices.squeeze(dim=0).cpu().numpy(), faces=faces.cpu().numpy())
-            alpha = 0.5 if show_bones else 1.0
+            show_overlays = show_bones or show_bone_axes
+            alpha = 0.5 if show_overlays else 1.0
             material = trimesh.visual.material.PBRMaterial(baseColorFactor=[0.4, 0.8, 0.8, alpha],
                                                         metallicFactor=0.5,
-                                                        doubleSided=False if show_bones else True,
-                                                        alphaMode='BLEND' if show_bones else 'OPAQUE')
+                                                        doubleSided=False if show_overlays else True,
+                                                        alphaMode='BLEND' if show_overlays else 'OPAQUE')
             mesh.visual = trimesh.visual.TextureVisuals(material=material)
             scene.add_geometry(mesh, node_name="body")
 
@@ -112,6 +114,13 @@ def main(server_name : str = None, server_port : int = None):
                         alphaMode='OPAQUE'))
                 for i in range(len(bone_poses)):
                     scene.add_geometry(joint_sphere, transform=bone_poses[i], node_name=f"joint_{model.bone_labels[i]}")
+
+            if show_bone_axes:
+                # Show each bone pose as a coordinate frame (axes) to visualize orientation
+                bone_poses = output["bone_poses"].squeeze(dim=0).cpu()
+                for i in range(len(bone_poses)):
+                    frame = trimesh.creation.axis(origin_size=0.004, axis_radius=0.002, axis_length=0.1)
+                    scene.add_geometry(frame, transform=bone_poses[i].numpy(), node_name=f"pose_{model.bone_labels[i]}")
 
             # The gradio Model3D component does not use a Z-up camera orientation by default. We apply a scene rotation to compensate.
             view_transform = roma.Rigid(roma.euler_to_rotmat('x', [-90.], degrees=True), torch.zeros(3)).to_homogeneous().numpy()
@@ -196,6 +205,7 @@ def main(server_name : str = None, server_port : int = None):
         default_model_value = "anny"
         default_rig_value = "anny"
         show_bones_checkbox = gr.Checkbox(label="Show bones", value=show_bones, visible=True, interactive=True)
+        show_bone_axes_checkbox = gr.Checkbox(label="Show bone axes", value=show_bone_axes, visible=True, interactive=True)
         show_self_intersections_checkbox = gr.Checkbox(label="Show self intersections", value=False, visible=True, interactive=True)
         extrapolate_phenotypes_checkbox = gr.Checkbox(label="Extrapolate phenotypes (not recommended)", value=extrapolate_phenotypes, visible=True, interactive=True)
         model_gradio_outputs = initialize_model(default_model_value, default_rig_value)
@@ -210,6 +220,7 @@ def main(server_name : str = None, server_port : int = None):
                                                     choices=["anny", "makehuman", "mixamo", "anny-notoes", "anny-nohands", "soma"],
                                                     value=default_rig_value)
                     show_bones_checkbox.render()
+                    show_bone_axes_checkbox.render()
                     show_self_intersections_checkbox.render()
                     extrapolate_phenotypes_checkbox.render()
                     description.render()
@@ -238,6 +249,15 @@ def main(server_name : str = None, server_port : int = None):
                 show_bones = show_bones_checkbox
                 return export_mesh()
             show_bones_checkbox.change(update_show_bones, inputs=[show_bones_checkbox], outputs=[model3d, download_params_button, measurements_summary])
+
+            def update_show_bone_axes(show_bone_axes_checkbox):
+                """
+                Called when the show bone axes checkbox is changed.
+                """
+                nonlocal show_bone_axes
+                show_bone_axes = show_bone_axes_checkbox
+                return export_mesh()
+            show_bone_axes_checkbox.change(update_show_bone_axes, inputs=[show_bone_axes_checkbox], outputs=[model3d, download_params_button, measurements_summary])
 
             def update_show_self_intersections(show_self_intersections_checkbox):
                 """
