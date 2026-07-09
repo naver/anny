@@ -5,16 +5,16 @@ import torch
 import numpy as np
 import yaml
 import PIL.Image
-from anny.paths import ANNY_ROOT_DIR
+from anny.paths import get_anny_root_dir
 
 def get_face_segmentation_mask(anny_model, labels,
                                image_path=None,
                                metadata_path=None):
     if image_path is None:
-        image_path = ANNY_ROOT_DIR / "data/segmentation/body_parts_segmentation.png"
+        image_path = get_anny_root_dir() / "data/segmentation/body_parts_segmentation.png"
 
     if metadata_path is None:
-        metadata_path = ANNY_ROOT_DIR / "data/segmentation/body_parts_segmentation.yaml"
+        metadata_path = get_anny_root_dir() / "data/segmentation/body_parts_segmentation.yaml"
     
     body_parts_segmentation_image = PIL.Image.open(image_path).convert("RGB")
 

@@ -25,24 +25,37 @@ class TestSMPLForward(unittest.TestCase):
         model = SMPLX(SMPLX_MODEL_PATH, pose_corrective=True)
 
         self.assertIsInstance(model, RiggedModelWithLinearBlendShapes)
-        self.assertEqual(model._bone_orientation_method, "tail")
+        self.assertEqual(model.bone_orientation, "blender")
         self.assertEqual(model.bone_count, 55)
         self.assertTrue(hasattr(model, "faces"))
-        
+
 
     def test_smpl_is_normal_rigged_model_instance(self):
         model = SMPL(SMPLX_MODEL_PATH, pose_corrective=True)
 
         self.assertIsInstance(model, RiggedModelWithLinearBlendShapes)
-        self.assertEqual(model._bone_orientation_method, "tail")
+        self.assertEqual(model.bone_orientation, "blender")
         self.assertEqual(model.bone_count, 24)
         self.assertTrue(hasattr(model, "faces"))
         self.assertEqual(model.template_vertices.shape[0], 6890)
 
     def test_smplx_with_anny_topology(self):
         model = SMPLX(SMPLX_MODEL_PATH, pose_corrective=True, topology="anny")
-        anny_model = anny.Anny(remove_unattached_vertices=False)
-        self.assertEqual(model.template_vertices.shape[0],  anny_model.template_vertices.shape[0])
+        full_anny_vertex_count = anny.Anny("anny", topology="makehuman").template_vertices.shape[0]
+        # All vertices must be referenced by at least one face (no unattached vertices)
+        self.assertEqual(torch.unique(model.faces.flatten()).shape[0], model.template_vertices.shape[0])
+        # Pruned mesh must be a strict subset of the full Anny topology
+        self.assertLess(model.template_vertices.shape[0], full_anny_vertex_count)
+        self.assertTrue(torch.all(model.base_mesh_vertex_indices < full_anny_vertex_count))
+
+    def test_smpl_with_anny_topology(self):
+        model = SMPL(SMPLX_MODEL_PATH, topology="anny")
+        full_anny_vertex_count = anny.Anny("anny", topology="makehuman").template_vertices.shape[0]
+        # All vertices must be referenced by at least one face (no unattached vertices)
+        self.assertEqual(torch.unique(model.faces.flatten()).shape[0], model.template_vertices.shape[0])
+        # Pruned mesh must be a strict subset of the full Anny topology
+        self.assertLess(model.template_vertices.shape[0], full_anny_vertex_count)
+        self.assertTrue(torch.all(model.base_mesh_vertex_indices < full_anny_vertex_count))
 
 
     def test_smpl_forward_builds_batched_pose_and_coefficients(self):
@@ -59,6 +72,56 @@ class TestSMPLForward(unittest.TestCase):
                 transl=transl,
                 body_pose=body_pose,
         )
+
+    def test_smpl_forward_matches_smplx_reference_vertices(self):
+        import smplx
+
+        reference = smplx.create(
+            SMPLX_MODEL_PATH,
+            model_type="smpl",
+            gender="neutral",
+        )
+        model = SMPL(
+            SMPLX_MODEL_PATH,
+            gender="neutral",
+            pose_corrective=True,
+            topology="smpl",
+        ).to(dtype=self.dtype)
+        model.set_skinning_method("lbs")
+
+        betas = torch.linspace(
+            -0.2,
+            0.2,
+            reference.num_betas,
+            dtype=self.dtype,
+        ).reshape(1, -1)
+        global_orient = torch.tensor([[0.1, -0.2, 0.05]], dtype=self.dtype)
+        transl = torch.tensor([[0.2, -0.4, 0.1]], dtype=self.dtype)
+        body_pose = torch.linspace(
+            -0.25,
+            0.25,
+            (model.bone_count - 1) * 3,
+            dtype=self.dtype,
+        ).reshape(1, -1)
+
+        reference_output = reference(
+            betas=betas,
+            global_orient=global_orient,
+            body_pose=body_pose,
+            transl=transl,
+        )
+        model_output = model(
+            betas=betas,
+            global_orient=global_orient,
+            transl=transl,
+            body_pose=body_pose,
+        )
+
+        vertex_error = torch.linalg.norm(
+            model_output["vertices"] - reference_output.vertices,
+            dim=-1,
+        )
+        self.assertLess(vertex_error.max().item(), 1e-5)
 
     def test_smplx_forward_builds_batched_pose_and_coefficients_pca(self):
         batch_size = 2
@@ -85,7 +148,7 @@ class TestSMPLForward(unittest.TestCase):
                 jaw_pose=jaw_pose,
             )
 
-        
+
 
     def test_smplx_forward_builds_batched_pose_and_coefficients_no_pca(self):
         batch_size = 2
@@ -111,6 +174,6 @@ class TestSMPLForward(unittest.TestCase):
                 right_hand_pose=hand_pose,
                 jaw_pose=jaw_pose,
             )
-        
+
 if __name__ == "__main__":
     unittest.main()

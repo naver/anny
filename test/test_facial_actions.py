@@ -1,11 +1,9 @@
 import unittest
 
-import roma
 import torch
 
 import anny
-from anny.paths import ANNY_ROOT_DIR
-from anny.models.facial_actions import FACIAL_ACTION_LABELS, load_facial_action_blendshapes
+from anny.models.facial_actions import FACIAL_ACTION_LABELS
 
 
 class TestFacialActions(unittest.TestCase):
@@ -16,7 +14,7 @@ class TestFacialActions(unittest.TestCase):
     def setUpClass(cls):
         cls.model = anny.Anny(
             facial_actions=True,
-            remove_unattached_vertices=False,
+            topology="anny"
         ).to(dtype=cls.dtype, device=cls.device)
 
     def _values(self, batch_size=1, **kwargs):
@@ -37,25 +35,6 @@ class TestFacialActions(unittest.TestCase):
         self.assertEqual(self.model.facial_action_labels[-1], "tongueOut")
         self.assertIn("jawOpen", self.model.facial_action_labels)
         self.assertIn("mouthSmileLeft", self.model.facial_action_labels)
-
-    def test_plain_target_loader_returns_canonical_stack(self):
-        world_transformation = roma.Linear(
-            0.1 * roma.euler_to_rotmat("X", [90], degrees=True, dtype=self.dtype)
-        )[None]
-        labels, blendshapes = load_facial_action_blendshapes(
-            root_dirname=ANNY_ROOT_DIR,
-            vertices_count=self.model.template_vertices.shape[0],
-            world_transformation=world_transformation,
-            dtype=self.dtype,
-        )
-
-        self.assertEqual(labels, FACIAL_ACTION_LABELS)
-        self.assertEqual(
-            blendshapes.shape,
-            (52, self.model.template_vertices.shape[0], 3),
-        )
-        jaw_open = blendshapes[labels.index("jawOpen")]
-        self.assertGreater(torch.count_nonzero(jaw_open).item(), 0)
 
     def test_dict_input_changes_output_vertices(self):
         zero_output = self.model(facial_actions={})

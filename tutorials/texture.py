@@ -24,7 +24,7 @@ import torch
 import anny
 import PIL.Image
 import PIL.ImageDraw
-from anny.paths import ANNY_ROOT_DIR
+from anny.paths import get_anny_root_dir
 import trimesh
 import yaml
 from IPython.display import display
@@ -32,10 +32,9 @@ from IPython.display import display
 # %% [markdown]
 # Instanciate the body model.
 #
-# By default Anny uses quad faces, but here we are going to use triangulate the mesh in order to be able to use the trimesh library for visualization.
 
 # %%
-anny_model = anny.Anny(triangulate_faces=True)
+anny_model = anny.Anny()
 trimesh.Trimesh(anny_model.template_vertices.cpu().numpy(),
                 faces=anny_model.faces.cpu().numpy()).show()
 
@@ -52,7 +51,7 @@ uv_unwrap_image = PIL.Image.new("RGB", (width, height), (0,0,0))
 faces = anny_model.faces.cpu().numpy()
 face_texture_coordinates_indices = anny_model.face_texture_coordinate_indices.numpy()
 st = anny_model.texture_coordinates.numpy()
-vertex_absolute_texture_coordinates = np.array([0, height])[None] + st * np.array([width, -height])[None] 
+vertex_absolute_texture_coordinates = np.array([0, height])[None] + st * np.array([width, -height])[None]
 draw = PIL.ImageDraw.Draw(uv_unwrap_image)
 for face_texture_ids in face_texture_coordinates_indices:
     u0, v0 = vertex_absolute_texture_coordinates[face_texture_ids[-1]]
@@ -69,7 +68,7 @@ display(uv_unwrap_image)
 # We provide a basic segmentation of the mesh of Anny into different semantic body parts.
 
 # %%
-path = ANNY_ROOT_DIR / "data/segmentation/body_parts_segmentation.png"
+path = get_anny_root_dir() / "data/segmentation/body_parts_segmentation.png"
 body_parts_segmentation_image = PIL.Image.open(path).convert("RGB")
 
 overlay_image = body_parts_segmentation_image.copy()
@@ -77,7 +76,7 @@ mask = PIL.Image.fromarray(np.all(np.asarray(uv_unwrap_image) != 0, axis=-1))
 overlay_image.paste(uv_unwrap_image, mask=mask)
 display(overlay_image)
 
-with open(ANNY_ROOT_DIR / "data/segmentation/body_parts_segmentation.yaml", "r") as f:
+with open(get_anny_root_dir() / "data/segmentation/body_parts_segmentation.yaml", "r") as f:
     body_parts_segmentation = yaml.safe_load(f)
 display(f"Body parts: {list(body_parts_segmentation['colors'].keys())}")
 

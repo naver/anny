@@ -32,8 +32,8 @@ bash build_doc.bash  # build HTML docs from the jupytext py:percent tutorials in
 - `Anny(...)` — the full-body model. `Anny` is a class (cf. `anny.SMPLX`); calling
   `anny.Anny(...)` builds a model and `isinstance(model, Anny)` holds for any Anny model.
   Accepts `rig`, `topology`, `pose_parameterization`, `all_phenotypes`, and skinning options.
-- `create_fullbody_model(...)` — the factory `Anny(...)` delegates to (identical arguments);
-  still public and equivalent.
+- `create_fullbody_model(...)` — deprecated legacy full-body factory. It preserves the old
+  default rig preset (`rig="default"`) and old full-body defaults; prefer `Anny(...)`.
 - `create_hand_model()` / `create_head_model()` — isolated part models
 
 ### Core Class Hierarchy
@@ -44,7 +44,7 @@ bash build_doc.bash  # build HTML docs from the jupytext py:percent tutorials in
 
 ### Rigs & Topologies
 
-**Rigs** (`default`, `cmu_mb`, `game_engine`, `mixamo`, `soma`): bone hierarchies defined as YAML in `src/anny/data/mpfb2/rigs/`. The `default` rig supports modifiers via underscore suffixes (e.g. `default_no_toes`).
+**Rigs** (`anny`, `makehuman`, `cmu_mb`, `game_engine`, `mixamo`, `soma`): bone hierarchies defined as JSON in `src/anny/data/mpfb2/rigs/`. `anny` is the pruned procrustes Anny default, equivalent to the MakeHuman source rig with `notongue`, `noexpression`, and `pruned` modifiers. `default` is a legacy preset accepted only by `create_fullbody_model(...)` and preserves the old full MakeHuman rig defaults. `makehuman` is the full MakeHuman rig with tail/blender orientation and `root_identity_orientation=True`. Rig orientation is part of rig resolution; public constructors do not accept a separate `bone_orientation` argument.
 
 **Topologies** (`default`/`makehuman` ≈16K verts, `smplx` 6890 verts, `soma`): alternative meshes are produced by retopology matrices in `src/anny/data/topology/`. SMPL-X is non-commercial only.
 
@@ -66,7 +66,7 @@ Phenotypes are blended linearly between discrete anchor states defined in `src/a
 
 ### Pose Parameterization
 
-Six built-in variants: `local-bone` (default), `local-bone-world`, `world`, `world-orient`, `local-ref`, `root_relative_world`. Selected via `pose_parameterization` argument to `Anny()`.
+Five built-in variants: `local-bone` (default), `local-bone-world`, `world`, `world-orient`, `local-ref`. Selected via `pose_parameterization` argument to `Anny()`.
 
 ### Optional Dependencies
 

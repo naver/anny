@@ -44,31 +44,32 @@ axis = trimesh.creation.axis(axis_length=0.1)
 
 
 def add_skeleton_to_scene(scene, model, output):
-    # Add bones visualization
-    bone_heads, bone_tails = output['bone_heads'], output['bone_tails']
-    bone_heads = bone_heads.squeeze(dim=0).cpu()
-    bone_tails = bone_tails.squeeze(dim=0).cpu()
-    #bone_colors = [[0.8, 0.4, 0.2, 1.0], [0.8, 0.2, 0.4, 1.0]]
-    bone_colors = [[0.8, 0.3, 0.3, 1.0]]
-    bone_visuals = [trimesh.visual.TextureVisuals(material=trimesh.visual.material.PBRMaterial(baseColorFactor=color,
+    # Add bones visualization. Procrustes rigs (the default) have no bone tails,
+    # so we draw each bone as a segment from its head to its parent's head.
+    bone_poses = output["bone_poses"].squeeze(dim=0).cpu()
+    bone_heads = bone_poses[:, :3, 3]
+    bone_color = [0.8, 0.3, 0.3, 1.0]
+    bone_visual = trimesh.visual.TextureVisuals(material=trimesh.visual.material.PBRMaterial(baseColorFactor=bone_color,
                                                             metallicFactor=0.,
                                                             roughnessFactor=1.,
                                                             doubleSided=True,
-                                                            alphaMode='BLEND')) for color in bone_colors]
-    for i in range(len(bone_heads)):
-        bone_head = bone_heads[i]
-        bone_tail = bone_tails[i]
-        cylinder = trimesh.creation.cylinder(radius=0.005, height=torch.norm(bone_tail - bone_head).item(), sections=16)
+                                                            alphaMode='BLEND'))
+    for i in range(1, len(bone_heads)):
+        bone_head = bone_heads[model.bone_parents[i]]
+        bone_tail = bone_heads[i]
+        length = torch.norm(bone_tail - bone_head).item()
+        if length < 1e-6:
+            continue
+        cylinder = trimesh.creation.cylinder(radius=0.005, height=length, sections=16)
         t = (bone_head + bone_tail) / 2
         M = roma.special_gramschmidt(torch.stack([bone_tail - bone_head, torch.tensor([0., 0., 1.], dtype=torch.float32)], dim=-1))
         R = torch.stack([M[:, 2], M[:, 1], M[:,0]], dim=-1)
-        cylinder.visual = bone_visuals[i % len(bone_colors)]
+        cylinder.visual = bone_visual
         scene.add_geometry(cylinder, transform=roma.Rigid(R, t).to_homogeneous().numpy(),
                             node_name=f"bone_{model.bone_labels[i]}")
 
 
     # Add some spheres at the joints
-    bone_poses = output["bone_poses"].squeeze(dim=0).cpu()
     joint_sphere = trimesh.creation.icosphere(radius=0.008, subdivisions=2)
     joint_sphere.visual = trimesh.visual.TextureVisuals(material=trimesh.visual.material.PBRMaterial(
             baseColorFactor=[0.1, 0.1, 0.1, 1.0],
@@ -82,7 +83,7 @@ def add_skeleton_to_scene(scene, model, output):
 # %% [markdown]
 # ## Rigs and topology
 #
-# Anny supports two main rigs: "default" and "mixamo". Bones that are not useful for your application can be removed of the default rig. Using "default-notoes" will ignore bones animating individual toes, for example.
+# Anny supports two main rigs: "anny" and "mixamo". Bones that are not useful for your application can be removed from the Anny rig. Using "anny-notoes" will ignore bones animating individual toes, for example.
 #
 # Anny also supports various mesh topologies. A topology such as "notoes_collapse5pc" provides coarser mesh output for example, allowing to speed up inference and reduce memory consumption.
 # We provide a "smplx" topology for interoperability with the SMPL-X model (https://smpl-x.is.tue.mpg.de/), **for non-commercial use only**.
@@ -92,14 +93,14 @@ def add_skeleton_to_scene(scene, model, output):
 # %%
 viewers = []
 
-for rig, topology in [("default", "default"),
-                      ("mixamo", "default",),
-                      ("default", "smplx",),
-                      ("default-notoes-noexpression-nobreasts", "default"),
-                      ("default-notoes-nohands-noexpression-nobreasts", "notoes_collapse5pc"),
+for rig, topology in [("anny", "anny"),
+                      ("mixamo", "anny",),
+                      ("anny", "smplx",),
+                      ("anny-notoes-noexpression-nobreasts", "makehuman"),
+                      ("anny-notoes-nohands-noexpression-nobreasts", "notoes_collapse5pc"),
                       ]:
-    model = anny.Anny(rig=rig, topology=topology, remove_unattached_vertices=True)
-    output = model(return_bone_ends=True)
+    model = anny.Anny(rig=rig, topology=topology)
+    output = model()
 
     mesh = trimesh.Trimesh(
         vertices=output["vertices"].squeeze(0).cpu().numpy(),
@@ -116,7 +117,7 @@ for rig, topology in [("default", "default"),
     viewers.append(Markdown( "  - " + ", ".join([label for label in model.bone_labels])))
     viewers.append(Markdown(f"#### '{topology}' topology ({len(output['vertices'].squeeze(0))} vertices, {len(model.faces)} faces)"))
     viewers.append(nb.scene_to_notebook(scene))
-    
+
 
 # Display all viewers
 display(*viewers)

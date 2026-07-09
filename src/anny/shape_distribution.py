@@ -1,9 +1,9 @@
 # Anny
 # Copyright (C) 2025 NAVER Corp.
 # Apache License, Version 2.0
+from anny.paths import get_anny_root_dir
 import torch
 from pathlib import Path
-from anny.paths import ANNY_ROOT_DIR
 import anny.utils.interpolation
 
 def _none_or_to_tensor(value, dtype=torch.float64):
@@ -102,7 +102,7 @@ class SimpleShapeDistribution(torch.nn.Module):
         self.gender_distribution = gender_distribution
 
         # --- Boys distribution ---
-        boys_state_dict = torch.load(Path(ANNY_ROOT_DIR / "data" / "shape_calibration/boys.pth"), weights_only=True, map_location="cpu")
+        boys_state_dict = torch.load(Path(get_anny_root_dir() / "data" / "shape_calibration/boys.pth"), weights_only=True, map_location="cpu")
         self.boys_conditional_height_distribution = ConditionalHeightDistribution()
         self.boys_conditional_height_distribution.load_state_dict(boys_state_dict["conditional_height_distribution"])
         self.boys_conditional_height_distribution.to(device=model.device, dtype=model.dtype)
@@ -120,7 +120,7 @@ class SimpleShapeDistribution(torch.nn.Module):
         self.boys_conditional_proportions_distribution.to(device=model.device, dtype=model.dtype)
 
         # --- Girls distributions ---
-        girls_state_dict = torch.load(Path(ANNY_ROOT_DIR / "data" / "shape_calibration/girls.pth"), weights_only=True, map_location="cpu")
+        girls_state_dict = torch.load(Path(get_anny_root_dir() / "data" / "shape_calibration/girls.pth"), weights_only=True, map_location="cpu")
 
         self.girls_conditional_height_distribution = ConditionalHeightDistribution()
         self.girls_conditional_height_distribution.load_state_dict(girls_state_dict["conditional_height_distribution"])

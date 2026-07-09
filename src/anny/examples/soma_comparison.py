@@ -9,7 +9,7 @@ device = torch.device("cpu")
 dtype = torch.float64
 
 
-anny_soma = anny.create_fullbody_model(rig="soma", topology="soma", all_phenotypes=True, pose_parameterization="local-ref").to(device=device, dtype=dtype)
+anny_soma = anny.Anny(rig="soma", topology="soma", pose_parameterization="local-ref", all_phenotypes=True).to(device=device, dtype=dtype)
 soma_layer = soma.SOMALayer(identity_model_type="anny", mode="warp", device=device).to(dtype=dtype)
 
 phenotype_kwargs = torch.rand((1, len(anny_soma.phenotype_labels)), device=device, dtype=dtype)
@@ -26,7 +26,7 @@ pose_parameters[:,0,:3,3] = transl
 anny_output = anny_soma(pose_parameters=pose_parameters, phenotype_kwargs=phenotype_kwargs, local_changes_kwargs=local_changes)
 soma_output = soma_layer(poses=rotvec, transl=transl, identity_coeffs=phenotype_kwargs, scale_params=local_changes, apply_correctives=False)
 
-anny_faces = anny_soma.get_triangular_faces().numpy()
+anny_faces = anny_soma.faces.numpy()
 
 anny_vertices = anny_output["vertices"][0].detach().numpy()
 soma_vertices = soma_output["vertices"][0].detach().numpy()

@@ -2,7 +2,7 @@
 # Copyright (C) 2025 NAVER Corp.
 # Apache License, Version 2.0
 import torch
-from anny.paths import ANNY_ROOT_DIR
+from anny.paths import get_anny_root_dir
 from anny.torch_compat import make_buffer
 from pathlib import Path
 
@@ -26,7 +26,7 @@ class KeypointsRegressor(torch.nn.Module):
                  path : str = "coco"):
         super().__init__()
         if path == "coco":
-            path = Path(ANNY_ROOT_DIR) / "data/keypoints/coco.pth"
+            path = get_anny_root_dir() / "data/keypoints/coco.pth"
         keypoints_data = torch.load(path, weights_only=True)
 
         if len(labels) == 0:

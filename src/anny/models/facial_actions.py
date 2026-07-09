@@ -7,7 +7,7 @@ from pathlib import Path
 
 import torch
 
-from anny.paths import ANNY_ROOT_DIR, PathLike
+from anny.paths import get_anny_root_dir, PathLike
 
 
 FACIAL_ACTION_LABELS: list[str] = [
@@ -99,11 +99,11 @@ def load_plain_target(
 
 
 def load_facial_action_blendshapes(
-    root_dirname: PathLike = ANNY_ROOT_DIR,
     vertices_count: int | None = None,
     world_transformation=None,
     dtype: torch.dtype = torch.float64,
 ) -> tuple[list[str], torch.Tensor]:
+    root_dirname = get_anny_root_dir()
     if vertices_count is None:
         raise ValueError("vertices_count must be provided to load facial actions.")
     if world_transformation is None:

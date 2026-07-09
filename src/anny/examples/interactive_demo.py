@@ -131,24 +131,24 @@ def main(server_name : str = None, server_port : int = None):
             Initialize the model and return a dropdown with bone labels.
             """
             nonlocal model, measurements_class, bones_rotvec, phenotype_kwargs, local_changes_kwargs, self_intersection_module
-            if model_type == "default":
-                model = anny.create_fullbody_model(rig=rig, topology="default", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes, bone_orientation="blender-rootidentity")
+            if model_type == "anny":
+                model = anny.Anny(rig=rig, topology="anny", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes)
             elif model_type == "notoes_collapse10pc":
-                model = anny.create_fullbody_model(rig=rig, topology="notoes_collapse10pc", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes, remove_unattached_vertices=True, bone_orientation="blender-rootidentity")
+                model = anny.Anny(rig=rig, topology="notoes_collapse10pc", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes)
             elif model_type == "notoes_collapse5pc":
-                model = anny.create_fullbody_model(rig=rig, topology="notoes_collapse5pc", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes, remove_unattached_vertices=True, bone_orientation="blender-rootidentity")
+                model = anny.Anny(rig=rig, topology="notoes_collapse5pc", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes)
             elif model_type == "smplx":
-                model = anny.create_fullbody_model(rig=rig, topology="smplx", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes, remove_unattached_vertices=True, bone_orientation="blender-rootidentity")
+                model = anny.Anny(rig=rig, topology="smplx", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes)
             elif model_type == "smpl":
-                model = anny.create_fullbody_model(rig=rig, topology="smpl", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes, remove_unattached_vertices=True, bone_orientation="blender-rootidentity")
+                model = anny.Anny(rig=rig, topology="smpl", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes)
             elif model_type == "soma":
-                model = anny.create_fullbody_model(rig=rig, topology="soma", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes, remove_unattached_vertices=True, bone_orientation="blender-rootidentity")
+                model = anny.Anny(rig=rig, topology="soma", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes)
             elif model_type == "right hand":
-                model = anny.create_hand_model(side='R', extrapolate_phenotypes=extrapolate_phenotypes)
+                model = anny.Anny(rig=rig, topology='hand.R', extrapolate_phenotypes=extrapolate_phenotypes)
             elif model_type == "left hand":
-                model = anny.create_hand_model(side='L', extrapolate_phenotypes=extrapolate_phenotypes)
+                model = anny.Anny(rig=rig, topology='hand.L', extrapolate_phenotypes=extrapolate_phenotypes)
             elif model_type == "head":
-                model = anny.create_head_model(eyes=True, tongue=True, local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes)
+                model =  anny.Anny(rig=rig, topology='head', extrapolate_phenotypes=extrapolate_phenotypes)
             else:
                 raise ValueError(f"Invalid model type: {model_type}")
             
@@ -193,8 +193,8 @@ def main(server_name : str = None, server_port : int = None):
             model3d = gr.Model3D(value=filename, height="100vh")
             return description, phenotype_dropdown, macrodetail_slider, local_change_dropdown, local_changes_slider, reset_shape_button, bone_dropdown, x_slider, y_slider, z_slider, reset_pose_button, model3d, measurements_summary
 
-        default_model_value = "default"
-        default_rig_value = "default"
+        default_model_value = "anny"
+        default_rig_value = "anny"
         show_bones_checkbox = gr.Checkbox(label="Show bones", value=show_bones, visible=True, interactive=True)
         show_self_intersections_checkbox = gr.Checkbox(label="Show self intersections", value=False, visible=True, interactive=True)
         extrapolate_phenotypes_checkbox = gr.Checkbox(label="Extrapolate phenotypes (not recommended)", value=extrapolate_phenotypes, visible=True, interactive=True)
@@ -205,9 +205,9 @@ def main(server_name : str = None, server_port : int = None):
             with gr.Row():
                 with gr.Column("compact", elem_id="control-column"):
                     model_dropdown = gr.Dropdown(label="Topology",
-                                                    choices=["default", "left hand", "right hand", "head", "notoes_collapse10pc", "notoes_collapse5pc", "smplx", "smpl", "soma"], value=default_model_value)
+                                                    choices=["anny", "left hand", "right hand", "head", "notoes_collapse10pc", "notoes_collapse5pc", "smplx", "smpl", "soma"], value=default_model_value)
                     rig_dropdown = gr.Dropdown(label="Rig",
-                                                    choices=["default", "mixamo", "default-noeyes-notongue-noexpression-nobreasts-notoes", "default-noeyes-notongue-noexpression-nobreasts-notoes-nohands", "soma"],
+                                                    choices=["anny", "makehuman", "mixamo", "anny-notoes", "anny-nohands", "soma"],
                                                     value=default_rig_value)
                     show_bones_checkbox.render()
                     show_self_intersections_checkbox.render()

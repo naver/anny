@@ -1,7 +1,6 @@
 # Anny
 # Copyright (C) 2025 NAVER Corp.
 # Apache License, Version 2.0
-import collections
 import torch
 import math
 import numpy as np
@@ -229,7 +228,7 @@ class SelfInterpenetrationModule:
     
 if __name__ == "__main__":
     import anny
-    anny_model = anny.create_fullbody_model()
+    anny_model = anny.Anny()
 
     collision_module = SelfInterpenetrationModule(anny_model)
     output = anny_model()

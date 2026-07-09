@@ -1,3 +1,4 @@
+import dataclasses
 import inspect
 from unittest.mock import patch
 import warnings
@@ -8,8 +9,8 @@ import torch
 
 from anny.models.rigged_model import RiggedModelWithLinearBlendShapes
 import anny.models.model_transforms
+from anny.models.model_data import ModelData
 from anny.paths import get_anny2smpl_data_path, get_anny2smplx_data_path
-from anny.torch_compat import make_buffer
 
 
 with warnings.catch_warnings():
@@ -25,6 +26,28 @@ with warnings.catch_warnings():
         patch.object(inspect, "getargspec", inspect.getfullargspec, create=True),
     ): # Patching because smplx uses deprecated numpy types and inspect.getargspec which are removed in newer versions of numpy and Python
         import smplx, chumpy
+
+
+def _synthetic_tail_identity_rolls(reference: torch.Tensor, bone_count: int) -> torch.Tensor:
+    # get_bone_poses treats synthetic +Y tails as degenerate and applies this
+    # rotation; using it as the roll keeps SMPL joint rest frames at identity.
+    roll = reference.new_tensor(
+        [[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]]
+    )
+    return roll.unsqueeze(0).unsqueeze(0).expand(1, bone_count, 3, 3).clone()
+
+def _add_bone_tail_blendshapes(data: ModelData) -> ModelData:
+    template_bone_tails = data.template_bone_heads + torch.tensor(
+        [0.0, 1.0, 0.0],
+        dtype=data.template_bone_heads.dtype,
+        device=data.template_bone_heads.device,
+    )
+    bone_tails_blendshapes = data.bone_heads_blendshapes.clone()
+    bone_rolls_rotmat = _synthetic_tail_identity_rolls(
+        data.template_bone_heads,
+        len(data.metadata.bone_labels),
+    )
+    return dataclasses.replace(data, template_bone_tails=template_bone_tails, bone_tails_blendshapes=bone_tails_blendshapes, bone_rolls_rotmat=bone_rolls_rotmat)
 
 class SMPLX(RiggedModelWithLinearBlendShapes):
     def __init__(self, *smplx_args, model_type="smplx", pose_corrective=True, topology="smplx", **smplx_kwargs):
@@ -62,9 +85,6 @@ class SMPLX(RiggedModelWithLinearBlendShapes):
         metadata = anny.ModelMetadata(
             bone_parents=model.parents,
             bone_labels=bone_labels,
-            pose_parameterization="local-bone-world",
-            skinning_method=None,
-            bone_orientation="blender",
         )
         data = anny.ModelData(metadata=metadata,
                                     template_vertices=model.v_template,
@@ -100,9 +120,7 @@ class SMPLX(RiggedModelWithLinearBlendShapes):
                 reference_vertex_indices=reference_vertex_indices,
                 barycentric_coordinates=barycentric_coordinates)
         if topology == "anny":
-            data = anny_data
-            # Store the validity mask regarding Anny vertices
-            vertex_mask = anny2smplx_state_dict["anny_vertex_mask"]
+            data = anny.models.model_transforms.remove_unattached_vertices(anny_data)
         elif topology == "smpl":
             # Load the SMPL topology
             state_dict = torch.load(get_anny2smpl_data_path(),
@@ -121,46 +139,21 @@ class SMPLX(RiggedModelWithLinearBlendShapes):
                 reference_vertex_indices=reference_vertex_indices,
                 barycentric_coordinates=barycentric_coordinates,
             )
-            # No vertex masking
-            vertex_mask = torch.ones(len(vertices), dtype=torch.float64)
+            data = anny.models.model_transforms.remove_unattached_vertices(data)
         else:
-            vertex_mask = None
             assert topology == "smplx"
 
         bone_labels = [f"bone_{i}" for i in range(bone_count)]
-        template_bone_tails = template_bone_heads + torch.tensor(
-            [0.0, 1.0, 0.0],
-            dtype=template_bone_heads.dtype,
-            device=template_bone_heads.device,
-        )
-        bone_tails_blendshapes = bone_heads_blendshapes.clone()
-        bone_rolls_rotmat = torch.eye(
-            3,
-            dtype=template_bone_heads.dtype,
-            device=template_bone_heads.device,
-        ).unsqueeze(0).unsqueeze(0).expand(1, len(bone_labels), 3, 3).clone()
-    
+        
+        metadata = dataclasses.replace(data.metadata, bone_labels=bone_labels, bone_parents=model.parents.tolist())
+        data = dataclasses.replace(data, metadata=metadata)
+        data = _add_bone_tail_blendshapes(data)
         super().__init__(
-            template_vertices=data.template_vertices,
-            faces=data.faces,
-            texture_coordinates=data.texture_coordinates,
-            face_texture_coordinate_indices=data.face_texture_coordinate_indices,
-            blendshapes=data.blendshapes,
-            template_bone_heads=data.template_bone_heads,
-            template_bone_tails=template_bone_tails,
-            bone_heads_blendshapes=data.bone_heads_blendshapes,
-            bone_tails_blendshapes=bone_tails_blendshapes,
-            bone_rolls_rotmat=bone_rolls_rotmat,
-            bone_parents=model.parents.tolist(),
-            bone_labels=bone_labels,
-            vertex_bone_weights=data.vertex_bone_weights,
-            vertex_bone_indices=data.vertex_bone_indices,
-            base_mesh_vertex_indices=data.base_mesh_vertex_indices,
+            data=data,
             skinning_method=None,
-            reference_bone_orientations=data.reference_bone_orientations,
-            pose_parameterization=data.metadata.pose_parameterization,)
-
-        self.vertex_mask = make_buffer(self, "vertex_mask", vertex_mask, persistent=False) if vertex_mask is not None else None
+            pose_parameterization="local-bone-world",
+            bone_orientation="blender",
+            root_identity_orientation=False)
 
 
     def forward(self, betas, expression, global_orient, transl, body_pose, leye_pose, reye_pose, left_hand_pose, right_hand_pose, jaw_pose):
@@ -225,9 +218,6 @@ class SMPL(RiggedModelWithLinearBlendShapes):
         metadata = anny.ModelMetadata(
             bone_parents=model.parents,
             bone_labels=bone_labels,
-            pose_parameterization="local-bone-world",
-            skinning_method=None,
-            bone_orientation="blender",
         )
         data = anny.ModelData(metadata=metadata,
                                     template_vertices=model.v_template,
@@ -243,9 +233,7 @@ class SMPL(RiggedModelWithLinearBlendShapes):
                                     base_mesh_vertex_indices=torch.arange(len(template_vertices), dtype=torch.int64),
                                     stacked_phenotype_blend_shapes_mask=None,
                                     )
-        if topology == "smpl":
-            vertex_mask = None
-        else:
+        if topology != "smpl":
             # Load the SMPL/Anny correspondences
             anny_state_dict = torch.load(get_anny2smpl_data_path(),
                                     map_location="cpu",
@@ -265,8 +253,7 @@ class SMPL(RiggedModelWithLinearBlendShapes):
             )
 
             if topology == "anny":
-                # Store the validity mask regarding Anny vertices
-                vertex_mask = anny_state_dict["anny_vertex_mask"]
+                data = anny.models.model_transforms.remove_unattached_vertices(anny_data)
             elif topology == "smplx":
                 # Load the SMPLX topology
                 state_dict = torch.load(get_anny2smplx_data_path(),
@@ -285,33 +272,17 @@ class SMPL(RiggedModelWithLinearBlendShapes):
                     reference_vertex_indices=reference_vertex_indices,
                     barycentric_coordinates=barycentric_coordinates,
                 )
-                # No vertex masking
-                vertex_mask = torch.ones(len(vertices), dtype=torch.float64)
+                data = anny.models.model_transforms.remove_unattached_vertices(data)
             else:
                 raise ValueError()
-
+        data = _add_bone_tail_blendshapes(data)
         super().__init__(
-            template_vertices=data.template_vertices,
-            faces=data.faces,
-            texture_coordinates=data.texture_coordinates,
-            face_texture_coordinate_indices=data.face_texture_coordinate_indices,
-            blendshapes=data.blendshapes,
-            template_bone_heads=data.template_bone_heads,
-            template_bone_tails=data.template_bone_heads + torch.tensor([0.0, 1.0, 0.0], dtype=data.template_bone_heads.dtype, device=data.template_bone_heads.device),
-            bone_heads_blendshapes=data.bone_heads_blendshapes,
-            bone_tails_blendshapes=data.bone_heads_blendshapes.clone(),
-            bone_rolls_rotmat=torch.eye(3, dtype=data.template_bone_heads.dtype, device=data.template_bone_heads.device).unsqueeze(0).unsqueeze(0).expand(1, len(data.metadata.bone_labels), 3, 3).clone(),
-            bone_parents=data.metadata.bone_parents,
-            bone_labels=data.metadata.bone_labels,
-            vertex_bone_weights=data.vertex_bone_weights,
-            vertex_bone_indices=data.vertex_bone_indices,
-            skinning_method=data.metadata.skinning_method,
-            reference_bone_orientations=data.reference_bone_orientations,
-            pose_parameterization=data.metadata.pose_parameterization,
-            base_mesh_vertex_indices=data.base_mesh_vertex_indices
+            data=data,
+            pose_parameterization="local-bone-world",
+            skinning_method=None,
+            bone_orientation="blender",
+            root_identity_orientation=False
         )
-        
-        self.vertex_mask = make_buffer(self, "vertex_mask", vertex_mask, persistent=False) if vertex_mask is not None else None
 
     def forward(self, betas, global_orient, transl, body_pose):
         rotvec = torch.cat([global_orient.reshape(-1, 1, 3),

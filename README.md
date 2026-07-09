@@ -33,7 +33,7 @@ pip install anny[warp,examples]@git+https://github.com/naver/anny.git # latest s
 ### Quickstart example
 ```python
 import torch, anny, trimesh
-model = anny.Anny(local_changes=True, facial_actions=True, triangulate_faces=True).to(dtype=torch.float32)
+model = anny.Anny(local_changes=True, facial_actions=True).to(dtype=torch.float32)
 # The model accept both dictionnary and stacked tensor inputs.
 # Skeletal rig pose parameters (see model.bone_labels).
 pose_parameters = torch.eye(4)[None, None].repeat(1, model.bone_count, 1, 1)
@@ -52,6 +52,18 @@ output = model(
       )
 trimesh.Trimesh(vertices = output["vertices"].squeeze(dim=0).numpy(), faces=model.faces).export("anny_output.ply")
 ```
+
+### Default `anny` rig
+
+By default, `anny.Anny()` uses the compact `anny` rig with 104 bones and Procrustes bone orientations. This is the recommended default for most full-body use cases: it keeps the main body, hand, and head articulation while removing facial expression, eye, tongue, and other zero-weight/pruned bones that are present in the full MakeHuman rig. For comparison, `Anny(rig="makehuman")` exposes the full 163-bone MakeHuman rig with the old blender/root-identity orientation. Choose `rig="anny"` for a smaller, stable default skeleton; choose `rig="makehuman"` if you need exact compatibility with old models or direct access to the removed face/tongue/eye bones. Facial action blendshapes remain available separately with `facial_actions=True`.
+
+### Default `anny` topology
+
+By default, `anny.Anny()` uses the `anny` topology: a MakeHuman-derived full-body mesh with Anny's minor nudity-related mesh edits, unattached vertices removed, and triangular faces. This is the recommended topology for new full-body models because every output vertex is referenced by the mesh connectivity and the triangulated faces work directly with downstream tools such as anthropometry and most mesh processing libraries. Use `topology="anny-quads"` if you need the original quad faces, `topology="anny-full"` if you need to keep unattached vertices and disable the nudity-related mesh edits, or `topology="makehuman"` for the unedited quad MakeHuman body mesh convention. Alternative retopologies such as `smplx`, `smpl`, and `soma` are available when interoperability with those ecosystems is more important than using Anny's native mesh.
+
+### Migration from legacy defaults
+
+`anny.Anny()` now defaults to the new pruned procrustes Anny model (`rig="anny"`, `topology="anny"`), whereas the legacy full-body defaults were exposed through `create_fullbody_model(rig="default", topology="default", bone_orientation="blender-rootidentity", remove_unattached_vertices=True, triangulate_faces=False)`. For exact legacy behavior, keep using `anny.create_fullbody_model(...)` while migrating; for new `anny.Anny(...)` calls, replace `rig="default"` with `rig="makehuman-symmetric-blender-rootidentity"` when you need the old full MakeHuman rig and orientation, or with `rig="anny"` for the new default. Replace `topology="default"` with `topology="anny"`, and encode the old mesh flags in the topology string: add `-quads` for `triangulate_faces=False` and add `-full` for `remove_unattached_vertices=False` (for example, old `topology="default", triangulate_faces=False` maps to `topology="anny-quads"`).
 
 ## Caching
 

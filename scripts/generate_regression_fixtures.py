@@ -5,25 +5,24 @@ Run from the repo root:
 """
 
 import os
-import sys
 import random
 import json
 
 import numpy as np
 import roma
 import torch
-from jsonargparse import CLI
+from jsonargparse import auto_cli
 
 import anny
 
 CONFIGS = [
     {},
-    {"rig": "default-notoes", "local_changes": "all"},
+    {"rig": "anny-notoes", "local_changes": "all"},
     {"all_phenotypes": True},
     {"pose_parameterization": "world-orient"},
     {"topology": "soma"},
     {"topology": "smplx"},
-    {"topology": "notoes", "triangulate_faces": True},
+    {"topology": "anny-quads"},
     {"rig": "soma"},
 ]
 
@@ -37,7 +36,7 @@ def config_to_slug(cfg: dict) -> str:
     return "__".join(f"{k}_{v}" for k, v in sorted(cfg.items()))
 
 def generate_config(cfg: dict, seed: int) -> dict:
-    model = anny.create_fullbody_model(**cfg)
+    model = anny.Anny(**cfg)
     dtype = model.dtype
     slug = config_to_slug(cfg)
 
@@ -75,7 +74,7 @@ def generate_fixture(cfg: dict, output_dir: str) -> None:
     else:
         old_data = None
 
-    model = anny.create_fullbody_model(**cfg["config"])
+    model = anny.Anny(**cfg["config"])
 
     pose_parameters = torch.tensor(cfg["model_kwargs"]["pose_parameters"], dtype=model.dtype)
     phenotype_kwargs = {key: torch.tensor(val, dtype=model.dtype) for key, val in cfg["model_kwargs"]["phenotype_kwargs"].items()}
@@ -102,7 +101,7 @@ def generate_fixture(cfg: dict, output_dir: str) -> None:
         np.savez_compressed(out_path, **data)
         print(f"Saved: {out_path}")
 
-   
+
 
 def generate_configs(output_dir: str = "test/data") -> None:
     """Generate regression fixture configs JSON file."""
@@ -128,4 +127,4 @@ def generate_fixtures(output_dir: str = "test/data", config_slugs: list[str] | N
 
 
 if __name__ == "__main__":
-    CLI({"configs": generate_configs, "fixtures": generate_fixtures})
+    auto_cli({"configs": generate_configs, "fixtures": generate_fixtures})

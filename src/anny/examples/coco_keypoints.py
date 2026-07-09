@@ -6,7 +6,7 @@ import torch
 
 dtype = torch.float32
 device = torch.device("cpu")
-model = anny.create_fullbody_model().to(device=device, dtype=dtype)
+model = anny.Anny().to(device=device, dtype=dtype)
 
 
 # Typical COCO 23 ordering

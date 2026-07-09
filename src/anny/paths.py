@@ -7,11 +7,13 @@ import logging
 
 from anny.typing import PathLike
 
-ANNY_ROOT_DIR = pathlib.Path(__file__).resolve().parent
+DEFAULT_ANNY_ROOT_DIR = pathlib.Path(__file__).resolve().parent
 
 # Define the default cache directory as a fixed, absolute path (user-overridable)
 DEFAULT_CACHE_PATH = pathlib.Path.home() / ".cache" / "anny"
 _ANNY_CACHE_DIR = [pathlib.Path(os.getenv("ANNY_CACHE_DIR", str(DEFAULT_CACHE_PATH)))]
+_ANNY_ROOT_DIR = [pathlib.Path(os.getenv("ANNY_ROOT_DIR", str(DEFAULT_ANNY_ROOT_DIR)))]
+
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +35,25 @@ def set_anny_cache_path(path: PathLike):
     """
     global _ANNY_CACHE_DIR
     _ANNY_CACHE_DIR[0] = pathlib.Path(path)
+
+def get_anny_root_dir() -> pathlib.Path:
+    """
+    Get the path to the Anny root directory.
+
+    Returns:
+        pathlib.Path: The path to the Anny root directory.
+    """
+    return _ANNY_ROOT_DIR[0]
+
+def set_anny_root_dir(path: PathLike):
+    """
+    Set the path to the Anny root directory.
+
+    Args:
+        path (PathLike): The new path to the Anny root directory.
+    """
+    global _ANNY_ROOT_DIR
+    _ANNY_ROOT_DIR[0] = pathlib.Path(path)
 
 def get_anny2smplx_data_path() -> pathlib.Path:
     """

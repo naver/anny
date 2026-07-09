@@ -16,83 +16,58 @@ from anny.utils.mesh_utils import triangulate_faces
 if TYPE_CHECKING:
     from anny.models.model_data import ModelData
 
+def _make_optional_buffer(module: torch.nn.Module, name: str, tensor: torch.Tensor | None) -> torch.Tensor | None:
+    if tensor is None:
+        return None
+    return make_buffer(module, name, tensor, persistent=False)    
 
 class RiggedModelWithLinearBlendShapes(torch.nn.Module):
     def __init__(
         self,
-        template_vertices: torch.Tensor,
-        faces: torch.Tensor,
-        texture_coordinates: torch.Tensor | None,
-        face_texture_coordinate_indices: torch.Tensor | None,
-        blendshapes: torch.Tensor,
-        template_bone_heads: torch.Tensor,
-        bone_heads_blendshapes: torch.Tensor,
-        bone_parents: list[int],
-        bone_labels: list[str],
-        vertex_bone_weights: torch.Tensor,
-        vertex_bone_indices: torch.Tensor,
-        base_mesh_vertex_indices: torch.Tensor,
+        data: "ModelData",
         skinning_method: SkinningMethod | None = None,
-        reference_bone_orientations: torch.Tensor | None = None,
         pose_parameterization: PoseParameterization = "local-bone",
-        template_bone_tails: torch.Tensor | None = None,
-        bone_tails_blendshapes: torch.Tensor | None = None,
-        bone_rolls_rotmat: torch.Tensor | None = None,
-        bone_orientation: BoneOrientation = "blender-rootidentity",
-        bone_nonzeroweight_mask: torch.Tensor | None = None,
-        bone_vertex_indices: torch.Tensor | None = None,
-        bone_vertex_weights: torch.Tensor | None = None,
-        template_bone_vertices: torch.Tensor | None = None,
+        bone_orientation: BoneOrientation = "blender",
+        root_identity_orientation: bool = True,
     ) -> None:
         super().__init__()
-        self.template_vertices = make_buffer(self, "template_vertices", template_vertices, persistent=False)
-        self.faces = faces
-        self.texture_coordinates = make_buffer(self, "texture_coordinates", texture_coordinates, persistent=False) if texture_coordinates is not None else None
-        self.face_texture_coordinate_indices = make_buffer(self, "face_texture_coordinate_indices", face_texture_coordinate_indices, persistent=False) if face_texture_coordinate_indices is not None else None
-        self.blendshapes = make_buffer(self, "blendshapes", blendshapes, persistent=False)
-        self.template_bone_heads = make_buffer(self, "template_bone_heads", template_bone_heads, persistent=False)
-        self.bone_heads_blendshapes = make_buffer(self, "bone_heads_blendshapes", bone_heads_blendshapes, persistent=False)
-        self.reference_bone_orientations = make_buffer(self, "reference_bone_orientations", reference_bone_orientations, persistent=False) if reference_bone_orientations is not None else None
-        self.bone_parents = bone_parents
-        self.kinematic_propagation_fronts = kinematics.get_kinematic_propagation_fronts(bone_parents)
-        self.bone_labels = bone_labels
-        self.vertex_bone_weights = make_buffer(self, "vertex_bone_weights", vertex_bone_weights, persistent=False)
-        self.vertex_bone_indices = make_buffer(self, "vertex_bone_indices", vertex_bone_indices, persistent=False)
-        self.base_mesh_vertex_indices = make_buffer(self, "base_mesh_vertex_indices", base_mesh_vertex_indices, persistent=False)
+        self.template_vertices = make_buffer(self, "template_vertices", data.template_vertices, persistent=False)
+        self.faces = data.faces
+        self.texture_coordinates = _make_optional_buffer(self, "texture_coordinates", data.texture_coordinates)
+        self.face_texture_coordinate_indices = make_buffer(self, "face_texture_coordinate_indices", data.face_texture_coordinate_indices, persistent=False) if data.face_texture_coordinate_indices is not None else None
+        self.blendshapes = make_buffer(self, "blendshapes", data.blendshapes, persistent=False)
+        self.template_bone_heads = make_buffer(self, "template_bone_heads", data.template_bone_heads, persistent=False)
+        self.bone_heads_blendshapes = make_buffer(self, "bone_heads_blendshapes", data.bone_heads_blendshapes, persistent=False)
+        self.reference_bone_orientations = _make_optional_buffer(self, "reference_bone_orientations", data.reference_bone_orientations)
+       
+        self.vertex_bone_weights = make_buffer(self, "vertex_bone_weights", data.vertex_bone_weights, persistent=False)
+        self.vertex_bone_indices = make_buffer(self, "vertex_bone_indices", data.vertex_bone_indices, persistent=False)
+        self.base_mesh_vertex_indices = make_buffer(self, "base_mesh_vertex_indices", data.base_mesh_vertex_indices, persistent=False)
         self.set_skinning_method(skinning_method)
         self.pose_parameterization: PoseParameterization = pose_parameterization
-        self._bone_orientation_method = "procrustes" if bone_orientation == "procrustes" else "tail"
-        
+
         self.bone_orientation: BoneOrientation = bone_orientation
-        if self._bone_orientation_method == "tail":
-            assert template_bone_tails is not None
-            assert bone_tails_blendshapes is not None
-            assert bone_rolls_rotmat is not None
-            self._init_tail_model_buffers(
-                template_bone_tails,
-                bone_tails_blendshapes,
-                bone_rolls_rotmat,
-            )
-        else:
-            assert bone_nonzeroweight_mask is not None
-            assert bone_vertex_indices is not None
-            assert bone_vertex_weights is not None
-            assert template_bone_vertices is not None
-            self._init_procrustes_model_buffers(
-                bone_nonzeroweight_mask,
-                bone_vertex_indices,
-                bone_vertex_weights,
-                template_bone_vertices,
-            )
+        self.root_identity_orientation = root_identity_orientation
+        
+        self.bone_labels = data.metadata.bone_labels
+        self.bone_parents = data.metadata.bone_parents
+
+        self.kinematic_propagation_fronts = kinematics.get_kinematic_propagation_fronts(self.bone_parents)
+
+        
+        if self.bone_orientation == "blender":
+            assert data.template_bone_tails is not None
+            assert data.bone_tails_blendshapes is not None
+            assert data.bone_rolls_rotmat is not None
             
-    def _init_tail_model_buffers(
-        self,
-        template_bone_tails: torch.Tensor,
-        bone_tails_blendshapes: torch.Tensor,
-        bone_rolls_rotmat: torch.Tensor,
-    ) -> None:
-        self.template_bone_tails = make_buffer(self, "template_bone_tails", template_bone_tails, persistent=False)
-        self.bone_tails_blendshapes = make_buffer(self, "bone_tails_blendshapes", bone_tails_blendshapes, persistent=False)
+        else:
+            assert data.bone_nonzeroweight_mask is not None
+            assert data.bone_vertex_indices is not None
+            assert data.bone_vertex_weights is not None
+            assert data.template_bone_vertices is not None
+            
+        self.template_bone_tails = _make_optional_buffer(self, "template_bone_tails", data.template_bone_tails)
+        self.bone_tails_blendshapes = _make_optional_buffer(self, "bone_tails_blendshapes", data.bone_tails_blendshapes)
         self.y_axis = make_buffer(self, "y_axis", torch.as_tensor([0.0, 1.0, 0.0], dtype=self.template_vertices.dtype), persistent=False)
         self.degenerate_rotation = make_buffer(
             self,
@@ -100,35 +75,12 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
             torch.tensor([[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, -1.0]], dtype=self.template_vertices.dtype),
             persistent=False,
         )
-        self.bone_rolls_rotmat = make_buffer(self, "bone_rolls_rotmat", bone_rolls_rotmat, persistent=False)
-
-        self.bone_nonzeroweight_mask = None
-        self.bone_vertex_indices = None
-        self.bone_vertex_weights = None
-        self.template_bone_vertices = None
-
-    def _init_procrustes_model_buffers(
-        self,
-        bone_nonzeroweight_mask: torch.Tensor,
-        bone_vertex_indices: torch.Tensor,
-        bone_vertex_weights: torch.Tensor,
-        template_bone_vertices: torch.Tensor,
-    ) -> None:
-        self.bone_nonzeroweight_mask = make_buffer(self, "bone_nonzeroweight_mask", bone_nonzeroweight_mask, persistent=False)
-        self.bone_vertex_indices = make_buffer(self, "bone_vertex_indices", bone_vertex_indices, persistent=False)
-        self.bone_vertex_weights = make_buffer(self, "bone_vertex_weights", bone_vertex_weights, persistent=False)
-        self.template_bone_vertices = make_buffer(self, "template_bone_vertices", template_bone_vertices, persistent=False)
-
-        self.template_bone_tails = None
-        self.bone_tails_blendshapes = None
-        self.y_axis = None
-        self.degenerate_rotation = None
-        self.bone_rolls_rotmat = None
-
-    @property
-    def root_identity_orientation(self) -> bool:
-        return self.bone_orientation == "blender-rootidentity"
-
+        self.bone_rolls_rotmat = _make_optional_buffer(self, "bone_rolls_rotmat", data.bone_rolls_rotmat)
+        self.bone_nonzeroweight_mask = _make_optional_buffer(self, "bone_nonzeroweight_mask", data.bone_nonzeroweight_mask)
+        self.bone_vertex_indices = _make_optional_buffer(self, "bone_vertex_indices", data.bone_vertex_indices)
+        self.bone_vertex_weights = _make_optional_buffer(self, "bone_vertex_weights", data.bone_vertex_weights)
+        self.template_bone_vertices = _make_optional_buffer(self, "template_bone_vertices", data.template_bone_vertices)
+        
     @property
     def bone_count(self) -> int:
         return len(self.bone_labels)
@@ -168,105 +120,45 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
         else:
             raise NotImplementedError
 
-    def _init_from_model_data(self, data: "ModelData") -> None:
-        RiggedModelWithLinearBlendShapes.__init__(
-                self,
-                template_vertices=data.template_vertices,
-                faces=data.faces,
-                texture_coordinates=data.texture_coordinates,
-                face_texture_coordinate_indices=data.face_texture_coordinate_indices,
-                blendshapes=data.blendshapes,
-                template_bone_heads=data.template_bone_heads,
-                bone_heads_blendshapes=data.bone_heads_blendshapes,
-                bone_parents=data.metadata.bone_parents,
-                bone_labels=data.metadata.bone_labels,
-                vertex_bone_weights=data.vertex_bone_weights,
-                vertex_bone_indices=data.vertex_bone_indices,
-                base_mesh_vertex_indices=data.base_mesh_vertex_indices,
-                skinning_method=data.metadata.skinning_method,
-                reference_bone_orientations=data.reference_bone_orientations,
-                pose_parameterization=data.metadata.pose_parameterization,
-                template_bone_tails=data.template_bone_tails,
-                bone_tails_blendshapes=data.bone_tails_blendshapes,
-                bone_rolls_rotmat=data.bone_rolls_rotmat,
-                bone_orientation=data.metadata.bone_orientation,
-                bone_nonzeroweight_mask=data.bone_nonzeroweight_mask,
-                bone_vertex_indices=data.bone_vertex_indices,
-                bone_vertex_weights=data.bone_vertex_weights,
-                template_bone_vertices=data.template_bone_vertices,
-            )
-       
-
-    @classmethod
-    def from_model_data(cls, data: "ModelData") -> "RiggedModelWithLinearBlendShapes":
-        obj = cls.__new__(cls)
-        obj._init_from_model_data(data)
-        return obj
 
     def to_model_data(self) -> "ModelData":
         from anny.models.model_data import ModelData, ModelMetadata
+        return ModelData(
+            metadata=ModelMetadata(
+                bone_parents=self.bone_parents,
+                bone_labels=self.bone_labels,
+            ),
+            template_vertices=self.template_vertices,
+            faces=self.faces,
+            texture_coordinates=self.texture_coordinates,
+            face_texture_coordinate_indices=self.face_texture_coordinate_indices,
+            blendshapes=self.blendshapes,
+            stacked_phenotype_blend_shapes_mask=None,
+            template_bone_heads=self.template_bone_heads,
+            bone_heads_blendshapes=self.bone_heads_blendshapes,
+            vertex_bone_weights=self.vertex_bone_weights,
+            vertex_bone_indices=self.vertex_bone_indices,
+            base_mesh_vertex_indices=self.base_mesh_vertex_indices,
+            template_bone_tails=self.template_bone_tails,
+            bone_tails_blendshapes=self.bone_tails_blendshapes,
+            bone_rolls_rotmat=self.bone_rolls_rotmat,
+            bone_nonzeroweight_mask=self.bone_nonzeroweight_mask,
+            bone_vertex_indices=self.bone_vertex_indices,
+            bone_vertex_weights=self.bone_vertex_weights,
+            template_bone_vertices=self.template_bone_vertices,
+            reference_bone_orientations=self.reference_bone_orientations,
+        )
 
-        if self._bone_orientation_method == "tail":
-            return ModelData(
-                metadata=ModelMetadata(
-                    bone_parents=self.bone_parents,
-                    bone_labels=self.bone_labels,
-                    pose_parameterization=self.pose_parameterization,
-                    skinning_method=self._skinning_method_parameter,
-                    bone_orientation=self.bone_orientation,
-                ),
-                template_vertices=self.template_vertices,
-                faces=self.faces,
-                texture_coordinates=self.texture_coordinates,
-                face_texture_coordinate_indices=self.face_texture_coordinate_indices,
-                blendshapes=self.blendshapes,
-                stacked_phenotype_blend_shapes_mask=None,
-                template_bone_heads=self.template_bone_heads,
-                bone_heads_blendshapes=self.bone_heads_blendshapes,
-                vertex_bone_weights=self.vertex_bone_weights,
-                vertex_bone_indices=self.vertex_bone_indices,
-                base_mesh_vertex_indices=self.base_mesh_vertex_indices,
-                template_bone_tails=self.template_bone_tails,
-                bone_tails_blendshapes=self.bone_tails_blendshapes,
-                bone_rolls_rotmat=self.bone_rolls_rotmat,
-            )
-        if self._bone_orientation_method == "procrustes":
-            return ModelData(
-                metadata=ModelMetadata(
-                    bone_parents=self.bone_parents,
-                    bone_labels=self.bone_labels,
-                    pose_parameterization=self.pose_parameterization,
-                    skinning_method=self._skinning_method_parameter,
-                    bone_orientation="procrustes",
-                ),
-                template_vertices=self.template_vertices,
-                faces=self.faces,
-                texture_coordinates=self.texture_coordinates,
-                face_texture_coordinate_indices=self.face_texture_coordinate_indices,
-                blendshapes=self.blendshapes,
-                stacked_phenotype_blend_shapes_mask=None,
-                template_bone_heads=self.template_bone_heads,
-                bone_heads_blendshapes=self.bone_heads_blendshapes,
-                vertex_bone_weights=self.vertex_bone_weights,
-                vertex_bone_indices=self.vertex_bone_indices,
-                base_mesh_vertex_indices=self.base_mesh_vertex_indices,
-                bone_nonzeroweight_mask=self.bone_nonzeroweight_mask,
-                bone_vertex_indices=self.bone_vertex_indices,
-                bone_vertex_weights=self.bone_vertex_weights,
-                template_bone_vertices=self.template_bone_vertices,
-                reference_bone_orientations=self.reference_bone_orientations,
-            )
-        raise ValueError(f"Unknown bone orientation method: {self._bone_orientation_method!r}")
 
     def get_rest_vertices(self, blendshape_coeffs: torch.Tensor) -> torch.Tensor:
         return skinning.apply_linear_blendshape(self.template_vertices, self.blendshapes, blendshape_coeffs)
 
     def get_rest_model(self, blendshape_coeffs: torch.Tensor) -> dict[str, torch.Tensor]:
-        if self._bone_orientation_method == "tail":
+        if self.bone_orientation == "blender":
             return self._get_tail_rest_model(blendshape_coeffs)
-        if self._bone_orientation_method == "procrustes":
+        if self.bone_orientation == "procrustes":
             return self._get_procrustes_rest_model(blendshape_coeffs)
-        raise ValueError(f"Unknown bone orientation method: {self._bone_orientation_method!r}")
+        raise ValueError(f"Unknown bone orientation method: {self.bone_orientation!r}")
 
     def _get_tail_rest_model(self, blendshape_coeffs: torch.Tensor) -> dict[str, torch.Tensor]:
         assert self.template_bone_tails is not None
@@ -279,10 +171,10 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
         rest_bone_heads = skinning.apply_linear_blendshape(self.template_bone_heads, self.bone_heads_blendshapes, blendshape_coeffs)
         rest_bone_tails = skinning.apply_linear_blendshape(self.template_bone_tails, self.bone_tails_blendshapes, blendshape_coeffs)
 
-        if self.bone_orientation in ["blender", "blender-rootidentity"]:
+        if self.bone_orientation == "blender":
             rest_bone_poses = kinematics.get_bone_poses(rest_bone_heads, rest_bone_tails, self.bone_rolls_rotmat, y_axis=self.y_axis, degenerate_rotation=self.degenerate_rotation)
         else:
-            raise NotImplementedError(f"Bone orientation {self.bone_orientation} not implemented. Supported orientations are 'blender' and 'blender-rootidentity'.")
+            raise NotImplementedError(f"Bone orientation {self.bone_orientation} not implemented. Supported orientation is 'blender'.")
 
         if self.root_identity_orientation:
             rest_bone_poses[:, 0, :3, :3] = torch.eye(3, device=rest_bone_poses.device, dtype=rest_bone_poses.dtype)
@@ -308,6 +200,8 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
         rest_bone_orientation = torch.eye(3, device=rest_bone_heads.device, dtype=rest_bone_heads.dtype).expand(batch_size, self.bone_count, 3, 3).clone()
         rest_bone_orientation[:, self.bone_nonzeroweight_mask] = R
         rest_bone_poses = roma.Rigid(linear=rest_bone_orientation, translation=rest_bone_heads).to_homogeneous()
+        if self.root_identity_orientation:
+            rest_bone_poses[:, 0, :3, :3] = torch.eye(3, device=rest_bone_poses.device, dtype=rest_bone_poses.dtype)
         return dict(rest_vertices=rest_vertices, rest_bone_heads=rest_bone_heads, rest_bone_poses=rest_bone_poses)
 
 
@@ -459,7 +353,7 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
             bone_transforms = bone_poses @ roma.Rigid.from_homogeneous(rest_bone_poses).inverse().to_homogeneous()
         return bone_transforms, bone_poses
 
-    
+
 
     def forward(
         self,
@@ -480,17 +374,16 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
                 - bone_poses: BxJx4x4
         """
         output = self.get_rest_model(blendshape_coeffs)
- 
-        
         rest_bone_poses = output["rest_bone_poses"]
-        
         bone_transforms, bone_poses = self.get_bone_transforms(pose_parameters, rest_bone_poses, pose_parameterization=pose_parameterization)
-
-        
-
         vertices = self.get_skinned_vertices(bone_transforms=bone_transforms, rest_vertices=output["rest_vertices"].expand(bone_transforms.shape[0], -1, -1))
         output.update(vertices=vertices,
                     bone_poses=bone_poses)
+        if return_bone_ends and self.bone_orientation == "procrustes":
+            raise NotImplementedError(
+                "return_bone_ends=True is not supported for "
+                "bone_orientation='procrustes'."
+            )
         if return_bone_ends:
             rest_bone_heads = output["rest_bone_heads"]
             rest_bone_tails = output["rest_bone_tails"]

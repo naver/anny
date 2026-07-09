@@ -2,8 +2,11 @@ import torch
 import torch.utils.benchmark
 import anny
 import roma
+from anny.typing import LocalChanges, MakehumanRig, SkinningMethod
 
 def benchmark_gpu_peak(func, *, iters=10, device=None):
+    if not torch.cuda.is_available():
+        return 0, 0
     torch.cuda.empty_cache()
     torch.cuda.reset_peak_memory_stats(device)
     for _ in range(iters):
@@ -20,29 +23,26 @@ def vertices_backward_pass(model, pose_parameters, phenotype_kwargs, local_chang
     loss = output["vertices"].sum()
     loss.backward()
 
-def main(skinning_method : str = "warp_lbs",
-         rig: str = "default",
-         topology: str = "default-noeyes-notongue",
+def main(skinning_method : SkinningMethod = "warp_lbs",
+         rig: MakehumanRig = "anny",
+         topology: str = "anny",
          all_phenotypes: bool = True,
-         local_changes: bool = True,
+         local_changes: LocalChanges = "default",
          forward_batch_sizes: list[int] = [1,2,4,8,16,32,64,128,256],
          backward_batch_sizes: list[int] = [1,2,4,8,16,32,64,128,256],
          num_threads : int = 1,
          min_run_time : float = 20.0):
     time_unit, time_scale = 'ms', 1000
-    
-    batch_sizes = forward_batch_sizes
+
 
     dtype = torch.float32
-    device = torch.device(0)
+    device = torch.device(0) if torch.cuda.is_available() else "cpu"
 
     model_label = f"{rig}/{topology}"
-    model = anny.create_fullbody_model(rig=rig,
-                                        topology=topology,
-                                        remove_unattached_vertices=True,
-                                        all_phenotypes=all_phenotypes,
-                                        local_changes=local_changes)
-        
+    model = anny.Anny(rig=rig,
+                            topology=topology,
+                            all_phenotypes=all_phenotypes,
+                            local_changes=local_changes)
     model = model.to(dtype=dtype, device=device)
     model.set_skinning_method(skinning_method)
 
@@ -98,8 +98,8 @@ def main(skinning_method : str = "warp_lbs",
                 f"-- GPU peak alloc: {gpu_peak_alloc/1024**2:>6.1f} MB")
 
 if __name__ == "__main__":
-    from jsonargparse import CLI
-    CLI(main)
+    from jsonargparse import auto_cli
+    auto_cli(main)
 
 
 

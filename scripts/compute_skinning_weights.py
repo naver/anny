@@ -20,9 +20,9 @@ import json
 import os
 
 from anny.models import model_transforms
-from anny.models.full_model import ANNY_ROOT_DIR, load_data
+from anny.models.full_model import get_anny_root_dir, load_data
 
-_STANDARD_DIR = os.path.join(ANNY_ROOT_DIR, "data/mpfb2/rigs/standard")
+_STANDARD_DIR = os.path.join(get_anny_root_dir(), "data/mpfb2/rigs/standard")
 _RIG_FILENAME = os.path.join(_STANDARD_DIR, "rig.default.json")
 _SRC_WEIGHTS = os.path.join(_STANDARD_DIR, "weights.makehuman.json")
 _OUT_WEIGHTS = os.path.join(_STANDARD_DIR, "weights.default.json")

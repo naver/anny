@@ -1,21 +1,20 @@
 # Anny
 # Copyright (C) 2025 NAVER Corp.
 # Apache License, Version 2.0
-from typing import Literal, Sequence
-import os
+from __future__ import annotations
+from typing import Literal, Sequence, TypeAlias
+from pathlib import Path
 
-Topology = Literal["default", "makehuman", "smplx", "soma", "notoes", "notoes_collapse3pc", "notoes_collapse5pc", "notoes_collapse10pc", "anny_from_soma"]
-RigPreset = Literal["default", "cmu_mb", "game_engine", "mixamo"]
-SkinningMethod = Literal["lbs", "dqs", "warp_lbs"]
 
-PoseParameterization = Literal["world", "local-bone-world", "local-bone", "local-ref", "world-orient", "root_relative_world", "root_relative"]
-BoneOrientation = Literal["blender", "gramschmidtyx", "gramschmidtyz", "blender-rootidentity", "procrustes"]
+PathLike: TypeAlias = Path | str
 
-# `local_changes` selector for create_model / create_fullbody_model:
-#   "none"    -> no local change blend shapes
-#   "default" -> all local change blend shapes except nipple-related ones
-#   "all"     -> every local change blend shape
-#   Sequence[str] -> exactly the listed labels (must match `local_change_labels`)
-LocalChanges = Literal["none", "default", "all"] | Sequence[str]
 
-PathLike = os.PathLike | str
+AlternativeTopology: TypeAlias = Literal["smplx", "smpl", "soma",  "anny_from_soma", "notoes", "notoes_collapse3pc", "notoes_collapse5pc", "notoes_collapse10pc", "legacy_default"]
+Submodel: TypeAlias = Literal["body", "head", "hand.L", "hand.R"]
+MakehumanRig: TypeAlias = Literal["anny", "makehuman", "cmu_mb", "game_engine", "mixamo"]
+
+
+SkinningMethod: TypeAlias = Literal["lbs", "dqs", "warp_lbs"]
+PoseParameterization: TypeAlias = Literal["world", "local-bone-world", "local-bone", "local-ref", "world-orient"]
+BoneOrientation: TypeAlias = Literal["blender", "procrustes"]
+LocalChanges: TypeAlias = Literal["none", "default", "all"] | Sequence[str]

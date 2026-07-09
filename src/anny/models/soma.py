@@ -1,77 +1,39 @@
 import os
-import json
+
+from anny.typing import LocalChanges
 import torch
 
+from anny.models.model_data import RigConfig, TopologyConfig
 from anny.models.model_transforms import (
-    LocalChanges,
     apply_procrustes_retopology,
     apply_soma_rig,
 )
 from anny.utils.mesh_utils import triangulate_faces as _triangulate_faces
 from anny.utils.warp_mesh_utils import point_to_mesh_distance_and_face_uvs
-from anny.paths import ANNY_ROOT_DIR
+from anny.paths import get_anny_root_dir
 from anny.models import retopology
 
-
-def _load_soma_rig(root_dirname):
+def _load_soma_rig():
     """Load soma rig data, preferring .safetensors and falling back to legacy .pt."""
-    safetensors_path = os.path.join(root_dirname, "data/soma/soma_rig.safetensors")
-    pt_path = os.path.join(root_dirname, "data/soma/soma_rig.pt")
-    if os.path.exists(safetensors_path):
-        from safetensors import safe_open
-        tensors = {}
-        with safe_open(safetensors_path, framework="pt") as f:
-            meta_str = f.metadata().get("rig_meta", "{}")
-            for k in f.keys():
-                tensors[k] = f.get_tensor(k)
-        meta = json.loads(meta_str)
-        tensors["bone_labels"] = meta.get("bone_labels", [])
-        tensors["bone_parents"] = meta.get("bone_parents", [])
-        return tensors
+    pt_path = os.path.join(get_anny_root_dir(), "data/soma/soma_rig.pt")
     return torch.load(pt_path, weights_only=True)
 
 
-def build_soma_rig_and_topology_model_data(all_phenotypes=False,
-                                       skinning_method=None,
-                                       pose_parameterization="local-bone",
-                                       extrapolate_phenotypes=False,
-                                       local_changes: LocalChanges ="none",
-                                       facial_actions: bool = False):
-    soma_rig_data = _load_soma_rig(ANNY_ROOT_DIR)
-
-    soma_data = retopology.build_soma_topology_model_data(rig="default",
-                                           all_phenotypes=all_phenotypes,
-                                           skinning_method=skinning_method,
-                                           pose_parameterization=pose_parameterization,
-                                           extrapolate_phenotypes=extrapolate_phenotypes,
-                                           local_changes=local_changes,
-                                           facial_actions=facial_actions)
-
+def build_soma_rig_and_topology_model_data(local_changes: LocalChanges):
+    soma_rig_data = _load_soma_rig()
+    soma_data = retopology.build_alternative_topology_model_data        (rig=RigConfig.from_string("anny"),
+                                      topology=TopologyConfig.from_string("soma"),
+                                      local_changes=local_changes,
+                                      reference_topology="anny_from_soma")
     data = apply_soma_rig(soma_data, soma_rig_data)
     return data
 
 
 def build_soma_rig_model_data(
-        topology="soma",
-        all_phenotypes=False,
-        skinning_method=None,
-        pose_parameterization="local-bone",
-        extrapolate_phenotypes=False,
-        local_changes: LocalChanges="none",
-        facial_actions: bool = False,
-        remove_unattached_vertices=True,
-        triangulate_faces=False):
+        topology: TopologyConfig, local_changes: LocalChanges):
+    soma_data = build_soma_rig_and_topology_model_data(local_changes=local_changes)
 
-    soma_data = build_soma_rig_and_topology_model_data(
-        all_phenotypes=all_phenotypes,
-        skinning_method=skinning_method,
-        pose_parameterization=pose_parameterization,
-        extrapolate_phenotypes=extrapolate_phenotypes,
-        local_changes=local_changes,
-        facial_actions=facial_actions,
-    )
-
-    if topology == "soma":
+    if topology.base_mesh == "soma":
         return soma_data
 
     source_vertices = soma_data.template_vertices
@@ -81,11 +43,12 @@ def build_soma_rig_model_data(
     )
 
     # Lazy import to avoid circular dependency with models/__init__.py
-    from anny.models import build_fullbody_model_data
-    target_data = build_fullbody_model_data(topology=topology,
-                                            rig="default",
-                                            remove_unattached_vertices=remove_unattached_vertices,
-                                            triangulate_faces=triangulate_faces)
+    import anny.models.full_model
+    target_data = anny.models.full_model.build_anny_model_data(
+        rig=RigConfig.from_string("anny"),
+        local_changes=local_changes,
+        topology=topology,
+    )
 
     vertices = target_data.template_vertices
 

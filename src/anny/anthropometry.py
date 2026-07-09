@@ -9,7 +9,9 @@ class Anthropometry:
     def __init__(self, model):
         base_mesh_vertex_indices = model.base_mesh_vertex_indices.detach().cpu().numpy().tolist()
         self.model = model
-        self.triangular_faces = model.get_triangular_faces()
+        self.faces = model.faces
+        if self.faces.shape[1] != 3:
+            raise ValueError("Faces must be triangles (3 vertices per face). Use a triangulated Anny model.")
         try:
             self.waist_vertex_indices = [base_mesh_vertex_indices.index(i) for i in BASE_MESH_WAIST_VERTICES]
         except ValueError:
@@ -25,7 +27,7 @@ class Anthropometry:
         return waist_circumference
 
     def volume(self, rest_vertices):
-        faces = self.triangular_faces
+        faces = self.faces
 
         v0 = rest_vertices[:,faces[:, 0]]  # (F,3)
         v1 = rest_vertices[:,faces[:, 1]]  # (F,3)

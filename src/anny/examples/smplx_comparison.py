@@ -33,10 +33,10 @@ if __name__ == "__main__":
     leye_pose = 0.3 * torch.randn((1, 3), dtype=torch.float32)
     reye_pose = 0.3 * torch.randn((1, 3), dtype=torch.float32)
     jaw_pose = 0.3 * torch.randn((1, 3), dtype=torch.float32)
-    
+
     smplx_output = model(betas=betas, expression=expression, global_orient=global_orient, transl=transl, body_pose=body_pose.view(1, -1),  jaw_pose=jaw_pose, leye_pose=leye_pose, reye_pose=reye_pose, left_hand_pose=left_hand_pose, right_hand_pose=right_hand_pose)
     anny_output = model_wrapper(betas=betas, expression=expression, global_orient=global_orient, transl=transl, body_pose=body_pose.view(1, -1),  jaw_pose=jaw_pose, leye_pose=leye_pose, reye_pose=reye_pose, left_hand_pose=left_hand_pose, right_hand_pose=right_hand_pose)
-    
+
     # Export both meshes to a glb file for visual comparison in a 3D viewer
     scene = trimesh.Scene()
 

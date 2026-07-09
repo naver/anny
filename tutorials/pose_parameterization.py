@@ -25,7 +25,7 @@ import trimesh # For 3D mesh visualization.
 
 # Instantiate the model.
 # Remark: the first instantiation may take a while. Latter calls will be faster thanks to caching.
-anny_model = anny.Anny(rig="default-notongue", topology="default-notongue", remove_unattached_vertices=True).to(dtype=torch.float32, device='cpu')
+anny_model = anny.Anny(rig="anny", topology="anny-notongue").to(dtype=torch.float32, device='cpu')
 
 # Some helper objects for visualization.
 trimesh_scene_transform = roma.Rigid(linear=roma.euler_to_rotmat('x', [-90.], degrees=True), translation=None).to_homogeneous().cpu().numpy()

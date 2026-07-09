@@ -93,7 +93,7 @@ class ParametersRegressor:
     def _get_identity_indices(self)  -> List[int]:
         """
         Returns:
-            - List[int]: Indices of facial bones that should retain identity rotation (used to preserve neutral expressions mainly for the default rig).
+            - List[int]: Indices of facial bones that should retain identity rotation (used to preserve neutral expressions mainly for the Anny rig).
         """
         face_joints = {
             "risorius03.L", "risorius03.R", "levator06.L", "levator06.R",

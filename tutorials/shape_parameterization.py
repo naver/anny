@@ -29,7 +29,7 @@ import trimesh # For 3D mesh visualization.
 
 # Instantiate the model, with all shape parameters available.
 # Remark: the first instantiation may take a while. Latter calls will be faster thanks to caching.
-anny_model = anny.Anny(all_phenotypes=True, local_changes="default", remove_unattached_vertices=True)
+anny_model = anny.Anny(all_phenotypes=True, local_changes="default")
 # Use 32bit floating point precision on the CPU for this demo.
 dtype = torch.float32
 device = torch.device('cpu')
@@ -67,7 +67,7 @@ Markdown("**List of phenotype parameters**: " + ", ".join([f"{label}" for label 
 # Here we show an example of how the **age** parameter influences the resulting mesh.
 
 # %%
-batch_size = 5  # We can process multiple bodies at once in a batch. 
+batch_size = 5  # We can process multiple bodies at once in a batch.
 
 phenotype_kwargs = {key : torch.full((batch_size,), fill_value=0.5, dtype=dtype, device=device) for key in anny_model.phenotype_labels}
 phenotype_kwargs['age'] = torch.linspace(0., 1., batch_size, dtype=dtype, device=device) # Example: vary the age parameter across the batch.
@@ -103,7 +103,7 @@ batch_size = 3  # We can process multiple faces at once in a batch.
 pose_parameters = roma.Rigid.identity(dim=3, batch_shape=(batch_size, anny_model.bone_count)).to_homogeneous()
 phenotype_kwargs = {key : torch.full((batch_size,), fill_value=0.5) for key in anny_model.phenotype_labels}
 # In this example, we start from a stereotypical young adult woman mesh
-phenotype_kwargs['age'].fill_(0.67) 
+phenotype_kwargs['age'].fill_(0.67)
 phenotype_kwargs['gender'].fill_(1.)
 
 local_changes = {'stomach-pregnant-incr': torch.linspace(0, 1., batch_size)}  # Example: vary the upperarm fat increment across the batch.
@@ -135,7 +135,7 @@ facial_actions = {
 }
 dict_output = face_model(facial_actions=facial_actions)
 
-# Using with batched Bx52 tensor input 
+# Using with batched Bx52 tensor input
 batch_size= 5
 values = torch.zeros((batch_size, len(face_model.facial_action_labels)), dtype=dtype, device=device)
 values[:, face_model.facial_action_labels.index("jawOpen")] = torch.linspace(0.0, 1.0, batch_size, dtype=dtype, device=device)
@@ -184,7 +184,7 @@ scene.show()  # This will open a window to visualize the scene with all the face
 # %% [markdown]
 # ### Body measures
 #
-# We additionnally provide a class to estimate some anthropometric measurements, assuming a body buoyancy of .98 in water. 
+# We additionnally provide a class to estimate some anthropometric measurements, assuming a body buoyancy of .98 in water.
 
 # %%
 real_age, phenotype_kwargs = phenotype_distribution.sample(batch_size=1000)

@@ -7,17 +7,17 @@ import roma
 import anny
 import time
 import trimesh
-from typing import Dict, Any, Tuple, List, Optional
+from typing import List, Optional
 from anny.shape_distribution import SimpleShapeDistribution
 
-def fit_to_mesh(seed: int = 3993, N: int = 1, max_n_iters: int = 5, verbose: bool = False, batch_size: int = 1, eps: float = 0.1, excluded_phenotypes: Optional[List[str]] = ["age", "gender"], max_delta: float = 0.1, optimize_phenotypes: bool = True, rig: str = 'default', topology: str = 'default', n_points: Optional[int] = None):
+def fit_to_mesh(seed: int = 3993, N: int = 1, max_n_iters: int = 5, verbose: bool = False, batch_size: int = 1, eps: float = 0.1, excluded_phenotypes: Optional[List[str]] = ["age", "gender"], max_delta: float = 0.1, optimize_phenotypes: bool = True, rig: str = 'anny', topology: str = 'anny', n_points: int = 5000):
     print('seed', seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
     dtype = torch.float32
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model = anny.create_fullbody_model(rig='mixamo', topology=topology).to(dtype=dtype, device=device)
+    model = anny.Anny(rig='mixamo', topology=topology).to(dtype=dtype, device=device)
 
     # generate a target mesh to fit
     pose_parameters = {}
@@ -30,7 +30,7 @@ def fit_to_mesh(seed: int = 3993, N: int = 1, max_n_iters: int = 5, verbose: boo
     output = model(pose_parameters=pose_parameters, phenotype_kwargs=phenotype_kwargs)
     
     # instantate fitter and find the best pose/shape
-    _model = anny.create_fullbody_model(rig=rig, topology=topology).to(dtype=dtype, device=device)
+    _model = anny.Anny(rig=rig, topology=topology).to(dtype=dtype, device=device)
     fitter = anny.ParametersRegressor(_model, verbose=verbose, max_n_iters=max_n_iters, eps=eps, n_points=n_points)
 
     # fitting by optimizing both pose and all phenotypes
@@ -61,5 +61,5 @@ def fit_to_mesh(seed: int = 3993, N: int = 1, max_n_iters: int = 5, verbose: boo
 
 
 if __name__ == "__main__":
-    from jsonargparse import CLI
-    CLI(fit_to_mesh)
+    from jsonargparse import auto_cli
+    auto_cli(fit_to_mesh)

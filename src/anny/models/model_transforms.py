@@ -13,9 +13,8 @@ import torch
 import trimesh
 import trimesh.graph
 
-from anny.models.phenotype import Anny
+from anny.models.rigged_model import RiggedModelWithLinearBlendShapes
 from anny.models.model_data import ModelData
-from anny.typing import LocalChanges
 from anny.utils.mesh_utils import (
     get_edge_vertex_indices,
     get_symmetric_vertex_indices,
@@ -24,6 +23,90 @@ from anny.utils.mesh_utils import (
 )
 from anny.utils.warp_mesh_utils import point_to_mesh_distance_and_face_uvs
 logger = logging.getLogger(__name__)
+
+
+@dataclasses.dataclass(frozen=True)
+class _ProcrustesBuffers:
+    bone_nonzeroweight_mask: torch.Tensor
+    bone_vertex_indices: torch.Tensor
+    bone_vertex_weights: torch.Tensor
+    template_bone_vertices: torch.Tensor
+
+
+def _build_procrustes_buffers(
+    *,
+    vertices: torch.Tensor,
+    bone_world_transforms: torch.Tensor,
+    bone_nonzeroweight_mask: torch.Tensor,
+    per_bone_vertex_indices: list[torch.Tensor],
+    per_bone_vertex_weights: list[torch.Tensor],
+    weight_dtype: torch.dtype | None = None,
+) -> _ProcrustesBuffers:
+    """Pack per-bone Procrustes samples and express them in each bone's local frame."""
+    active_bone_indices = torch.nonzero(
+        bone_nonzeroweight_mask,
+        as_tuple=False,
+    ).squeeze(1)
+    if active_bone_indices.numel() == 0:
+        raise ValueError("Cannot build procrustes buffers without active bones.")
+    if len(per_bone_vertex_indices) != active_bone_indices.numel():
+        raise ValueError("Expected one vertex-index tensor per active bone.")
+    if len(per_bone_vertex_weights) != active_bone_indices.numel():
+        raise ValueError("Expected one vertex-weight tensor per active bone.")
+
+    device = vertices.device
+    vertex_dtype = vertices.dtype
+    if weight_dtype is None:
+        weight_dtype = vertex_dtype
+
+    bone_nonzeroweight_mask = bone_nonzeroweight_mask.to(device=device)
+    active_bone_indices = active_bone_indices.to(device=device)
+    bone_world_transforms = bone_world_transforms.to(dtype=vertex_dtype, device=device)
+
+    max_vertices_per_bone = max(
+        indices.numel() for indices in per_bone_vertex_indices
+    )
+    active_bone_count = active_bone_indices.numel()
+    bone_vertex_indices = torch.zeros(
+        (active_bone_count, max_vertices_per_bone),
+        dtype=torch.int64,
+        device=device,
+    )
+    bone_vertex_weights = torch.zeros(
+        (active_bone_count, max_vertices_per_bone),
+        dtype=weight_dtype,
+        device=device,
+    )
+
+    for row, (indices, weights) in enumerate(
+        zip(per_bone_vertex_indices, per_bone_vertex_weights)
+    ):
+        if indices.numel() != weights.numel():
+            raise ValueError("Procrustes vertex indices and weights must have matching lengths.")
+        count = indices.numel()
+        bone_vertex_indices[row, :count] = indices.to(dtype=torch.int64, device=device)
+        bone_vertex_weights[row, :count] = weights.to(dtype=weight_dtype, device=device)
+
+    if max_vertices_per_bone == 0:
+        template_bone_vertices = torch.zeros(
+            (active_bone_count, 0, 3),
+            dtype=vertex_dtype,
+            device=device,
+        )
+    else:
+        template_bone_vertices = (
+            roma.Rigid.from_homogeneous(bone_world_transforms[active_bone_indices])
+            .inverse()[:, None]
+            .apply(vertices[bone_vertex_indices])
+        )
+
+    return _ProcrustesBuffers(
+        bone_nonzeroweight_mask=bone_nonzeroweight_mask,
+        bone_vertex_indices=bone_vertex_indices,
+        bone_vertex_weights=bone_vertex_weights,
+        template_bone_vertices=template_bone_vertices,
+    )
+
 
 def _get_symmetric_bone_name(bone_name: str) -> str:
     """Return the mirror counterpart of a bone name across the body's symmetry plane.
@@ -48,49 +131,31 @@ def _get_symmetric_bone_name(bone_name: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def filter_local_changes(data: ModelData, local_changes: LocalChanges) -> ModelData:
-    assert data.metadata is not None, "ModelData.metadata must be set to filter local changes"
-    labels = data.metadata.local_change_labels
-    if local_changes == "none":
-        local_changes_mask = [False] * len(labels)
-    elif local_changes == "default":
-        local_changes_mask = ["nipple" not in label.lower() for label in labels]
-    elif local_changes == "all":
-        local_changes_mask = [True] * len(labels)
-    elif isinstance(local_changes, str):
+def filter_local_changes(data: ModelData, local_changes_mask: list[bool]) -> ModelData:
+    if len(local_changes_mask) != len(data.metadata.local_change_labels):
         raise ValueError(
-            f"Unknown local_changes preset {local_changes!r}. "
-            "Expected 'none', 'default', 'all', or a sequence of label strings."
+            f"local_changes_mask length {len(local_changes_mask)} does not match "
+            f"the number of local change labels {len(data.metadata.local_change_labels)}"
         )
-    else:
-        label_to_idx = {label: i for i, label in enumerate(labels)}
-        local_changes_mask = [False] * len(labels)
-        for label in local_changes:
-            local_changes_mask[label_to_idx[label]] = True
-
-    local_change_labels = [
-        label for i, label in enumerate(labels) if local_changes_mask[i]
-    ]
-    non_local_count = len(data.blendshapes) - 2 * len(labels)
+    non_local_count = len(data.blendshapes) - 2 * len(local_changes_mask)
     blend_shapes_mask = torch.concatenate(
         (
             torch.ones(non_local_count, dtype=torch.bool),
-            torch.as_tensor(local_changes_mask, dtype=torch.bool).repeat_interleave(2),
+            torch.tensor(local_changes_mask).bool().repeat_interleave(2),
         )
     )
     extra = {}
     if data.bone_tails_blendshapes is not None:
         extra["bone_tails_blendshapes"] = data.bone_tails_blendshapes[blend_shapes_mask]
+    local_change_labels = [data.metadata.local_change_labels[i] for i in range(len(data.metadata.local_change_labels)) if local_changes_mask[i]] 
     return dataclasses.replace(
         data,
+        metadata = dataclasses.replace(
+            data.metadata, local_change_labels=local_change_labels),
         blendshapes=data.blendshapes[blend_shapes_mask],
         bone_heads_blendshapes=data.bone_heads_blendshapes[blend_shapes_mask],
-        metadata=dataclasses.replace(
-            data.metadata, local_change_labels=local_change_labels
-        ),
         **extra,
     )
-
 
 # ---------------------------------------------------------------------------
 # Mesh topology operations
@@ -120,6 +185,14 @@ def filter_faces(data: ModelData, faces_to_keep: torch.Tensor) -> ModelData:
 
 
 def triangulate(data: ModelData) -> ModelData:
+    if data.face_texture_coordinate_indices is None:
+        tri_faces = triangulate_faces(
+            vertices=data.template_vertices,
+            faces=data.faces.detach().cpu().numpy().tolist(),
+        )
+        return dataclasses.replace(
+            data, faces=torch.as_tensor(tri_faces, dtype=torch.int64)
+        )
     tri_faces, tri_ftci = triangulate_faces_with_texture_coordinates(
         vertices=data.template_vertices,
         faces=data.faces.detach().cpu().numpy().tolist(),
@@ -162,10 +235,11 @@ def remove_unattached_vertices(data: ModelData) -> ModelData:
 
 def symmetrize_skinning_weights(data: ModelData) -> ModelData:
     """Average per-vertex skinning weights across the body's YZ symmetry plane."""
+    bone_labels = data.metadata.bone_labels
     template_vertices = data.template_vertices
     vertex_bone_indices = data.vertex_bone_indices
     vertex_bone_weights = data.vertex_bone_weights
-    bone_labels = data.metadata.bone_labels
+ 
     N = template_vertices.shape[0]
     B = len(bone_labels)
 
@@ -200,9 +274,11 @@ def symmetrize_skinning_weights(data: ModelData) -> ModelData:
 
 def remove_skinning_islands(data: ModelData) -> ModelData:
     """Zero out per-bone skinning influence outside the largest connected component per bone."""
+    bone_labels = data.metadata.bone_labels
     edges = get_edge_vertex_indices(data.faces).cpu().numpy()
     vertex_bone_indices = data.vertex_bone_indices
-    vertex_bone_weights = data.vertex_bone_weights.clone()
+    original_vertex_bone_weights = data.vertex_bone_weights
+    vertex_bone_weights = original_vertex_bone_weights.clone()
 
     mesh_components = trimesh.graph.connected_components(edges=edges)
     body_vertex_indices = torch.as_tensor(
@@ -211,7 +287,7 @@ def remove_skinning_islands(data: ModelData) -> ModelData:
     body_vertex_mask = torch.zeros(vertex_bone_weights.shape[0], dtype=torch.bool)
     body_vertex_mask[body_vertex_indices] = True
 
-    for bone_id in range(len(data.metadata.bone_labels)):
+    for bone_id in range(len(bone_labels)):
         bone_vertex_mask = (
             (vertex_bone_indices == bone_id) & (vertex_bone_weights > 0)
         ).any(dim=-1) & body_vertex_mask
@@ -230,6 +306,12 @@ def remove_skinning_islands(data: ModelData) -> ModelData:
         vertex_bone_weights[slot_mask] = 0.0
 
     row_sums = vertex_bone_weights.sum(dim=-1, keepdim=True)
+    zero_weight_rows = row_sums.squeeze(-1) <= 0
+    if zero_weight_rows.any():
+        vertex_bone_weights[zero_weight_rows] = original_vertex_bone_weights[
+            zero_weight_rows
+        ]
+        row_sums = vertex_bone_weights.sum(dim=-1, keepdim=True)
     assert (row_sums > 0).all(), (
         "Some vertices have zero total skinning weight after island filtering."
     )
@@ -267,25 +349,78 @@ def compact_skinning_weights(data: ModelData) -> ModelData:
 # ---------------------------------------------------------------------------
 
 
-def set_metadata(
-    data: ModelData,
-    *,
-    skinning_method,
-    pose_parameterization,
-    all_phenotypes,
-    extrapolate_phenotypes,
-    bone_orientation,
-) -> ModelData:
+def apply_procrustes_orientation(data: ModelData) -> ModelData:
+    """Convert final tail-oriented ModelData into procrustes-oriented ModelData."""
+    required_tail_fields = (
+        data.template_bone_tails,
+        data.bone_tails_blendshapes,
+        data.bone_rolls_rotmat,
+    )
+    if any(field is None for field in required_tail_fields):
+        raise ValueError(
+            "Cannot convert ModelData to bone_orientation='procrustes' because "
+            "tail orientation buffers are missing."
+        )
+
+    source = RiggedModelWithLinearBlendShapes(data, bone_orientation="blender")
+    blendshape_coeffs = torch.zeros(
+        (1, data.blendshapes.shape[0]),
+        dtype=data.template_vertices.dtype,
+        device=data.template_vertices.device,
+    )
+    rest_bone_poses = source.get_rest_model(blendshape_coeffs)["rest_bone_poses"]
+
+    bone_count = len(data.metadata.bone_parents)
+    bone_nonzeroweight_mask = torch.zeros(
+        bone_count,
+        dtype=torch.bool,
+        device=data.vertex_bone_weights.device,
+    )
+    per_bone_vertex_indices: list[torch.Tensor] = []
+    per_bone_vertex_weights: list[torch.Tensor] = []
+
+    for bone_idx in range(bone_count):
+        slot_mask = data.vertex_bone_indices == bone_idx
+        vertex_weights = torch.where(
+            slot_mask,
+            data.vertex_bone_weights,
+            torch.zeros_like(data.vertex_bone_weights),
+        ).sum(dim=-1)
+        vertex_mask = vertex_weights > 0
+        if not vertex_mask.any():
+            continue
+
+        vertex_indices = torch.nonzero(vertex_mask, as_tuple=False).squeeze(1)
+        weights = vertex_weights[vertex_indices]
+        weights = weights / weights.sum()
+
+        bone_nonzeroweight_mask[bone_idx] = True
+        per_bone_vertex_indices.append(vertex_indices)
+        per_bone_vertex_weights.append(weights)
+
+    if not per_bone_vertex_indices:
+        raise ValueError(
+            "Cannot convert ModelData to bone_orientation='procrustes' because "
+            "no bone has positive skinning influence."
+        )
+
+    procrustes_buffers = _build_procrustes_buffers(
+        vertices=data.template_vertices,
+        bone_world_transforms=rest_bone_poses[0],
+        bone_nonzeroweight_mask=bone_nonzeroweight_mask,
+        per_bone_vertex_indices=per_bone_vertex_indices,
+        per_bone_vertex_weights=per_bone_vertex_weights,
+    )
+
     return dataclasses.replace(
         data,
-        metadata=dataclasses.replace(
-            data.metadata,
-            skinning_method=skinning_method,
-            pose_parameterization=pose_parameterization,
-            all_phenotypes=all_phenotypes,
-            extrapolate_phenotypes=extrapolate_phenotypes,
-            bone_orientation=bone_orientation,
-        ),
+        bone_nonzeroweight_mask=procrustes_buffers.bone_nonzeroweight_mask,
+        bone_vertex_indices=procrustes_buffers.bone_vertex_indices,
+        bone_vertex_weights=procrustes_buffers.bone_vertex_weights,
+        template_bone_vertices=procrustes_buffers.template_bone_vertices,
+        template_bone_tails=None,
+        bone_tails_blendshapes=None,
+        bone_rolls_rotmat=None,
     )
 
 
@@ -353,14 +488,6 @@ def apply_retopology(
         texture_coordinates=None,
         face_texture_coordinate_indices=None,
         base_mesh_vertex_indices=base_mesh_vertex_indices,
-        metadata=dataclasses.replace(
-            data.metadata,
-            bone_orientation=(
-                data.metadata.bone_orientation
-                if data.metadata.bone_orientation != "procrustes"
-                else "blender-rootidentity"
-            ),
-        ),
     )
     # data is used as source_model: ModelData exposes .vertex_bone_indices/.vertex_bone_weights directly
     return interpolate_skinning_weights(
@@ -455,10 +582,6 @@ def apply_procrustes_retopology(
         texture_coordinates=None,
         face_texture_coordinate_indices=None,
         base_mesh_vertex_indices=base_mesh_vertex_indices,
-        metadata=dataclasses.replace(
-            data.metadata,
-            bone_orientation="procrustes",
-        ),
     )
     target_data = interpolate_skinning_weights(
         target_data,
@@ -467,10 +590,12 @@ def apply_procrustes_retopology(
         barycentric_coordinates=barycentric_coordinates,
     )
 
-    bone_nonzeroweight_mask = source_model.bone_nonzeroweight_mask
-    bvi_list: list[list[int]] = []
-    bvw_list: list[list[float]] = []
-    tbv_list: list[list[list[float]]] = []
+    if (
+        source_model.bone_nonzeroweight_mask is None
+        or source_model.bone_vertex_indices is None
+        or source_model.bone_vertex_weights is None
+    ):
+        raise ValueError("source_model must contain procrustes buffers.")
 
     triangular_faces = torch.tensor(
         triangulate_faces(vertices, faces.detach().cpu().numpy().tolist()),
@@ -487,7 +612,7 @@ def apply_procrustes_retopology(
     w = 1.0 - u - v
     ref2target_bary = torch.stack([u, v, w], dim=0)
 
-    source = Anny.from_model_data(source_model)
+    source = RiggedModelWithLinearBlendShapes(source_model, bone_orientation="procrustes")
     rest_bone_poses = source.get_rest_model(
         torch.zeros(
             (1, source_model.blendshapes.shape[0]),
@@ -495,10 +620,11 @@ def apply_procrustes_retopology(
             device=source_model.template_vertices.device,
         )
     )["rest_bone_poses"]
-    for bone_nonzero_idx, bone_idx in enumerate(
-        torch.nonzero(bone_nonzeroweight_mask).squeeze().numpy().tolist()
-    ):
-        weights: dict[int, float] = collections.defaultdict(lambda: 0)
+
+    per_bone_vertex_indices: list[torch.Tensor] = []
+    per_bone_vertex_weights: list[torch.Tensor] = []
+    for bone_nonzero_idx in range(source_model.bone_vertex_indices.shape[0]):
+        weights: dict[int, float] = collections.defaultdict(lambda: 0.0)
         for i in range(source_model.bone_vertex_indices.shape[1]):
             ref_id = source_model.bone_vertex_indices[bone_nonzero_idx, i].item()
             ref_weight = torch.sqrt(
@@ -509,35 +635,28 @@ def apply_procrustes_retopology(
                 u_k = ref2target_bary[k][ref_id]
                 idx = face[k].item()
                 weights[idx] += (u_k * ref_weight).sum().item()
-        v_indices = list(weights.keys())
-        bvi_list.append(v_indices)
-        bvw_list.append(list(weights.values()))
-        bone_verts = (
-            roma.Rigid.from_homogeneous(rest_bone_poses[:, bone_idx, :, :])
-            .inverse()
-            .apply(vertices[v_indices])
-            .numpy()
-            .tolist()
+        per_bone_vertex_indices.append(
+            torch.as_tensor(list(weights.keys()), dtype=torch.int64)
         )
-        tbv_list.append(bone_verts)
+        per_bone_vertex_weights.append(
+            torch.square(torch.as_tensor(list(weights.values()), dtype=torch.float64))
+        )
 
-    k = max(len(idx) for idx in bvi_list)
-    for indices, bweights, bone_verts in zip(bvi_list, bvw_list, tbv_list):
-        while len(indices) < k:
-            indices.append(0)
-            bweights.append(0.0)
-            bone_verts.append([0.0, 0.0, 0.0])
-
-    bone_vertex_indices = torch.as_tensor(bvi_list, dtype=torch.int64)
-    bone_vertex_weights = torch.square(torch.as_tensor(bvw_list, dtype=torch.float64))
-    template_bone_vertices = torch.tensor(tbv_list, dtype=vertices.dtype)
+    procrustes_buffers = _build_procrustes_buffers(
+        vertices=vertices,
+        bone_world_transforms=rest_bone_poses[0],
+        bone_nonzeroweight_mask=source_model.bone_nonzeroweight_mask,
+        per_bone_vertex_indices=per_bone_vertex_indices,
+        per_bone_vertex_weights=per_bone_vertex_weights,
+        weight_dtype=torch.float64,
+    )
 
     return dataclasses.replace(
         target_data,
-        bone_nonzeroweight_mask=bone_nonzeroweight_mask,
-        bone_vertex_indices=bone_vertex_indices,
-        bone_vertex_weights=bone_vertex_weights,
-        template_bone_vertices=template_bone_vertices,
+        bone_nonzeroweight_mask=procrustes_buffers.bone_nonzeroweight_mask,
+        bone_vertex_indices=procrustes_buffers.bone_vertex_indices,
+        bone_vertex_weights=procrustes_buffers.bone_vertex_weights,
+        template_bone_vertices=procrustes_buffers.template_bone_vertices,
     )
 
 
@@ -582,7 +701,7 @@ def apply_soma_rig(data: ModelData, soma_rig_data: dict) -> ModelData:
     vertex_bone_weights = raw_weights[:, :k_lbs].to(dtype=dtype)
     vertex_bone_indices = raw_indices[:, :k_lbs]
 
-    # Procrustes buffers: (bone_count, k) format
+    # Procrustes buffers: (active_bone_count, k) format
     bvw_sorted, bvi_sorted = torch.sort(
         skinning_weights, dim=0, descending=True, stable=True
     )
@@ -592,16 +711,25 @@ def apply_soma_rig(data: ModelData, soma_rig_data: dict) -> ModelData:
     weight_threshold = 0.01
     k_proc = torch.count_nonzero(bvw_sorted > weight_threshold, dim=-1).max().item()
     bone_nonzeroweight_mask = bvw_sorted.sum(dim=-1) > 0.0
-    bone_vertex_indices = bvi_sorted[:, :k_proc][bone_nonzeroweight_mask].clone()
-    bone_vertex_weights = (
-        (bvw_sorted > weight_threshold)
-        .to(dtype=dtype)[:, :k_proc][bone_nonzeroweight_mask]
-        .clone()
-    )
-    template_bone_vertices = (
-        roma.Rigid.from_homogeneous(bind_world_transforms)
-        .inverse()[bone_nonzeroweight_mask, None]
-        .apply(bind_shape[bone_vertex_indices])
+    active_bone_indices = torch.nonzero(
+        bone_nonzeroweight_mask,
+        as_tuple=False,
+    ).squeeze(1)
+    per_bone_vertex_indices = [
+        bvi_sorted[bone_idx, :k_proc].clone()
+        for bone_idx in active_bone_indices.tolist()
+    ]
+    per_bone_vertex_weights = [
+        (bvw_sorted[bone_idx, :k_proc] > weight_threshold).to(dtype=dtype).clone()
+        for bone_idx in active_bone_indices.tolist()
+    ]
+    procrustes_buffers = _build_procrustes_buffers(
+        vertices=bind_shape.to(dtype=dtype, device=data.template_vertices.device),
+        bone_world_transforms=bind_world_transforms,
+        bone_nonzeroweight_mask=bone_nonzeroweight_mask,
+        per_bone_vertex_indices=per_bone_vertex_indices,
+        per_bone_vertex_weights=per_bone_vertex_weights,
+        weight_dtype=dtype,
     )
     reference_bone_orientations = t_pose_world[:, :3, :3].to(
         dtype=dtype, device=data.template_vertices.device
@@ -613,16 +741,15 @@ def apply_soma_rig(data: ModelData, soma_rig_data: dict) -> ModelData:
             data.metadata,
             bone_parents=bone_parents,
             bone_labels=bone_labels,
-            bone_orientation="procrustes",
         ),
         template_bone_heads=template_bone_heads,
         bone_heads_blendshapes=bone_heads_blendshapes,
         vertex_bone_weights=vertex_bone_weights,
         vertex_bone_indices=vertex_bone_indices,
-        bone_nonzeroweight_mask=bone_nonzeroweight_mask,
-        bone_vertex_indices=bone_vertex_indices,
-        bone_vertex_weights=bone_vertex_weights,
-        template_bone_vertices=template_bone_vertices,
+        bone_nonzeroweight_mask=procrustes_buffers.bone_nonzeroweight_mask,
+        bone_vertex_indices=procrustes_buffers.bone_vertex_indices,
+        bone_vertex_weights=procrustes_buffers.bone_vertex_weights,
+        template_bone_vertices=procrustes_buffers.template_bone_vertices,
         reference_bone_orientations=reference_bone_orientations,
         # Tail-based orientation fields don't apply when bone_orientation="procrustes"
         template_bone_tails=None,
