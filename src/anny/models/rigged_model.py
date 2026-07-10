@@ -51,6 +51,7 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
         
         self.bone_labels = data.metadata.bone_labels
         self.bone_parents = data.metadata.bone_parents
+        self.blendshape_labels = data.metadata.blendshape_labels
 
         self.kinematic_propagation_fronts = kinematics.get_kinematic_propagation_fronts(self.bone_parents)
 
@@ -131,6 +132,7 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
             metadata=ModelMetadata(
                 bone_parents=self.bone_parents,
                 bone_labels=self.bone_labels,
+                blendshape_labels=self.blendshape_labels,
             ),
             template_vertices=self.template_vertices,
             faces=self.faces,

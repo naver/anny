@@ -147,11 +147,12 @@ def filter_local_changes(data: ModelData, local_changes_mask: list[bool]) -> Mod
     extra = {}
     if data.bone_tails_blendshapes is not None:
         extra["bone_tails_blendshapes"] = data.bone_tails_blendshapes[blend_shapes_mask]
-    local_change_labels = [data.metadata.local_change_labels[i] for i in range(len(data.metadata.local_change_labels)) if local_changes_mask[i]] 
+    local_change_labels = [data.metadata.local_change_labels[i] for i in range(len(data.metadata.local_change_labels)) if local_changes_mask[i]]
+    blendshape_labels = [label for label, keep in zip(data.metadata.blendshape_labels, blend_shapes_mask.tolist()) if keep]
     return dataclasses.replace(
         data,
         metadata = dataclasses.replace(
-            data.metadata, local_change_labels=local_change_labels),
+            data.metadata, local_change_labels=local_change_labels, blendshape_labels=blendshape_labels),
         blendshapes=data.blendshapes[blend_shapes_mask],
         bone_heads_blendshapes=data.bone_heads_blendshapes[blend_shapes_mask],
         **extra,
@@ -703,26 +704,17 @@ def regress_soma_bone_origins(
 
 def _select_orientation_blendshape_rows(
     orientation_blendshapes: torch.Tensor,
-    source_blendshape_count: int,
-    source_local_change_labels: list[str],
-    target_blendshape_count: int,
-    target_local_change_labels: list[str],
+    source_labels: list[str],
+    target_labels: list[str],
 ) -> torch.Tensor:
-    """Select the orientation blendshape rows matching a target blendshape stack.
-
-    The blendshape stack is laid out as ``[phenotype + facial action block | 2 rows (pos, neg)
-    per local-change label]``; only the local-change rows vary with the model configuration.
-    """
-    base = source_blendshape_count - 2 * len(source_local_change_labels)
-    if base != target_blendshape_count - 2 * len(target_local_change_labels):
+    """Select the orientation blendshape rows matching a target blendshape stack, identified by their labels."""
+    source_index = {label: i for i, label in enumerate(source_labels)}
+    missing = [label for label in target_labels if label not in source_index]
+    if missing:
         raise ValueError(
-            "Blendshape stacks are incompatible: the phenotype/facial-action block sizes differ."
+            f"Precomputed orientation data does not cover the following blend shapes: {missing}."
         )
-    rows = list(range(base))
-    for label in target_local_change_labels:
-        i = source_local_change_labels.index(label)
-        rows += [base + 2 * i, base + 2 * i + 1]
-    return orientation_blendshapes[rows]
+    return orientation_blendshapes[[source_index[label] for label in target_labels]]
 
 
 def apply_soma_rig(data: ModelData, soma_rig_data: dict, procrustes_orientation_data: dict) -> ModelData:
@@ -755,10 +747,8 @@ def apply_soma_rig(data: ModelData, soma_rig_data: dict, procrustes_orientation_
         raise ValueError("Precomputed procrustes orientation data does not match the SOMA rig bones.")
     bone_orientation_blendshapes = _select_orientation_blendshape_rows(
         procrustes_orientation_data["bone_orientation_blendshapes"],
-        source_blendshape_count=procrustes_orientation_data["blendshape_count"],
-        source_local_change_labels=procrustes_orientation_data["local_change_labels"],
-        target_blendshape_count=data.blendshapes.shape[0],
-        target_local_change_labels=data.metadata.local_change_labels,
+        source_labels=procrustes_orientation_data["blendshape_labels"],
+        target_labels=data.metadata.blendshape_labels,
     ).to(dtype=dtype, device=data.template_vertices.device)
     bone_template_orientation_matrices = procrustes_orientation_data[
         "bone_template_orientation_matrices"

@@ -53,24 +53,27 @@ class TestSomaRigProcrustesOrientation(unittest.TestCase):
         self.assertLess(self._max_rest_pose_difference(
             soma_topology_model, anny_topology_model, blendshape_coeffs), 1e-6)
 
+    def test_blendshape_labels(self):
+        for model in [anny.Anny(rig="soma", topology="soma"), anny.Anny(rig="anny", topology="anny")]:
+            self.assertEqual(len(model.blendshape_labels), model.blendshapes.shape[0])
+            self.assertEqual(len(set(model.blendshape_labels)), len(model.blendshape_labels))
+
     def test_orientation_local_changes_slicing(self):
         all_model = anny.Anny(rig="soma", topology="soma", local_changes="all")
-        default_model = anny.Anny(rig="soma", topology="soma", local_changes="default")
-        base_count = all_model.blendshapes.shape[0] - 2 * len(all_model.local_change_labels)
-        self.assertEqual(base_count,
-                         default_model.blendshapes.shape[0] - 2 * len(default_model.local_change_labels))
-        # Coefficients touching only the shared phenotype/facial-action block must yield the
-        # same orientations in both configurations.
-        torch.manual_seed(0)
-        base_coeffs = torch.rand((4, base_count), dtype=all_model.dtype)
-        all_coeffs = torch.zeros((4, all_model.blendshapes.shape[0]), dtype=all_model.dtype)
-        all_coeffs[:, :base_count] = base_coeffs
-        default_coeffs = torch.zeros((4, default_model.blendshapes.shape[0]), dtype=default_model.dtype)
-        default_coeffs[:, :base_count] = base_coeffs
-        poses_all = all_model.get_rest_model(all_coeffs)["rest_bone_poses"]
-        poses_default = default_model.get_rest_model(default_coeffs)["rest_bone_poses"]
-        self.assertLess(torch.max(roma.rotmat_geodesic_distance(
-            poses_all[:, :, :3, :3], poses_default[:, :, :3, :3])), 1e-6)
+        all_index = {label: i for i, label in enumerate(all_model.blendshape_labels)}
+        arbitrary_subset = [all_model.local_change_labels[0], all_model.local_change_labels[-1]]
+        for local_changes in ["default", arbitrary_subset]:
+            subset_model = anny.Anny(rig="soma", topology="soma", local_changes=local_changes)
+            # Assign a coefficient to each blend shape of the subset model, and compare against
+            # the full model with the same coefficients on the corresponding rows.
+            torch.manual_seed(0)
+            subset_coeffs = torch.rand((4, subset_model.blendshapes.shape[0]), dtype=subset_model.dtype)
+            all_coeffs = torch.zeros((4, all_model.blendshapes.shape[0]), dtype=all_model.dtype)
+            for j, label in enumerate(subset_model.blendshape_labels):
+                all_coeffs[:, all_index[label]] = subset_coeffs[:, j]
+            poses_subset = subset_model.get_rest_model(subset_coeffs)["rest_bone_poses"]
+            poses_all = all_model.get_rest_model(all_coeffs)["rest_bone_poses"]
+            self.assertLess(torch.max(torch.abs(poses_subset - poses_all)), 1e-6)
 
 
 if __name__ == "__main__":

@@ -194,6 +194,7 @@ class BlendshapeData:
     stacked_phenotype_blend_shapes_mask: torch.Tensor
     local_change_labels: list[str]
     facial_action_labels: list[str]
+    blendshape_labels: list[str]
 
 
 @dataclass
@@ -240,15 +241,18 @@ def load_all_blendshapes(
 
     l_blend_shape = []
     l_mask = []
-    for blend_shapes in [
-        universal_blend_shapes,
-        race_blend_shapes,
-        height_blend_shapes,
-        proportions_blend_shapes,
-        breast_blend_shapes,
+    # Unique label associated with each blend shape, e.g. to identify corresponding rows across configurations.
+    blendshape_labels = []
+    for block_name, blend_shapes in [
+        ("universal", universal_blend_shapes),
+        ("race", race_blend_shapes),
+        ("height", height_blend_shapes),
+        ("proportions", proportions_blend_shapes),
+        ("breast", breast_blend_shapes),
     ]:
         for components, blend_shape in blend_shapes.items():
             l_blend_shape.append(blend_shape)
+            blendshape_labels.append(f"{block_name}:{'-'.join(components)}")
             mask = torch.zeros(len(l_macrodetails), dtype=dtype)
             for x in components:
                 idx = l_macrodetails.index(x)
@@ -257,6 +261,7 @@ def load_all_blendshapes(
 
     local_blend_shapes = []
     local_change_labels = []
+    local_blendshape_labels = []
     with open(os.path.join(root_dirname, "data/mpfb2/targets/target.json"), "r") as f:
         targets_metadata = json.load(f)
 
@@ -282,6 +287,8 @@ def load_all_blendshapes(
                             local_change_labels.append(pos)
                             local_blend_shapes.append(pos_blend_shape)
                             local_blend_shapes.append(neg_blend_shape)
+                            local_blendshape_labels.append(f"local_change:{pos}")
+                            local_blendshape_labels.append(f"local_change:{neg}")
 
     facial_action_labels, facial_action_blend_shape_tensor = load_facial_action_blendshapes(
         vertices_count=len(template_vertices),
@@ -297,11 +304,20 @@ def load_all_blendshapes(
         f"{len(local_blend_shapes)=}"
     )
 
+    blendshape_labels = (
+        blendshape_labels
+        + [f"facial_action:{label}" for label in facial_action_labels]
+        + local_blendshape_labels
+    )
+    blendshapes = torch.stack(l_blend_shape + facial_action_blend_shapes + local_blend_shapes)
+    assert len(set(blendshape_labels)) == len(blendshape_labels) == blendshapes.shape[0], "Blend shape labels are not unique"
+
     return BlendshapeData(
-        blendshapes=torch.stack(l_blend_shape + facial_action_blend_shapes + local_blend_shapes),
+        blendshapes=blendshapes,
         stacked_phenotype_blend_shapes_mask=torch.stack(l_mask),
         local_change_labels=local_change_labels,
         facial_action_labels=facial_action_labels,
+        blendshape_labels=blendshape_labels,
     )
 
 
@@ -533,6 +549,7 @@ def load_data(
             bone_parents=rig_data.bone_parents,
             local_change_labels=blendshape_data.local_change_labels,
             facial_action_labels=blendshape_data.facial_action_labels,
+            blendshape_labels=blendshape_data.blendshape_labels,
         ),
         template_vertices=mesh_data.template_vertices,
         faces=mesh_data.faces,

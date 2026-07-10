@@ -21,7 +21,7 @@ from anny.typing import PathLike,AlternativeTopology, BoneOrientation, PoseParam
 
 ANNY_VERSION = importlib.metadata.version("anny")
 # Increase this if there are any non-backwards-compatible changes to the data/metadata format
-CURRENT_DATA_VERSION = 6
+CURRENT_DATA_VERSION = 7
 
 logger = logging.getLogger(__name__)
 
@@ -264,6 +264,8 @@ class ModelMetadata:
 
     local_change_labels: list[str] = dataclasses.field(default_factory=list)
     facial_action_labels: list[str] = dataclasses.field(default_factory=list)
+    # Unique label per blend shape, identifying corresponding rows across configurations
+    blendshape_labels: list[str] = dataclasses.field(default_factory=list)
 
 
 @dataclasses.dataclass(frozen=True)

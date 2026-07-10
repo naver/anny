@@ -170,6 +170,7 @@ def main_default(output_path="src/anny/data/procrustes/default.pth",
         bone_orientation_centering_strategy="head",
         # Data
         bone_labels=source_model.bone_labels,
+        blendshape_labels=list(source_model.blendshape_labels),
         reference_bone_orientations=reference_bone_orientations,
         **orientation_data,
     )
@@ -211,7 +212,6 @@ def main_soma(output_path="src/anny/data/procrustes/soma.pth",
     template_bone_origins, bone_origins_blendshapes = regress_soma_bone_origins(
         sparse_rbf_matrix, data.template_vertices, data.blendshapes
     )
-    n_blendshapes = data.blendshapes.shape[0]
 
     # Binarized skinning weights.
     bone_vertex_weights = (skinning_weights.t() > weight_threshold).to(dtype=dtype)
@@ -243,9 +243,8 @@ def main_soma(output_path="src/anny/data/procrustes/soma.pth",
         # Data
         bone_labels=bone_labels,
         reference_bone_orientations=t_pose_world[:, :3, :3],
-        # Blendshape stack information, allowing row selection for other local_changes configurations.
-        blendshape_count=n_blendshapes,
-        local_change_labels=list(data.metadata.local_change_labels),
+        # Unique blendshape row labels, allowing row selection for other blendshape configurations.
+        blendshape_labels=list(data.metadata.blendshape_labels),
         **orientation_data,
     )
     _save(output, output_path)
