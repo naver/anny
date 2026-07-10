@@ -1,4 +1,5 @@
 import unittest
+from unittest import mock
 
 import roma
 import torch
@@ -37,12 +38,65 @@ class TestSomaRigProcrustesOrientation(unittest.TestCase):
         self.assertIsNotNone(model.bone_template_orientation_matrices)
         self.assertIsNotNone(model.bone_orientation_blendshapes)
         self.assertIsNotNone(model.reference_bone_orientations)
-        # With zero blendshape coefficients, rest orientations reduce to the template matrices.
+        refiner = model.rest_orientation_refiner
+        self.assertIsNotNone(refiner)
         blendshape_coeffs = torch.zeros((1, model.blendshapes.shape[0]), dtype=model.dtype)
         rest_bone_poses = model.get_rest_model(blendshape_coeffs)["rest_bone_poses"]
-        expected = roma.special_procrustes(model.bone_template_orientation_matrices)
+        # Orientations are valid rotation matrices.
+        R = rest_bone_poses[0, :, :3, :3]
+        self.assertLess(torch.max(torch.abs(R @ R.transpose(-1, -2) - torch.eye(3, dtype=model.dtype))), 1e-6)
+        # End bones copy their parent's orientation (SOMA skeleton fit convention).
         self.assertLess(torch.max(roma.rotmat_geodesic_distance(
-            rest_bone_poses[0, :, :3, :3], expected)), 1e-6)
+            rest_bone_poses[0, refiner.leaf_bone_indices, :3, :3],
+            rest_bone_poses[0, refiner.leaf_bone_parent_indices, :3, :3])), 1e-9)
+
+    def test_skeleton_fit_parity_with_soma_package(self):
+        """anny's precomputed procrustes orientations plus the child-offset/end-joint refinement
+        reproduce the SOMA skeleton fit for every non-root bone.
+
+        The only structural difference is that SOMA's per-bone skinning Kabsch (``R_init``) augments
+        its covariance with a *virtual normal* (``soma.geometry.transforms.compute_covariance``,
+        ``virtual_normal=True``): a synthetic correspondence built from two specific attached
+        vertices. That term is nonlinear in the blendshape coefficients and vertex-index dependent,
+        so it cannot live in anny's linear, topology-independent covariance ``M0 + Σc·B``. With it on
+        (SOMA's default) it rotates ``R_init`` by up to ~1e-2 rad on thin/near-degenerate skinning
+        clouds (forearms, finger segments); its effect on the posed mesh is dominated by the
+        (deferred) topology-transfer difference. This test therefore disables that one term to verify
+        the part anny is responsible for. The child-offset alignment (small N) keeps its virtual
+        normal, which anny does replicate from topology-independent joint offsets. The root is a
+        mesh-irrelevant orientation convention (differs by pi/2) and is excluded."""
+        try:
+            import soma
+            from soma.geometry.transforms import compute_covariance, kabsch, newton_schulz, rodrigues_rotation
+        except ImportError:
+            self.skipTest("soma package not installed")
+
+        def align_vectors_no_skinning_vnorm(A, B, eps=1e-8, method="kabsch"):
+            # Drop the virtual-normal conditioning for the large-N skinning fit (R_init) only; the
+            # small-N child-offset alignment (<= a handful of children) keeps it.
+            if A.shape[-2] == 1:
+                return rodrigues_rotation(A[..., 0, :], B[..., 0, :], eps=eps)
+            H = compute_covariance(A, B, virtual_normal=A.shape[-2] <= 6, eps=eps)
+            return newton_schulz(H, num_iters=20, eps=eps) if method == "newton-schulz" else kabsch(H)
+
+        dtype = torch.float64
+        soma_layer = soma.SOMALayer(identity_model_type="anny", mode="warp",
+                                    device=torch.device("cpu")).to(dtype=dtype)
+        model = anny.Anny(rig="soma", topology="soma").to(dtype=dtype)
+        torch.manual_seed(0)
+        blendshape_coeffs = torch.rand((2, model.blendshapes.shape[0]), dtype=dtype)
+        rest = model.get_rest_model(blendshape_coeffs)
+        # anny geometry is Z-up, the SOMA skeleton data Y-up.
+        P = torch.tensor([[1., 0., 0.], [0., 0., 1.], [0., -1., 0.]], dtype=dtype)
+        vertices = rest["rest_vertices"] @ P.T
+        skeleton_transfer = soma_layer.skeleton_transfer
+        with mock.patch("soma.geometry.skeleton_transfer.align_vectors",
+                        align_vectors_no_skinning_vnorm):
+            fitted = skeleton_transfer.fit_joint_rotations(
+                skeleton_transfer.fit_joint_positions(vertices), vertices)
+        geodesic = roma.rotmat_geodesic_distance(
+            fitted[:, 1:, :3, :3], (P[None, None] @ rest["rest_bone_poses"][:, :, :3, :3])[:, 1:])
+        self.assertLess(torch.max(geodesic), 1e-6)
 
     def test_orientation_topology_independence(self):
         soma_topology_model = anny.Anny(rig="soma", topology="soma")

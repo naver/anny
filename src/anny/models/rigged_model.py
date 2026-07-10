@@ -8,6 +8,7 @@ import torch
 import roma
 
 import anny.skinning.skinning as skinning
+from anny.models.orientation_refinement import ChildOffsetOrientationRefiner
 from anny.torch_compat import make_buffer
 from anny.typing import PoseParameterization, BoneOrientation, SkinningMethod
 import anny.utils.kinematics as kinematics
@@ -19,7 +20,8 @@ if TYPE_CHECKING:
 def _make_optional_buffer(module: torch.nn.Module, name: str, tensor: torch.Tensor | None) -> torch.Tensor | None:
     if tensor is None:
         return None
-    return make_buffer(module, name, tensor, persistent=False)    
+    return make_buffer(module, name, tensor, persistent=False)
+
 
 class RiggedModelWithLinearBlendShapes(torch.nn.Module):
     def __init__(
@@ -85,6 +87,18 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
         self.template_bone_vertices = _make_optional_buffer(self, "template_bone_vertices", data.template_bone_vertices)
         self.bone_template_orientation_matrices = _make_optional_buffer(self, "bone_template_orientation_matrices", data.bone_template_orientation_matrices)
         self.bone_orientation_blendshapes = _make_optional_buffer(self, "bone_orientation_blendshapes", data.bone_orientation_blendshapes)
+        # Optional rest-orientation refinement (e.g. the SOMA child-offset / end-joint convention),
+        # kept in its own submodule so this base class stays generic.
+        self.rest_orientation_refiner = (
+            ChildOffsetOrientationRefiner(
+                self.bone_parents,
+                data.bone_children_indices,
+                data.bone_children_mask,
+                data.bone_children_local_offsets,
+            )
+            if data.bone_children_indices is not None
+            else None
+        )
 
     @property
     def bone_count(self) -> int:
@@ -128,6 +142,7 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
 
     def to_model_data(self) -> "ModelData":
         from anny.models.model_data import ModelData, ModelMetadata
+        refiner = self.rest_orientation_refiner
         return ModelData(
             metadata=ModelMetadata(
                 bone_parents=self.bone_parents,
@@ -155,6 +170,9 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
             reference_bone_orientations=self.reference_bone_orientations,
             bone_template_orientation_matrices=self.bone_template_orientation_matrices,
             bone_orientation_blendshapes=self.bone_orientation_blendshapes,
+            bone_children_indices=refiner.bone_children_indices if refiner is not None else None,
+            bone_children_mask=refiner.bone_children_mask if refiner is not None else None,
+            bone_children_local_offsets=refiner.bone_children_local_offsets if refiner is not None else None,
         )
 
 
@@ -200,6 +218,8 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
                 "ba,akij->bkij", blendshape_coeffs, self.bone_orientation_blendshapes
             )
             rest_bone_orientation = roma.special_procrustes(M)
+            if self.rest_orientation_refiner is not None:
+                rest_bone_orientation = self.rest_orientation_refiner(rest_bone_orientation, rest_bone_heads)
         else:
             assert self.bone_nonzeroweight_mask is not None
             assert self.bone_vertex_indices is not None
@@ -219,7 +239,6 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
         if self.root_identity_orientation:
             rest_bone_poses[:, 0, :3, :3] = torch.eye(3, device=rest_bone_poses.device, dtype=rest_bone_poses.dtype)
         return dict(rest_vertices=rest_vertices, rest_bone_heads=rest_bone_heads, rest_bone_poses=rest_bone_poses)
-
 
     def parse_delta_transforms_dict(self, delta_transforms_dict):
         """

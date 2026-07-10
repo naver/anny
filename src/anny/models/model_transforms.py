@@ -717,6 +717,35 @@ def _select_orientation_blendshape_rows(
     return orientation_blendshapes[[source_index[label] for label in target_labels]]
 
 
+def _build_bone_children_buffers(
+    bone_parents,
+    bind_world_transforms: torch.Tensor,
+    dtype: torch.dtype,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Pack, for each bone, its children indices and their bind-pose offsets expressed in the
+    bone's bind frame. Used to refine procrustes orientations like the SOMA skeleton fit."""
+    bone_count = len(bone_parents)
+    children: list[list[int]] = [[] for _ in range(bone_count)]
+    for bone_idx in range(bone_count):
+        parent_idx = int(bone_parents[bone_idx])
+        if parent_idx >= 0:
+            children[parent_idx].append(bone_idx)
+
+    max_children = max(len(c) for c in children)
+    bone_children_indices = torch.zeros((bone_count, max_children), dtype=torch.int64)
+    bone_children_mask = torch.zeros((bone_count, max_children), dtype=dtype)
+    for bone_idx, bone_children in enumerate(children):
+        count = len(bone_children)
+        bone_children_indices[bone_idx, :count] = torch.tensor(bone_children, dtype=torch.int64)
+        bone_children_mask[bone_idx, :count] = 1.0
+
+    bind = bind_world_transforms.to(dtype=dtype)
+    offsets = bind[bone_children_indices, :3, 3] - bind[:, None, :3, 3]
+    bone_children_local_offsets = torch.einsum("kji,kcj->kci", bind[:, :3, :3], offsets)
+    bone_children_local_offsets = bone_children_local_offsets * bone_children_mask[:, :, None]
+    return bone_children_indices, bone_children_mask, bone_children_local_offsets
+
+
 def apply_soma_rig(data: ModelData, soma_rig_data: dict, procrustes_orientation_data: dict) -> ModelData:
     """Replace the rig in *data* with the SOMA rig while keeping the mesh and blendshapes.
 
@@ -725,6 +754,7 @@ def apply_soma_rig(data: ModelData, soma_rig_data: dict, procrustes_orientation_
     """
     sparse_rbf_matrix = soma_rig_data["sparse_rbf_matrix"]
     skinning_weights = soma_rig_data["skinning_weights"]
+    bind_world_transforms = soma_rig_data["bind_world_transforms"]
     t_pose_world = soma_rig_data["t_pose_world"]
     bone_parents = soma_rig_data["bone_parents"]
     bone_labels = soma_rig_data["bone_labels"]
@@ -758,6 +788,11 @@ def apply_soma_rig(data: ModelData, soma_rig_data: dict, procrustes_orientation_
         dtype=dtype, device=data.template_vertices.device
     )
 
+    # Children structure and bind-frame offsets, used to refine the orientations like the SOMA skeleton fit.
+    bone_children_indices, bone_children_mask, bone_children_local_offsets = _build_bone_children_buffers(
+        bone_parents, bind_world_transforms, dtype=dtype
+    )
+
     return dataclasses.replace(
         data,
         metadata=dataclasses.replace(
@@ -772,6 +807,9 @@ def apply_soma_rig(data: ModelData, soma_rig_data: dict, procrustes_orientation_
         bone_template_orientation_matrices=bone_template_orientation_matrices,
         bone_orientation_blendshapes=bone_orientation_blendshapes,
         reference_bone_orientations=reference_bone_orientations,
+        bone_children_indices=bone_children_indices,
+        bone_children_mask=bone_children_mask,
+        bone_children_local_offsets=bone_children_local_offsets,
         # Runtime-registration buffers of the source rig don't apply to the SOMA rig
         bone_nonzeroweight_mask=None,
         bone_vertex_indices=None,

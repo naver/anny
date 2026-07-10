@@ -21,7 +21,7 @@ from anny.typing import PathLike,AlternativeTopology, BoneOrientation, PoseParam
 
 ANNY_VERSION = importlib.metadata.version("anny")
 # Increase this if there are any non-backwards-compatible changes to the data/metadata format
-CURRENT_DATA_VERSION = 7
+CURRENT_DATA_VERSION = 8
 
 logger = logging.getLogger(__name__)
 
@@ -300,6 +300,11 @@ class ModelData:
     # Precomputed procrustes-based orientation, taking precedence over the runtime registration above
     bone_template_orientation_matrices: torch.Tensor | None = None
     bone_orientation_blendshapes: torch.Tensor | None = None
+    # Optional SOMA-style refinement of the precomputed orientations (child-offset alignment,
+    # end joints copying their parent orientation)
+    bone_children_indices: torch.Tensor | None = None
+    bone_children_mask: torch.Tensor | None = None
+    bone_children_local_offsets: torch.Tensor | None = None
 
     @property
     def device(self) -> torch.device:
