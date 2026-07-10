@@ -19,13 +19,20 @@ def _load_soma_rig():
     return torch.load(pt_path, weights_only=True)
 
 
+def _load_procrustes_orientation_data():
+    """Load the precomputed procrustes orientation data for the SOMA rig."""
+    path = os.path.join(get_anny_root_dir(), "data/procrustes/soma.pth")
+    return torch.load(path, weights_only=True)
+
+
 def build_soma_rig_and_topology_model_data(local_changes: LocalChanges):
     soma_rig_data = _load_soma_rig()
+    procrustes_orientation_data = _load_procrustes_orientation_data()
     soma_data = retopology.build_alternative_topology_model_data        (rig=RigConfig.from_string("anny"),
                                       topology=TopologyConfig.from_string("soma"),
                                       local_changes=local_changes,
                                       reference_topology="anny_from_soma")
-    data = apply_soma_rig(soma_data, soma_rig_data)
+    data = apply_soma_rig(soma_data, soma_rig_data, procrustes_orientation_data)
     return data
 
 

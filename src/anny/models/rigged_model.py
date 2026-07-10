@@ -60,12 +60,14 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
             assert data.bone_tails_blendshapes is not None
             assert data.bone_rolls_rotmat is not None
             
+        elif data.bone_template_orientation_matrices is not None:
+            assert data.bone_orientation_blendshapes is not None
         else:
             assert data.bone_nonzeroweight_mask is not None
             assert data.bone_vertex_indices is not None
             assert data.bone_vertex_weights is not None
             assert data.template_bone_vertices is not None
-            
+
         self.template_bone_tails = _make_optional_buffer(self, "template_bone_tails", data.template_bone_tails)
         self.bone_tails_blendshapes = _make_optional_buffer(self, "bone_tails_blendshapes", data.bone_tails_blendshapes)
         self.y_axis = make_buffer(self, "y_axis", torch.as_tensor([0.0, 1.0, 0.0], dtype=self.template_vertices.dtype), persistent=False)
@@ -80,7 +82,9 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
         self.bone_vertex_indices = _make_optional_buffer(self, "bone_vertex_indices", data.bone_vertex_indices)
         self.bone_vertex_weights = _make_optional_buffer(self, "bone_vertex_weights", data.bone_vertex_weights)
         self.template_bone_vertices = _make_optional_buffer(self, "template_bone_vertices", data.template_bone_vertices)
-        
+        self.bone_template_orientation_matrices = _make_optional_buffer(self, "bone_template_orientation_matrices", data.bone_template_orientation_matrices)
+        self.bone_orientation_blendshapes = _make_optional_buffer(self, "bone_orientation_blendshapes", data.bone_orientation_blendshapes)
+
     @property
     def bone_count(self) -> int:
         return len(self.bone_labels)
@@ -147,6 +151,8 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
             bone_vertex_weights=self.bone_vertex_weights,
             template_bone_vertices=self.template_bone_vertices,
             reference_bone_orientations=self.reference_bone_orientations,
+            bone_template_orientation_matrices=self.bone_template_orientation_matrices,
+            bone_orientation_blendshapes=self.bone_orientation_blendshapes,
         )
 
 
@@ -182,23 +188,31 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
         return dict(rest_vertices=rest_vertices, rest_bone_heads=rest_bone_heads, rest_bone_tails=rest_bone_tails, rest_bone_poses=rest_bone_poses)
 
     def _get_procrustes_rest_model(self, blendshape_coeffs: torch.Tensor) -> dict[str, torch.Tensor]:
-        assert self.bone_nonzeroweight_mask is not None
-        assert self.bone_vertex_indices is not None
-        assert self.bone_vertex_weights is not None
-        assert self.template_bone_vertices is not None
-
         rest_vertices = self.get_rest_vertices(blendshape_coeffs)
         rest_bone_heads = skinning.apply_linear_blendshape(self.template_bone_heads, self.bone_heads_blendshapes, blendshape_coeffs)
         batch_size = rest_vertices.shape[0]
-        bone_vertices = torch.gather(
-            rest_vertices[:, None].expand(-1, self.bone_vertex_indices.shape[0], -1, -1),
-            dim=2,
-            index=self.bone_vertex_indices[None, :, :, None].expand(batch_size, -1, -1, 3),
-        )
-        bone_vertices = bone_vertices - rest_bone_heads[:, self.bone_nonzeroweight_mask, None, :]
-        R = roma.rigid_vectors_registration(self.template_bone_vertices[None], bone_vertices, weights=self.bone_vertex_weights[None])
-        rest_bone_orientation = torch.eye(3, device=rest_bone_heads.device, dtype=rest_bone_heads.dtype).expand(batch_size, self.bone_count, 3, 3).clone()
-        rest_bone_orientation[:, self.bone_nonzeroweight_mask] = R
+        if self.bone_template_orientation_matrices is not None:
+            # Precomputed variant: the cross-covariance matrices are linear in the blendshape coefficients.
+            # b: batch, a: blend shape, k: bone
+            M = self.bone_template_orientation_matrices[None] + torch.einsum(
+                "ba,akij->bkij", blendshape_coeffs, self.bone_orientation_blendshapes
+            )
+            rest_bone_orientation = roma.special_procrustes(M)
+        else:
+            assert self.bone_nonzeroweight_mask is not None
+            assert self.bone_vertex_indices is not None
+            assert self.bone_vertex_weights is not None
+            assert self.template_bone_vertices is not None
+
+            bone_vertices = torch.gather(
+                rest_vertices[:, None].expand(-1, self.bone_vertex_indices.shape[0], -1, -1),
+                dim=2,
+                index=self.bone_vertex_indices[None, :, :, None].expand(batch_size, -1, -1, 3),
+            )
+            bone_vertices = bone_vertices - rest_bone_heads[:, self.bone_nonzeroweight_mask, None, :]
+            R = roma.rigid_vectors_registration(self.template_bone_vertices[None], bone_vertices, weights=self.bone_vertex_weights[None])
+            rest_bone_orientation = torch.eye(3, device=rest_bone_heads.device, dtype=rest_bone_heads.dtype).expand(batch_size, self.bone_count, 3, 3).clone()
+            rest_bone_orientation[:, self.bone_nonzeroweight_mask] = R
         rest_bone_poses = roma.Rigid(linear=rest_bone_orientation, translation=rest_bone_heads).to_homogeneous()
         if self.root_identity_orientation:
             rest_bone_poses[:, 0, :3, :3] = torch.eye(3, device=rest_bone_poses.device, dtype=rest_bone_poses.dtype)

@@ -20,7 +20,7 @@ import gradio as gr
 import tempfile
 import json
 import trimesh
-from anny.paths import ANNY_ROOT_DIR
+from anny.paths import get_anny_root_dir
 import anny.skinning.skinning as skinning
 
 
@@ -38,12 +38,11 @@ def build_procrustesalt_model(dtype=torch.float32):
         rig="default",
         topology="smpl",
         local_changes="all",
-        facial_actions=False,
         bone_orientation="blender-rootidentity",
         pose_parameterization="local-ref"
     )
     model = model.to(dtype=dtype)
-    data = torch.load(os.path.join(ANNY_ROOT_DIR, "data/procrustes/default.pth"))
+    data = torch.load(os.path.join(get_anny_root_dir(), "data/procrustes/default.pth"))
 
     # Monkey patching to enable the procrustesalt bone orientation method.
     # The precomputed tensors are stored as float64; cast them to the model dtype.
