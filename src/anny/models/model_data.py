@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import dataclasses
+import functools
 import importlib.metadata
 import logging
 import hashlib
@@ -371,6 +372,7 @@ def _get_builder_metadata(f: Callable[..., ModelData], *args, **kwargs) -> dict[
 
 def cache_builder(f: Callable[..., ModelData]) -> Callable[..., ModelData]:
     """Decorator to add metadata about the model-building function and its arguments to the resulting ModelData."""
+    @functools.wraps(f)
     def wrapper(*args, **kwargs) -> ModelData:
         cache_path = get_anny_cache_path()
         if cache_path is None:

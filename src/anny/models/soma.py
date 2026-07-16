@@ -36,6 +36,7 @@ def build_soma_rig_model_data(
     if topology.base_mesh == "soma":
         return soma_data
 
+
     source_vertices = soma_data.template_vertices
     source_triangular_faces = torch.tensor(
         _triangulate_faces(soma_data.template_vertices, soma_data.faces.cpu().tolist()),
@@ -43,8 +44,8 @@ def build_soma_rig_model_data(
     )
 
     # Lazy import to avoid circular dependency with models/__init__.py
-    import anny.models.full_model
-    target_data = anny.models.full_model.build_anny_model_data(
+    from anny.models import build_model_data
+    target_data = build_model_data(
         rig=RigConfig.from_string("anny"),
         local_changes=local_changes,
         topology=topology,

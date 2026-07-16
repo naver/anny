@@ -617,6 +617,8 @@ def get_edited_mesh_faces(faces: torch.Tensor, face_texture_coordinate_indices: 
 def build_anny_model_data(rig: RigConfig,
                  topology: TopologyConfig,
                  local_changes: LocalChanges) -> ModelData:
+    if topology.base_mesh != "makehuman":
+        raise ValueError(f"build_anny_model_data only supports 'makehuman' base mesh, got {topology.base_mesh}")
     rig_filename, weights_filename = rig.resolve_filenames()
     if rig_filename is None or weights_filename is None:
         raise ValueError("build_model_data requires a resolved MPFB rig with rig and weights filenames.")

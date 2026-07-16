@@ -17,5 +17,9 @@ class TestSomaRigVertexCount(unittest.TestCase):
         self.assertEqual(soma_model.template_vertices.shape,
                          anny_model.template_vertices.shape)
 
+    def test_soma_rig_preserves_alternative_topology(self):
+        model = anny.Anny(rig="soma", topology="notoes_collapse10pc")
+        self.assertEqual(model.template_vertices.shape, (1229, 3))
+
 if __name__ == "__main__":
     unittest.main()
