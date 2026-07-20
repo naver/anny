@@ -48,8 +48,8 @@ def get_intersection_kernel(mask_uint32_length):
                         e0: wp.vec3, e1: wp.vec3):
         """Test if the projection of two triangles are separated along an axis corresponding to the cross product of two edges."""
         axis = wp.cross(e0, e1)
-        axis = wp.normalize(axis)  # Normalize to avoid precision issues
         if wp.dot(axis, axis) > 1e-6:  # Ensure valid axis (avoid degenerate cases)
+            axis = wp.normalize(axis)  # Normalize to avoid precision issues
             return separable_axis(a0, a1, a2, b0, b1, b2, axis)
         return False
 
@@ -97,8 +97,8 @@ def get_intersection_kernel(mask_uint32_length):
         return True  # No separating axis found, triangles must intersect
 
     @wp.func
-    def test_mask(a : IntersectionMask,
-                  b : IntersectionMask) -> wp.bool:
+    def test_mask(a : IntersectionMask, # type: ignore
+                  b : IntersectionMask) -> wp.bool: # type: ignore
         for k in range(mask_uint32_length):
             # Static loop unrolling
             static_k = wp.static(k)
@@ -108,8 +108,8 @@ def get_intersection_kernel(mask_uint32_length):
 
     @wp.kernel
     def test_self_intersection(query_mesh_id : wp.uint64,
-                            intersection_mask : wp.array(dtype=IntersectionMask),
-                            colliding_face : wp.array(dtype=wp.int32)):
+                            intersection_mask : wp.array(dtype=IntersectionMask), # type: ignore
+                            colliding_face : wp.array(dtype=wp.int32)): # type: ignore
         tid = wp.tid()
 
         query_face_id = tid
