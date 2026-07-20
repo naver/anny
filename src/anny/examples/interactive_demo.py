@@ -33,7 +33,6 @@ def main(server_name : str = None, server_port : int = None):
         show_bones = False
         show_bone_axes = False
         show_self_intersections = False
-        extrapolate_phenotypes = False
         self_intersection_module = None
 
         def export_mesh():
@@ -144,23 +143,23 @@ def main(server_name : str = None, server_port : int = None):
             """
             nonlocal model, measurements_class, bones_rotvec, phenotype_kwargs, local_changes_kwargs, facial_actions_kwargs, self_intersection_module
             if model_type == "anny":
-                model = anny.Anny(rig=rig, topology="anny", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes, facial_actions=True)
+                model = anny.Anny(rig=rig, topology="anny", local_changes="default", facial_actions=True)
             elif model_type == "notoes_collapse10pc":
-                model = anny.Anny(rig=rig, topology="notoes_collapse10pc", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes, facial_actions=True)
+                model = anny.Anny(rig=rig, topology="notoes_collapse10pc", local_changes="default", facial_actions=True)
             elif model_type == "notoes_collapse5pc":
-                model = anny.Anny(rig=rig, topology="notoes_collapse5pc", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes, facial_actions=True)
+                model = anny.Anny(rig=rig, topology="notoes_collapse5pc", local_changes="default", facial_actions=True)
             elif model_type == "smplx":
-                model = anny.Anny(rig=rig, topology="smplx", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes, facial_actions=True)
+                model = anny.Anny(rig=rig, topology="smplx", local_changes="default", facial_actions=True)
             elif model_type == "smpl":
-                model = anny.Anny(rig=rig, topology="smpl", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes, facial_actions=True)
+                model = anny.Anny(rig=rig, topology="smpl", local_changes="default", facial_actions=True)
             elif model_type == "soma":
-                model = anny.Anny(rig=rig, topology="soma", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes, facial_actions=True)
+                model = anny.Anny(rig=rig, topology="soma", local_changes="default", facial_actions=True)
             elif model_type == "right hand":
-                model = anny.Anny(rig=rig, topology='hand.R', extrapolate_phenotypes=extrapolate_phenotypes, facial_actions=True)
+                model = anny.Anny(rig=rig, topology='hand.R', facial_actions=True)
             elif model_type == "left hand":
-                model = anny.Anny(rig=rig, topology='hand.L', extrapolate_phenotypes=extrapolate_phenotypes, facial_actions=True)
+                model = anny.Anny(rig=rig, topology='hand.L', facial_actions=True)
             elif model_type == "head":
-                model =  anny.Anny(rig=rig, topology='head', extrapolate_phenotypes=extrapolate_phenotypes, facial_actions=True)
+                model =  anny.Anny(rig=rig, topology='head', facial_actions=True)
             else:
                 raise ValueError(f"Invalid model type: {model_type}")
             
@@ -187,8 +186,7 @@ def main(server_name : str = None, server_port : int = None):
                 ])
             )
             phenotype_dropdown = gr.Dropdown(label="Phenotype", choices=model.phenotype_labels, value=model.phenotype_labels[0])
-            mini, maxi = (0., 1.) if not extrapolate_phenotypes else (-0.3, 1.3)
-            macrodetail_slider = gr.Slider(label="Value", minimum=mini, maximum=maxi, step=0.05, value=phenotype_kwargs[model.phenotype_labels[0]])
+            macrodetail_slider = gr.Slider(label="Value", minimum=0., maximum=1., step=0.05, value=phenotype_kwargs[model.phenotype_labels[0]])
             if len(model.local_change_labels) > 0:
                 local_change_dropdown = gr.Dropdown(label="Local change", choices=model.local_change_labels, value=model.local_change_labels[0], interactive=True, visible=True)
                 local_changes_slider = gr.Slider(label="Value", minimum=-1., maximum=1., step=0.05, value=local_changes_kwargs[model.local_change_labels[0]], interactive=True, visible=True)
@@ -218,7 +216,6 @@ def main(server_name : str = None, server_port : int = None):
         show_bones_checkbox = gr.Checkbox(label="Show bones", value=show_bones, visible=True, interactive=True)
         show_bone_axes_checkbox = gr.Checkbox(label="Show bone axes", value=show_bone_axes, visible=True, interactive=True)
         show_self_intersections_checkbox = gr.Checkbox(label="Show self intersections", value=False, visible=True, interactive=True)
-        extrapolate_phenotypes_checkbox = gr.Checkbox(label="Extrapolate phenotypes (not recommended)", value=extrapolate_phenotypes, visible=True, interactive=True)
         model_gradio_outputs = initialize_model(default_model_value, default_rig_value)
         description, phenotype_dropdown, macrodetail_slider, local_change_dropdown, local_changes_slider, facial_action_dropdown, facial_actions_slider, reset_shape_button, bone_dropdown, x_slider, y_slider, z_slider, reset_pose_button, model3d, measurements_summary = model_gradio_outputs
 
@@ -233,7 +230,6 @@ def main(server_name : str = None, server_port : int = None):
                     show_bones_checkbox.render()
                     show_bone_axes_checkbox.render()
                     show_self_intersections_checkbox.render()
-                    extrapolate_phenotypes_checkbox.render()
                     description.render()
                     measurements_summary.render()
                     phenotype_dropdown.render()
@@ -280,15 +276,6 @@ def main(server_name : str = None, server_port : int = None):
                 show_self_intersections = show_self_intersections_checkbox
                 return export_mesh()
             show_self_intersections_checkbox.change(update_show_self_intersections, inputs=[show_self_intersections_checkbox], outputs=[model3d, measurements_summary])
-
-            def update_extrapolate_phenotypes(model_dropdown, rig_dropdown, extrapolate_phenotypes_checkbox):
-                """
-                Called when the extrapolate phenotypes checkbox is changed.
-                """
-                nonlocal extrapolate_phenotypes
-                extrapolate_phenotypes = extrapolate_phenotypes_checkbox
-                return initialize_model(model_dropdown, rig_dropdown)
-            extrapolate_phenotypes_checkbox.change(update_extrapolate_phenotypes, inputs=[model_dropdown, rig_dropdown, extrapolate_phenotypes_checkbox], outputs=model_gradio_outputs)
 
             def update_phenotype_label(macrodetail_label):
                 """
