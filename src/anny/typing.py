@@ -11,7 +11,7 @@ PathLike: TypeAlias = Path | str
 
 AlternativeTopology: TypeAlias = Literal["smplx", "smpl", "soma",  "anny_from_soma", "notoes", "notoes_collapse3pc", "notoes_collapse5pc", "notoes_collapse10pc", "legacy_default"]
 Submodel: TypeAlias = Literal["body", "head", "hand.L", "hand.R"]
-MakehumanRig: TypeAlias = Literal["anny", "makehuman", "cmu_mb", "game_engine", "mixamo"]
+Rig: TypeAlias = Literal["anny", "makehuman", "cmu_mb", "game_engine", "mixamo", "soma"]
 
 
 SkinningMethod: TypeAlias = Literal["lbs", "dqs", "warp_lbs"]

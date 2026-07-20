@@ -2,7 +2,7 @@ import torch
 import torch.utils.benchmark
 import anny
 import roma
-from anny.typing import LocalChanges, MakehumanRig, SkinningMethod
+from anny.typing import LocalChanges, Rig, SkinningMethod
 
 def benchmark_gpu_peak(func, *, iters=10, device=None):
     if not torch.cuda.is_available():
@@ -24,7 +24,7 @@ def vertices_backward_pass(model, pose_parameters, phenotype_kwargs, local_chang
     loss.backward()
 
 def main(skinning_method : SkinningMethod = "warp_lbs",
-         rig: MakehumanRig = "anny",
+         rig: Rig = "anny",
          topology: str = "anny",
          all_phenotypes: bool = True,
          local_changes: LocalChanges = "default",

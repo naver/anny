@@ -17,7 +17,7 @@ from typing import Callable, Literal
 import torch
 
 from anny.paths import get_anny_cache_path, get_anny_root_dir
-from anny.typing import PathLike,AlternativeTopology, BoneOrientation, PoseParameterization, SkinningMethod, Submodel, MakehumanRig, LocalChanges
+from anny.typing import PathLike,AlternativeTopology, BoneOrientation, PoseParameterization, SkinningMethod, Submodel, Rig, LocalChanges
 
 ANNY_VERSION = importlib.metadata.version("anny")
 # Increase this if there are any non-backwards-compatible changes to the data/metadata format
@@ -216,7 +216,7 @@ _RIG_PRESET_FILES: dict[str, tuple[str, str]] = {
 
 @dataclasses.dataclass(frozen=True)
 class RigConfig:
-    base_rig: MakehumanRig | Path | Literal["soma"]
+    base_rig: Rig | Path
     bone_orientation: BoneOrientation = "procrustes"
     root_identity_orientation: bool = True
     weights_filename: Path | None = None
