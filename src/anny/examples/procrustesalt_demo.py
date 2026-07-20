@@ -29,7 +29,7 @@ def build_procrustesalt_model(dtype=torch.float32):
     Build the experimental procrustesalt model, reproducing the setup from
     ``procrustesalt_example.py``.
 
-    The precomputed data in ``data/procrustes/default.pth`` was generated for
+    The precomputed data in ``data/procrustes/anny.pth`` was generated for
     ``rig="default"``, ``local_changes="all"``, ``facial_actions=False``, so the
     base model must use the same configuration. Blend shape and bone counts are
     independent of the topology, hence the SMPL topology can be used here.
@@ -42,7 +42,7 @@ def build_procrustesalt_model(dtype=torch.float32):
         pose_parameterization="local-ref"
     )
     model = model.to(dtype=dtype)
-    data = torch.load(os.path.join(get_anny_root_dir(), "data/procrustes/default.pth"))
+    data = torch.load(os.path.join(get_anny_root_dir(), "data/procrustes/anny.pth"))
 
     # Monkey patching to enable the procrustesalt bone orientation method.
     # The precomputed tensors are stored as float64; cast them to the model dtype.
@@ -128,7 +128,7 @@ def main(server_name: str = None, server_port: int = None):
                 # Add bones visualization
                 bone_heads = output['bone_poses'][..., :3, 3].detach().cpu().squeeze(dim=0)
 
-                bone_colors = [[0.8, 0.3, 0.3, 1.0]]
+                bone_colors = [[0.3, 0.3, 0.3, 1.0]]
                 bone_visuals = [trimesh.visual.TextureVisuals(material=trimesh.visual.material.PBRMaterial(baseColorFactor=color,
                                                                         metallicFactor=0.,
                                                                         roughnessFactor=1.,
@@ -140,7 +140,7 @@ def main(server_name: str = None, server_port: int = None):
                     parent_id = model.bone_parents[i]
                     if parent_id >= 0:
                         bone_tail = bone_heads[parent_id]
-                        cylinder = trimesh.creation.cylinder(radius=0.005, height=torch.norm(bone_tail - bone_head).item(), sections=16)
+                        cylinder = trimesh.creation.cylinder(radius=0.001, height=torch.norm(bone_tail - bone_head).item(), sections=16)
                         t = (bone_head + bone_tail) / 2
                         M = roma.special_gramschmidt(torch.stack([bone_tail - bone_head, torch.tensor([0., 0., 1.], dtype=dtype)], dim=-1))
                         R = torch.stack([M[:, 2], M[:, 1], M[:, 0]], dim=-1)
@@ -151,7 +151,7 @@ def main(server_name: str = None, server_port: int = None):
                 # Show each bone pose as a coordinate frame (axes) to visualize orientation
                 bone_poses = output["bone_poses"].squeeze(dim=0).cpu()
                 for i in range(len(bone_poses)):
-                    frame = trimesh.creation.axis(origin_size=0.004, axis_radius=0.002, axis_length=0.1)
+                    frame = trimesh.creation.axis(origin_size=0.004, axis_radius=0.001, axis_length=0.025)
                     scene.add_geometry(frame, transform=bone_poses[i].numpy(), node_name=f"pose_{model.bone_labels[i]}")
 
             # The gradio Model3D component does not use a Z-up camera orientation by default. We apply a scene rotation to compensate.

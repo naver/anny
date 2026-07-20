@@ -17,6 +17,12 @@ def compute_procrustes_orientation_data(
     reference_bone_orientations: torch.Tensor,
     reference_bone_origins: torch.Tensor,
     bone_labels: list[str] | None = None,
+    aim_weight: float = 0.0,
+    aim_target: str = "tail",
+    bone_parents: list[int] | None = None,
+    template_bone_tails: torch.Tensor | None = None,
+    bone_tails_blendshapes: torch.Tensor | None = None,
+    reference_bone_tails: torch.Tensor | None = None,
 ) -> dict:
     """
     Compute per-bone cross-covariance matrices from which rest bone orientations can be recovered
@@ -27,6 +33,25 @@ def compute_procrustes_orientation_data(
     (centered on the current bone origin). Since both the vertices and the bone origins are linear
     in the blendshape coefficients, the cross-covariance matrix is linear in them too and can be
     expressed as a template matrix plus per-blendshape deltas.
+
+    Optionally (``aim_weight > 0``) the covariance is augmented with a weighted "aim" correspondence
+    so that the bone frame also follows a kinematic direction. The aim offset
+
+        sum_target (target(c) - origin(c)) outer R_ref^T (ref_target - ref_origin)
+
+    is likewise linear in the coefficients (bone origins and tails are linear blend shapes), so it
+    folds into the same template-plus-deltas representation and needs no runtime support. ``aim_target``
+    selects the correspondence:
+
+      * ``"tail"``     -- aim at each bone's own authored tail (defined for every bone, including
+                          leaves; matches the artist-intended axis). Recommended for rigs with tails.
+      * ``"children"`` -- aim at the bone's child joints (Kabsch over several children). The fallback
+                          for rigs without authored tails (e.g. SOMA), which have no tail to aim at.
+
+    Each bone's vertex and aim terms are normalised by their template-shape Frobenius norm before
+    blending, so ``aim_weight`` is a scale-invariant relative weight (Procrustes is invariant to a
+    per-bone positive rescaling of the covariance, so ``aim_weight == 0`` leaves the output unchanged).
+    Only bones that have attached weights and a valid aim target are aimed.
 
     Args:
         template_vertices: (V, 3) template mesh vertices.
@@ -39,6 +64,11 @@ def compute_procrustes_orientation_data(
             coordinates; also used as constant orientation for bones without any attached weight.
         reference_bone_origins: (K, 3) reference-side bone origins.
         bone_labels: optional bone names, only used for logging.
+        aim_weight: relative weight of the aim term (0 disables it, keeping the pure vertex orientation).
+        aim_target: ``"tail"`` or ``"children"``; the aim correspondence used when ``aim_weight > 0``.
+        bone_parents: (K,) parent index per bone; required when ``aim_target == "children"``.
+        template_bone_tails, bone_tails_blendshapes, reference_bone_tails: (K, 3) / (A, K, 3) / (K, 3)
+            tail positions; required when ``aim_target == "tail"``.
 
     Returns:
         dict with ``bone_template_orientation_matrices`` (K, 3, 3) and
@@ -47,6 +77,41 @@ def compute_procrustes_orientation_data(
     dtype = template_vertices.dtype
     blendshape_count = blendshapes.shape[0]
     bone_count = bone_vertex_weights.shape[0]
+
+    bone_children = {bone_idx: [] for bone_idx in range(bone_count)}
+    if aim_weight > 0:
+        if aim_target == "children":
+            if bone_parents is None:
+                raise ValueError("bone_parents is required when aim_target == 'children'")
+            for bone_idx in range(bone_count):
+                parent = bone_parents[bone_idx]
+                if parent is not None and 0 <= parent < bone_count and parent != bone_idx:
+                    bone_children[parent].append(bone_idx)
+        elif aim_target == "tail":
+            if template_bone_tails is None or bone_tails_blendshapes is None or reference_bone_tails is None:
+                raise ValueError("tail tensors are required when aim_target == 'tail'")
+        else:
+            raise ValueError(f"unknown aim_target {aim_target!r}; expected 'tail' or 'children'")
+
+    def aim_correspondences(bone_idx):
+        """Per-bone (template_offsets (n,3), offset_blendshapes (A,n,3), bind_local (n,3)) or None."""
+        if aim_target == "children":
+            children = bone_children[bone_idx]
+            if not children:
+                return None
+            reference_offsets = reference_bone_origins[children] - reference_bone_origins[bone_idx]
+            template_offsets = template_bone_origins[children] - template_bone_origins[bone_idx]
+            offset_blendshapes = (bone_origins_blendshapes[:, children, :]
+                                  - bone_origins_blendshapes[:, bone_idx:bone_idx + 1, :])
+        else:  # "tail"
+            reference_offsets = (reference_bone_tails[bone_idx] - reference_bone_origins[bone_idx])[None]
+            if torch.linalg.norm(reference_offsets) < 1e-9:
+                return None
+            template_offsets = (template_bone_tails[bone_idx] - template_bone_origins[bone_idx])[None]
+            offset_blendshapes = (bone_tails_blendshapes[:, bone_idx, :]
+                                  - bone_origins_blendshapes[:, bone_idx, :])[:, None, :]
+        bind_local = reference_offsets @ reference_bone_orientations[bone_idx]  # R_ref^T @ offsets
+        return template_offsets, offset_blendshapes, bind_local
 
     bone_template_orientation_matrices = []
     bone_orientation_blendshapes = []
@@ -92,6 +157,25 @@ def compute_procrustes_orientation_data(
                 orientation_blendshapes.append(B)
             orientation_blendshapes = torch.stack(orientation_blendshapes, dim=0)
 
+            correspondences = aim_correspondences(bone_idx) if aim_weight > 0 else None
+            if correspondences is not None:
+                # Fold in kinematic aiming. The aim offsets, expressed in the reference bone frame
+                # (source) and the current shape (target), form a covariance linear in the blendshape
+                # coefficients, exactly like the vertex term.
+                template_offsets, offset_blendshapes, bind_local = correspondences
+                aim_template_matrix = torch.einsum("ni, nj -> ij", template_offsets, bind_local)
+                current_offsets = template_offsets[None] + offset_blendshapes
+                aim_blendshapes = torch.einsum("ani, nj -> aij", current_offsets, bind_local) - aim_template_matrix[None]
+
+                vertex_scale = torch.linalg.matrix_norm(template_orientation_matrix) + 1e-12
+                aim_scale = torch.linalg.matrix_norm(aim_template_matrix) + 1e-12
+                template_orientation_matrix = (
+                    template_orientation_matrix / vertex_scale + aim_weight * aim_template_matrix / aim_scale
+                )
+                orientation_blendshapes = (
+                    orientation_blendshapes / vertex_scale + aim_weight * aim_blendshapes / aim_scale
+                )
+
         bone_template_orientation_matrices.append(template_orientation_matrix)
         bone_orientation_blendshapes.append(orientation_blendshapes)
 
@@ -133,19 +217,23 @@ def _compute_bone_vertex_weights(model, bone_idx: int, strategy: str) -> torch.T
         raise NotImplementedError(strategy)
 
 
-def main_default(output_path="src/anny/data/procrustes/default.pth",
-                 bone_orientation_weighting_strategy="skinning_squared"):
+def main_anny(output_path="src/anny/data/procrustes/anny.pth",
+                 bone_orientation_weighting_strategy="skinning_squared",
+                 aim_weight=0.5, aim_target="tail"):
     """
-    Precompute the procrustes orientation data for the default MakeHuman-based rig.
+    Precompute the procrustes orientation data for the pruned anny rig.
 
     bone_orientation_weighting_strategy: how are defined the vertices weights used for bone orientation estimation
+    aim_weight: relative weight of the kinematic aiming term folded into the covariance (0 disables it)
+    aim_target: "tail" (aim at each bone's authored tail) or "children" (aim at child joints)
     """
-    source_model = anny.create_fullbody_model(rig="default", topology="makehuman", local_changes="all", bone_orientation="blender-rootidentity")
+    source_model = anny.create_fullbody_model(rig="default", topology="anny", local_changes="all", bone_orientation="blender-rootidentity")
 
     # The bone orientations are inconsistent across shapes (which motivates the use of a different orientation strategy).
     # We choose a particular body shape as reference (default settings in MPFB2)
     ref_output = source_model(phenotype_kwargs=dict(age=2/3))
     reference_bone_orientations = ref_output["rest_bone_poses"].squeeze(dim=0)[:,:3,:3]
+    reference_bone_tails = ref_output["rest_bone_tails"].squeeze(dim=0)
 
     bone_vertex_weights = torch.stack([
         _compute_bone_vertex_weights(source_model, bone_idx, bone_orientation_weighting_strategy)
@@ -162,12 +250,20 @@ def main_default(output_path="src/anny/data/procrustes/default.pth",
         reference_bone_orientations=reference_bone_orientations,
         reference_bone_origins=ref_output["rest_bone_heads"].squeeze(dim=0),
         bone_labels=source_model.bone_labels,
+        aim_weight=aim_weight,
+        aim_target=aim_target,
+        bone_parents=source_model.bone_parents,
+        template_bone_tails=source_model.template_bone_tails,
+        bone_tails_blendshapes=source_model.bone_tails_blendshapes,
+        reference_bone_tails=reference_bone_tails,
     )
 
     data = dict(
         # Metadata
         bone_orientation_weighting_strategy=bone_orientation_weighting_strategy,
         bone_orientation_centering_strategy="head",
+        aim_weight=aim_weight,
+        aim_target=aim_target,
         # Data
         bone_labels=source_model.bone_labels,
         blendshape_labels=list(source_model.blendshape_labels),
@@ -178,13 +274,19 @@ def main_default(output_path="src/anny/data/procrustes/default.pth",
 
 
 def main_soma(output_path="src/anny/data/procrustes/soma.pth",
-              weight_threshold=0.01):
+              weight_threshold=0.01,
+              aim_weight=0.0, aim_target="tail"):
     """
     Precompute the procrustes orientation data for the SOMA rig.
 
     The reference configuration is the SOMA bind shape with its bind bone poses. Vertex weights
     are the SOMA skinning weights binarized with *weight_threshold*.
     """
+    if aim_weight > 0:
+        raise NotImplementedError(
+            "The SOMA rig performs child-joint aiming at runtime via ChildOffsetOrientationRefiner "
+            "to match soma.SOMALayer, and has no authored tails; baking an aim term into the "
+            "covariance is neither needed nor supported here.")
     from anny.models import retopology
     from anny.models.model_data import RigConfig, TopologyConfig
     from anny.models.model_transforms import regress_soma_bone_origins
@@ -252,13 +354,24 @@ def main_soma(output_path="src/anny/data/procrustes/soma.pth",
 
 def main():
     parser = argparse.ArgumentParser(description="Precompute procrustes bone orientation data for a rig.")
-    parser.add_argument("--rig", choices=["default", "soma"], default="default")
-    parser.add_argument("--output", default=None, help="Output path (defaults to src/anny/data/procrustes/<rig>.pth)")
+    parser.add_argument("--rig", choices=["anny", "soma"], default="anny")
+    parser.add_argument("--output", default=None, help="Output path (defaults into src/anny/data/procrustes/XXX.pth)")
+    parser.add_argument("--aim-weight", type=float, default=None,
+                        help="Relative weight of kinematic aiming folded into the covariance "
+                             "(overrides the per-rig default; 0 disables it).")
+    parser.add_argument("--aim-target", choices=["tail", "children"], default="tail",
+                        help="Aim at each bone's authored tail (default) or at its child joints.")
     args = parser.parse_args()
-    if args.rig == "default":
-        main_default(**({"output_path": args.output} if args.output else {}))
+    # Leave aim_weight to each rig's own default (0.5 for anny, 0 for soma) unless overridden.
+    kwargs = {"aim_target": args.aim_target}
+    if args.aim_weight is not None:
+        kwargs["aim_weight"] = args.aim_weight
+    if args.output:
+        kwargs["output_path"] = args.output
+    if args.rig == "anny":
+        main_anny(**kwargs)
     elif args.rig == "soma":
-        main_soma(**({"output_path": args.output} if args.output else {}))
+        main_soma(**kwargs)
 
 
 if __name__ == "__main__":
