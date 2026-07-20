@@ -165,9 +165,10 @@ def create_head_model(
     if not tongue:
         topology += "-notongue"
     topology = legacy_topology_to_anny(topology=topology, remove_unattached_vertices=remove_unattached_vertices, triangulate_faces=triangulate_faces)
-    # Keep the full rig: head/hand part models need the expression/eye/tongue
-    # bones that the default "anny" pruning would otherwise strip.
-    rig = RigConfig(base_rig="anny", root_identity_orientation=True, bones_to_remove=frozenset())
+    # The head part model keeps the full (unpruned) rig with its expression/eye/tongue bones and uses
+    # the legacy blender (tail-based) orientation. Those facial bones are absent from the precomputed
+    # procrustes covariance (built on the pruned full-body anny rig), so the head model does not use it.
+    rig = RigConfig(base_rig="anny", bone_orientation="blender", root_identity_orientation=True, bones_to_remove=frozenset())
     return Anny(
         rig=rig,
         topology=topology,

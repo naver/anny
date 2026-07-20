@@ -227,7 +227,7 @@ def main_anny(output_path="src/anny/data/procrustes/anny.pth",
     aim_weight: relative weight of the kinematic aiming term folded into the covariance (0 disables it)
     aim_target: "tail" (aim at each bone's authored tail) or "children" (aim at child joints)
     """
-    source_model = anny.create_fullbody_model(rig="default", topology="anny", local_changes="all", bone_orientation="blender-rootidentity")
+    source_model = anny.create_fullbody_model(rig="anny", topology="anny", local_changes="all", bone_orientation="blender-rootidentity")
 
     # The bone orientations are inconsistent across shapes (which motivates the use of a different orientation strategy).
     # We choose a particular body shape as reference (default settings in MPFB2)

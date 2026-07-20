@@ -29,6 +29,7 @@ def main(server_name : str = None, server_port : int = None):
         bones_rotvec = None
         phenotype_kwargs = None
         local_changes_kwargs = None
+        facial_actions_kwargs = None
         show_bones = False
         show_bone_axes = False
         show_self_intersections = False
@@ -40,7 +41,8 @@ def main(server_name : str = None, server_port : int = None):
             pose_parameters = roma.Rigid(bones_rotmat, torch.zeros((len(bones_rotmat), 3), dtype=dtype))[None].to_homogeneous()
             output = model(pose_parameters=pose_parameters,
                            phenotype_kwargs=phenotype_kwargs,
-                           local_changes_kwargs=local_changes_kwargs)
+                           local_changes_kwargs=local_changes_kwargs,
+                           facial_actions=facial_actions_kwargs)
             vertices = output["vertices"]
             faces = model.faces
 
@@ -48,6 +50,7 @@ def main(server_name : str = None, server_port : int = None):
             with open(temp_params_file.name, "w") as f:
                 data =dict(phenotype_kwargs = {key : value for key, value in phenotype_kwargs.items() if value != 0.5},
                            local_changes_kwargs = {key : value for key, value in local_changes_kwargs.items() if value != 0.},
+                           facial_actions = {key : value for key, value in facial_actions_kwargs.items() if value != 0.},
                            pose_parameterization = model.pose_parameterization,
                            pose_parameters = {key : matrix for key, matrix in zip(model.bone_labels, pose_parameters.squeeze(dim=0).cpu().numpy().tolist())})
                 json.dump(data, f)
@@ -83,7 +86,7 @@ def main(server_name : str = None, server_port : int = None):
                 # Add bones visualization
                 bone_heads = output['bone_poses'][..., :3, 3].detach().cpu().squeeze(dim=0)
 
-                bone_colors = [[0.8, 0.3, 0.3, 1.0]]
+                bone_colors = [[0.3, 0.3, 0.3, 1.0]]
                 bone_visuals = [trimesh.visual.TextureVisuals(material=trimesh.visual.material.PBRMaterial(baseColorFactor=color,
                                                                         metallicFactor=0.,
                                                                         roughnessFactor=1.,
@@ -95,7 +98,7 @@ def main(server_name : str = None, server_port : int = None):
                     parent_id = model.bone_parents[i]
                     if parent_id >= 0:
                         bone_tail = bone_heads[parent_id]
-                        cylinder = trimesh.creation.cylinder(radius=0.005, height=torch.norm(bone_tail - bone_head).item(), sections=16)
+                        cylinder = trimesh.creation.cylinder(radius=0.0025, height=torch.norm(bone_tail - bone_head).item(), sections=16)
                         t = (bone_head + bone_tail) / 2
                         M = roma.special_gramschmidt(torch.stack([bone_tail - bone_head, torch.tensor([0., 0., 1.], dtype=dtype)], dim=-1))
                         R = torch.stack([M[:, 2], M[:, 1], M[:,0]], dim=-1)
@@ -119,7 +122,7 @@ def main(server_name : str = None, server_port : int = None):
                 # Show each bone pose as a coordinate frame (axes) to visualize orientation
                 bone_poses = output["bone_poses"].squeeze(dim=0).cpu()
                 for i in range(len(bone_poses)):
-                    frame = trimesh.creation.axis(origin_size=0.004, axis_radius=0.002, axis_length=0.1)
+                    frame = trimesh.creation.axis(origin_size=0.002, axis_radius=0.001, axis_length=0.025)
                     scene.add_geometry(frame, transform=bone_poses[i].numpy(), node_name=f"pose_{model.bone_labels[i]}")
 
             # The gradio Model3D component does not use a Z-up camera orientation by default. We apply a scene rotation to compensate.
@@ -139,25 +142,25 @@ def main(server_name : str = None, server_port : int = None):
             """
             Initialize the model and return a dropdown with bone labels.
             """
-            nonlocal model, measurements_class, bones_rotvec, phenotype_kwargs, local_changes_kwargs, self_intersection_module
+            nonlocal model, measurements_class, bones_rotvec, phenotype_kwargs, local_changes_kwargs, facial_actions_kwargs, self_intersection_module
             if model_type == "anny":
-                model = anny.Anny(rig=rig, topology="anny", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes)
+                model = anny.Anny(rig=rig, topology="anny", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes, facial_actions=True)
             elif model_type == "notoes_collapse10pc":
-                model = anny.Anny(rig=rig, topology="notoes_collapse10pc", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes)
+                model = anny.Anny(rig=rig, topology="notoes_collapse10pc", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes, facial_actions=True)
             elif model_type == "notoes_collapse5pc":
-                model = anny.Anny(rig=rig, topology="notoes_collapse5pc", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes)
+                model = anny.Anny(rig=rig, topology="notoes_collapse5pc", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes, facial_actions=True)
             elif model_type == "smplx":
-                model = anny.Anny(rig=rig, topology="smplx", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes)
+                model = anny.Anny(rig=rig, topology="smplx", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes, facial_actions=True)
             elif model_type == "smpl":
-                model = anny.Anny(rig=rig, topology="smpl", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes)
+                model = anny.Anny(rig=rig, topology="smpl", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes, facial_actions=True)
             elif model_type == "soma":
-                model = anny.Anny(rig=rig, topology="soma", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes)
+                model = anny.Anny(rig=rig, topology="soma", local_changes="default", extrapolate_phenotypes=extrapolate_phenotypes, facial_actions=True)
             elif model_type == "right hand":
-                model = anny.Anny(rig=rig, topology='hand.R', extrapolate_phenotypes=extrapolate_phenotypes)
+                model = anny.Anny(rig=rig, topology='hand.R', extrapolate_phenotypes=extrapolate_phenotypes, facial_actions=True)
             elif model_type == "left hand":
-                model = anny.Anny(rig=rig, topology='hand.L', extrapolate_phenotypes=extrapolate_phenotypes)
+                model = anny.Anny(rig=rig, topology='hand.L', extrapolate_phenotypes=extrapolate_phenotypes, facial_actions=True)
             elif model_type == "head":
-                model =  anny.Anny(rig=rig, topology='head', extrapolate_phenotypes=extrapolate_phenotypes)
+                model =  anny.Anny(rig=rig, topology='head', extrapolate_phenotypes=extrapolate_phenotypes, facial_actions=True)
             else:
                 raise ValueError(f"Invalid model type: {model_type}")
             
@@ -170,6 +173,7 @@ def main(server_name : str = None, server_port : int = None):
             bones_rotvec = torch.zeros((len(model.bone_labels), 3), dtype=dtype)
             phenotype_kwargs = {key: 0.5 for key in model.phenotype_labels}
             local_changes_kwargs = {key: 0. for key in model.local_change_labels}
+            facial_actions_kwargs = {key: 0. for key in model.facial_action_labels}
 
             self_intersection_module = anny.utils.collision.SelfInterpenetrationModule(model)
 
@@ -191,7 +195,14 @@ def main(server_name : str = None, server_port : int = None):
             else:
                 local_change_dropdown = gr.Dropdown(label="Local change", choices=["None"], value="None", interactive=False, visible=False)
                 local_changes_slider = gr.Slider(label="Value", minimum=-1., maximum=1., step=0.05, value=0., interactive=False, visible=False)
-                
+
+            if len(model.facial_action_labels) > 0:
+                facial_action_dropdown = gr.Dropdown(label="Facial action", choices=model.facial_action_labels, value=model.facial_action_labels[0], interactive=True, visible=True)
+                facial_actions_slider = gr.Slider(label="Value", minimum=0., maximum=1., step=0.05, value=facial_actions_kwargs[model.facial_action_labels[0]], interactive=True, visible=True)
+            else:
+                facial_action_dropdown = gr.Dropdown(label="Facial action", choices=["None"], value="None", interactive=False, visible=False)
+                facial_actions_slider = gr.Slider(label="Value", minimum=0., maximum=1., step=0.05, value=0., interactive=False, visible=False)
+
             reset_shape_button = gr.Button("Reset shape")
             bone_dropdown = gr.Dropdown(label="Bone orientation", choices=model.bone_labels, type="index", value=model.bone_labels[0])
             x_slider = gr.Slider(label="X", minimum=-180, maximum=180, step=1, value=0)
@@ -200,7 +211,7 @@ def main(server_name : str = None, server_port : int = None):
             reset_pose_button = gr.Button("Reset pose")
             filename, params_filename, measurements_summary = export_mesh()
             model3d = gr.Model3D(value=filename, height="100vh")
-            return description, phenotype_dropdown, macrodetail_slider, local_change_dropdown, local_changes_slider, reset_shape_button, bone_dropdown, x_slider, y_slider, z_slider, reset_pose_button, model3d, measurements_summary
+            return description, phenotype_dropdown, macrodetail_slider, local_change_dropdown, local_changes_slider, facial_action_dropdown, facial_actions_slider, reset_shape_button, bone_dropdown, x_slider, y_slider, z_slider, reset_pose_button, model3d, measurements_summary
 
         default_model_value = "anny"
         default_rig_value = "anny"
@@ -209,7 +220,7 @@ def main(server_name : str = None, server_port : int = None):
         show_self_intersections_checkbox = gr.Checkbox(label="Show self intersections", value=False, visible=True, interactive=True)
         extrapolate_phenotypes_checkbox = gr.Checkbox(label="Extrapolate phenotypes (not recommended)", value=extrapolate_phenotypes, visible=True, interactive=True)
         model_gradio_outputs = initialize_model(default_model_value, default_rig_value)
-        description, phenotype_dropdown, macrodetail_slider, local_change_dropdown, local_changes_slider, reset_shape_button, bone_dropdown, x_slider, y_slider, z_slider, reset_pose_button, model3d, measurements_summary = model_gradio_outputs
+        description, phenotype_dropdown, macrodetail_slider, local_change_dropdown, local_changes_slider, facial_action_dropdown, facial_actions_slider, reset_shape_button, bone_dropdown, x_slider, y_slider, z_slider, reset_pose_button, model3d, measurements_summary = model_gradio_outputs
 
         with gr.Blocks(title="Anny Model", css="#control-column { max-width: 60pt; }") as demo:
             with gr.Row():
@@ -229,7 +240,9 @@ def main(server_name : str = None, server_port : int = None):
                     macrodetail_slider.render()
                     local_change_dropdown.render()
                     local_changes_slider.render()
-                    reset_shape_button.render() 
+                    facial_action_dropdown.render()
+                    facial_actions_slider.render()
+                    reset_shape_button.render()
                     bone_dropdown.render()
                     x_slider.render()
                     y_slider.render()
@@ -311,7 +324,25 @@ def main(server_name : str = None, server_port : int = None):
                 return export_mesh()
             local_changes_slider.change(update_local_changes_slider, inputs=[local_change_dropdown, local_changes_slider], outputs=[model3d, download_params_button, measurements_summary])
 
-            def reset_shape(macrodetail_label, local_change_label):
+            def update_facial_action_label(facial_action_label):
+                """
+                Called when the selected facial action changes.
+                """
+                if not facial_actions_kwargs:
+                    return 0.
+                return facial_actions_kwargs[facial_action_label]
+            facial_action_dropdown.change(update_facial_action_label, inputs=facial_action_dropdown, outputs=facial_actions_slider)
+
+            def update_facial_actions_slider(facial_action_label, value):
+                """
+                Called when the facial action slider is changed.
+                """
+                if facial_actions_kwargs and facial_action_label in facial_actions_kwargs:
+                    facial_actions_kwargs[facial_action_label] = value
+                return export_mesh()
+            facial_actions_slider.change(update_facial_actions_slider, inputs=[facial_action_dropdown, facial_actions_slider], outputs=[model3d, download_params_button, measurements_summary])
+
+            def reset_shape(macrodetail_label, local_change_label, facial_action_label):
                 """
                 Called when the reset shape button is clicked.
                 """
@@ -320,9 +351,13 @@ def main(server_name : str = None, server_port : int = None):
                 if local_changes_kwargs is not None:
                     for key in list(local_changes_kwargs.keys()):
                         local_changes_kwargs[key] = 0.
+                if facial_actions_kwargs is not None:
+                    for key in list(facial_actions_kwargs.keys()):
+                        facial_actions_kwargs[key] = 0.
                 local_change_output = local_changes_kwargs[local_change_label] if local_changes_kwargs is not None else 0.
-                return *export_mesh(), phenotype_kwargs[macrodetail_label], local_change_output
-            reset_shape_button.click(reset_shape, inputs=[phenotype_dropdown, local_change_dropdown], outputs=[model3d, download_params_button, measurements_summary, macrodetail_slider, local_changes_slider])
+                facial_action_output = facial_actions_kwargs.get(facial_action_label, 0.) if facial_actions_kwargs is not None else 0.
+                return *export_mesh(), phenotype_kwargs[macrodetail_label], local_change_output, facial_action_output
+            reset_shape_button.click(reset_shape, inputs=[phenotype_dropdown, local_change_dropdown, facial_action_dropdown], outputs=[model3d, download_params_button, measurements_summary, macrodetail_slider, local_changes_slider, facial_actions_slider])
             
             def update_bone_label(bone_index):
                 """

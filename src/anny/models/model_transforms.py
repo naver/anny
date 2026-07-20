@@ -6,6 +6,7 @@ from __future__ import annotations
 import collections
 import dataclasses
 import logging
+import os
 
 import numpy as np
 import roma
@@ -15,6 +16,7 @@ import trimesh.graph
 
 from anny.models.rigged_model import RiggedModelWithLinearBlendShapes
 from anny.models.model_data import ModelData
+from anny.paths import get_anny_root_dir
 from anny.utils.mesh_utils import (
     get_edge_vertex_indices,
     get_symmetric_vertex_indices,
@@ -419,6 +421,72 @@ def apply_procrustes_orientation(data: ModelData) -> ModelData:
         bone_vertex_indices=procrustes_buffers.bone_vertex_indices,
         bone_vertex_weights=procrustes_buffers.bone_vertex_weights,
         template_bone_vertices=procrustes_buffers.template_bone_vertices,
+        template_bone_tails=None,
+        bone_tails_blendshapes=None,
+        bone_rolls_rotmat=None,
+    )
+
+
+def apply_anny_procrustes_orientation(data: ModelData) -> ModelData:
+    """Apply the precomputed tail-aimed procrustes covariance (``data/procrustes/anny.pth``) to an
+    anny-family rig, replacing the legacy runtime registration.
+
+    Bones are selected by label (asserting full coverage); blendshape rows are selected by label. The
+    facial-action orientation rows are then nulled: facial actions deform the face mesh, not the
+    skeleton, so their coefficients must not reorient bones. No runtime child-offset refiner is used:
+    tail-aiming is already baked into the covariance.
+    """
+    orientation_data = torch.load(
+        os.path.join(get_anny_root_dir(), "data/procrustes/anny.pth"), weights_only=True
+    )
+    dtype, device = data.template_vertices.dtype, data.template_vertices.device
+
+    source_bone_labels = [str(label) for label in orientation_data["bone_labels"]]
+    source_index = {label: i for i, label in enumerate(source_bone_labels)}
+    target_bone_labels = list(data.metadata.bone_labels)
+    missing = [label for label in target_bone_labels if label not in source_index]
+    assert not missing, (
+        "Precomputed anny orientation data (data/procrustes/anny.pth) does not cover bones: "
+        f"{missing}."
+    )
+    bone_selection = [source_index[label] for label in target_bone_labels]
+
+    bone_template_orientation_matrices = orientation_data[
+        "bone_template_orientation_matrices"
+    ][bone_selection].to(dtype=dtype, device=device)
+    reference_bone_orientations = orientation_data[
+        "reference_bone_orientations"
+    ][bone_selection].to(dtype=dtype, device=device)
+    bone_orientation_blendshapes = _select_orientation_blendshape_rows(
+        orientation_data["bone_orientation_blendshapes"][:, bone_selection],
+        source_labels=orientation_data["blendshape_labels"],
+        target_labels=data.metadata.blendshape_labels,
+    ).to(dtype=dtype, device=device)
+
+    # Facial actions deform the face mesh, not the skeleton: null their orientation rows so that
+    # facial-action coefficients do not reorient bones.
+    facial_action_rows = [
+        row for row, label in enumerate(data.metadata.blendshape_labels)
+        if label.startswith("facial_action")
+    ]
+    if facial_action_rows:
+        bone_orientation_blendshapes[facial_action_rows] = 0.0
+
+    return dataclasses.replace(
+        data,
+        bone_template_orientation_matrices=bone_template_orientation_matrices,
+        bone_orientation_blendshapes=bone_orientation_blendshapes,
+        reference_bone_orientations=reference_bone_orientations,
+        # Tail-aiming is baked into the covariance: no runtime child-offset refiner.
+        bone_children_indices=None,
+        bone_children_mask=None,
+        bone_children_local_offsets=None,
+        # Runtime-registration buffers are replaced by the covariance.
+        bone_nonzeroweight_mask=None,
+        bone_vertex_indices=None,
+        bone_vertex_weights=None,
+        template_bone_vertices=None,
+        # Tail-based orientation fields don't apply when bone_orientation="procrustes".
         template_bone_tails=None,
         bone_tails_blendshapes=None,
         bone_rolls_rotmat=None,
