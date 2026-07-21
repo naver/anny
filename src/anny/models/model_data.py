@@ -423,6 +423,8 @@ def _bones_to_remove_from_modifier(modifier: str) -> set[str]:
         return set(_eye_bone_labels)
     if modifier == "notongue":
         return set(_tongue_bone_labels)
+    if modifier == "nofacialexpression":
+        return set(_facial_expression_bone_labels)
     if modifier == "noexpression":
         return set(_facial_expression_bone_labels) | set(_eye_bone_labels) | set(_tongue_bone_labels)
     if modifier == "notoes":
@@ -442,7 +444,7 @@ def _bones_to_remove_from_modifiers(modifiers: list[str]) -> set[str]:
 
 
 # Modifiers applied to the bare "anny" rig by default (pruned procrustes preset).
-_ANNY_DEFAULT_MODIFIERS = ["notongue", "noexpression", "pruned"]
+_ANNY_DEFAULT_MODIFIERS = ["notongue", "nofacialexpression", "pruned"]
 
 def _validate_files(rig_filename: PathLike, weights_filename: PathLike) -> tuple[str, str]:
     rig_filename = str(rig_filename)
