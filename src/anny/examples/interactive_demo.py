@@ -137,37 +137,15 @@ def main(server_name : str = None, server_port : int = None):
                 measurements_summary = gr.Markdown("No measurements available.")
             return mesh_filename, temp_params_file.name, measurements_summary
         
-        def initialize_model(model_type, rig):
+        def initialize_model(topology, rig):
             """
             Initialize the model and return a dropdown with bone labels.
             """
             nonlocal model, measurements_class, bones_rotvec, phenotype_kwargs, local_changes_kwargs, facial_actions_kwargs, self_intersection_module
-            if model_type == "anny":
-                model = anny.Anny(rig=rig, topology="anny", local_changes="default", facial_actions=True)
-            elif model_type == "notoes_collapse10pc":
-                model = anny.Anny(rig=rig, topology="notoes_collapse10pc", local_changes="default", facial_actions=True)
-            elif model_type == "notoes_collapse5pc":
-                model = anny.Anny(rig=rig, topology="notoes_collapse5pc", local_changes="default", facial_actions=True)
-            elif model_type == "smplx":
-                model = anny.Anny(rig=rig, topology="smplx", local_changes="default", facial_actions=True)
-            elif model_type == "smpl":
-                model = anny.Anny(rig=rig, topology="smpl", local_changes="default", facial_actions=True)
-            elif model_type == "soma":
-                model = anny.Anny(rig=rig, topology="soma", local_changes="default", facial_actions=True)
-            elif model_type == "right hand":
-                model = anny.Anny(rig=rig, topology='hand.R', facial_actions=True)
-            elif model_type == "left hand":
-                model = anny.Anny(rig=rig, topology='hand.L', facial_actions=True)
-            elif model_type == "head":
-                model =  anny.Anny(rig=rig, topology='head', facial_actions=True)
-            else:
-                raise ValueError(f"Invalid model type: {model_type}")
-            
-            if model_type in ["default"]:
-                measurements_class = anny.anthropometry.Anthropometry(model)
-            else:
-                measurements_class = None
-        
+            model = anny.Anny(rig=rig, topology=topology, local_changes="default", facial_actions=True)
+
+            measurements_class = None
+
             model = model.to(dtype=dtype)
             bones_rotvec = torch.zeros((len(model.bone_labels), 3), dtype=dtype)
             phenotype_kwargs = {key: 0.5 for key in model.phenotype_labels}
@@ -223,7 +201,7 @@ def main(server_name : str = None, server_port : int = None):
             with gr.Row():
                 with gr.Column("compact", elem_id="control-column"):
                     model_dropdown = gr.Dropdown(label="Topology",
-                                                    choices=["anny", "left hand", "right hand", "head", "notoes_collapse10pc", "notoes_collapse5pc", "smplx", "smpl", "soma"], value=default_model_value)
+                                                    choices=["anny", "hand.L", "hand.R", "head", "notoes_collapse10pc", "notoes_collapse5pc", "smplx", "smpl", "soma"], value=default_model_value)
                     rig_dropdown = gr.Dropdown(label="Rig",
                                                     choices=["anny", "makehuman", "mixamo", "anny-notoes", "anny-nohands", "soma"],
                                                     value=default_rig_value)
