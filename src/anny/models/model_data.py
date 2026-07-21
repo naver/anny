@@ -488,12 +488,6 @@ def _parse_rig_spec(spec: str) -> RigConfig:
     if "rootidentity" in modifiers:
         rig_spec = dataclasses.replace(rig_spec, root_identity_orientation=True)
         modifiers.remove("rootidentity")
-    
-    if "symmetric" in modifiers:
-        if base_rig != "makehuman":
-            raise ValueError(f"Invalid rig spec: {spec}. 'symmetric' modifier is only valid for 'makehuman' base rig.")
-        rig_spec = dataclasses.replace(rig_spec, base_rig="anny")
-        modifiers.remove("symmetric")
 
     if base_rig in ["anny", "makehuman"]:
         modifiers += (_ANNY_DEFAULT_MODIFIERS if base_rig == "anny" else [])

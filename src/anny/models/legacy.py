@@ -78,12 +78,11 @@ def legacy_rig_to_anny(
     if rig == "soma":
         return rig
     # Legacy rig="default" is the full MakeHuman rig (weights.default.json, no
-    # pruning): "makehuman-symmetric" resolves to base_rig="anny" with an empty
-    # bones_to_remove, unlike the bare "anny" spec which prunes tongue/expression
+    # pruning), unlike the bare "anny" spec which prunes tongue/expression
     # /zero-weight bones. bone_orientation and root_identity_orientation cannot be
     # expressed via the string spec for the procrustes case, so we override them
     # on the resolved RigConfig to preserve the exact legacy behavior.
-    spec = rig.replace("default", "makehuman-symmetric")
+    spec = rig.replace("default", "makehuman")
     resolved = RigConfig.from_string(spec)
     resolved_bone_orientation, root_identity_orientation = (
         legacy_bone_orientation_to_rig_options(bone_orientation)
