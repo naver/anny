@@ -28,7 +28,7 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
         self,
         data: "ModelData",
         skinning_method: SkinningMethod | None = None,
-        pose_parameterization: PoseParameterization = "local-bone",
+        pose_parameterization: PoseParameterization = "local-ref",
         bone_orientation: BoneOrientation = "blender",
         root_identity_orientation: bool = True,
     ) -> None:

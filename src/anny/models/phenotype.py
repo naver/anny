@@ -48,7 +48,7 @@ class Anny(RiggedModelWithLinearBlendShapes):
         facial_actions: bool = False,
         extrapolate_phenotypes: bool = False,
         all_phenotypes: bool = False,
-        pose_parameterization: PoseParameterization = "local-bone",
+        pose_parameterization: PoseParameterization = "local-ref",
         skinning_method: SkinningMethod | None = None,
     ) -> None:
         from anny.models import build_model_data
