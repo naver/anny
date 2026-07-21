@@ -206,8 +206,8 @@ _breast_bone_labels = {"breast.L", "breast.R"}
 
 
 _RIG_PRESET_FILES: dict[str, tuple[str, str]] = {
-    "anny": ("rig.default.json", "weights.default.json"),
-    "makehuman": ("rig.default.json", "weights.makehuman.json"),
+    "anny": ("rig.default.json", "weights.default.json"), # default weights: see scripts/compute_skinning_weights.py
+    "makehuman": ("rig.default.json", "weights.default.json"),
     "cmu_mb": ("rig.cmu_mb.json", "weights.cmu_mb.json"),
     "game_engine": ("rig.game_engine.json", "weights.game_engine.json"),
     "mixamo": ("rig.mixamo.json", "weights.mixamo.json"),
