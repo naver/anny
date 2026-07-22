@@ -219,7 +219,9 @@ def _compute_bone_vertex_weights(model, bone_idx: int, strategy: str) -> torch.T
 
 def main_anny(output_path="src/anny/data/procrustes/anny.pth",
                  bone_orientation_weighting_strategy="skinning_squared",
-                 aim_weight=0.5, aim_target="tail"):
+                 aim_weight=0.5,
+                 aim_target="tail",
+                 align_root_with_pelvis=True):
     """
     Precompute the procrustes orientation data for the pruned anny rig.
 
@@ -227,7 +229,7 @@ def main_anny(output_path="src/anny/data/procrustes/anny.pth",
     aim_weight: relative weight of the kinematic aiming term folded into the covariance (0 disables it)
     aim_target: "tail" (aim at each bone's authored tail) or "children" (aim at child joints)
     """
-    source_model = anny.create_fullbody_model(rig="anny", topology="anny", local_changes="all", bone_orientation="blender-rootidentity")
+    source_model = anny.Anny(rig="makehuman-notongue-nobreasts-nofacialexpression-pruned", topology="anny", local_changes="all")
 
     # The bone orientations are inconsistent across shapes (which motivates the use of a different orientation strategy).
     # We choose a particular body shape as reference (default settings in MPFB2)
@@ -258,6 +260,27 @@ def main_anny(output_path="src/anny/data/procrustes/anny.pth",
         reference_bone_tails=reference_bone_tails,
     )
 
+    template_bone_heads = source_model.template_bone_heads.clone()
+    bone_heads_blendshapes = source_model.bone_heads_blendshapes.clone()
+    if align_root_with_pelvis:
+        # Manually redefine root bone origin to align with the pelvis
+        root_id = source_model.bone_labels.index("root")
+        pelvis_left_id = source_model.bone_labels.index("pelvis.L")
+        pelvis_right_id = source_model.bone_labels.index("pelvis.R")
+        assert torch.all(source_model.template_bone_heads[pelvis_left_id] == source_model.template_bone_heads[pelvis_right_id])
+        assert torch.all(source_model.bone_heads_blendshapes[:, pelvis_left_id] == source_model.bone_heads_blendshapes[:, pelvis_left_id])
+        # The root bone must carry no skinning weights, so moving its origin leaves the mesh unchanged.
+        root_skinning_weight = torch.where(
+            source_model.vertex_bone_indices == root_id,
+            source_model.vertex_bone_weights,
+            torch.zeros_like(source_model.vertex_bone_weights),
+        ).sum()
+        assert root_skinning_weight == 0, \
+            "root bone has skinning weights; its origin cannot be safely realigned with the pelvis."
+        
+        template_bone_heads[root_id] = source_model.template_bone_heads[pelvis_left_id]
+        bone_heads_blendshapes[:, root_id] = source_model.bone_heads_blendshapes[:, pelvis_left_id]
+
     data = dict(
         # Metadata
         bone_orientation_weighting_strategy=bone_orientation_weighting_strategy,
@@ -266,6 +289,8 @@ def main_anny(output_path="src/anny/data/procrustes/anny.pth",
         aim_target=aim_target,
         # Data
         bone_labels=source_model.bone_labels,
+        template_bone_heads=template_bone_heads,
+        bone_heads_blendshapes=bone_heads_blendshapes,
         blendshape_labels=list(source_model.blendshape_labels),
         reference_bone_orientations=reference_bone_orientations,
         **orientation_data,

@@ -457,8 +457,17 @@ def apply_anny_procrustes_orientation(data: ModelData) -> ModelData:
     reference_bone_orientations = orientation_data[
         "reference_bone_orientations"
     ][bone_selection].to(dtype=dtype, device=device)
-    bone_orientation_blendshapes = _select_orientation_blendshape_rows(
+    bone_orientation_blendshapes = _select_blendshape_rows(
         orientation_data["bone_orientation_blendshapes"][:, bone_selection],
+        source_labels=orientation_data["blendshape_labels"],
+        target_labels=data.metadata.blendshape_labels,
+    ).to(dtype=dtype, device=device)
+
+    # Bone origins ("heads") from the precomputed data (with the root realigned to the pelvis), kept
+    # consistent with the frames the covariance was computed against.
+    template_bone_heads = orientation_data["template_bone_heads"][bone_selection].to(dtype=dtype, device=device)
+    bone_heads_blendshapes = _select_blendshape_rows(
+        orientation_data["bone_heads_blendshapes"][:, bone_selection],
         source_labels=orientation_data["blendshape_labels"],
         target_labels=data.metadata.blendshape_labels,
     ).to(dtype=dtype, device=device)
@@ -474,6 +483,8 @@ def apply_anny_procrustes_orientation(data: ModelData) -> ModelData:
 
     return dataclasses.replace(
         data,
+        template_bone_heads=template_bone_heads,
+        bone_heads_blendshapes=bone_heads_blendshapes,
         bone_template_orientation_matrices=bone_template_orientation_matrices,
         bone_orientation_blendshapes=bone_orientation_blendshapes,
         reference_bone_orientations=reference_bone_orientations,
@@ -770,7 +781,7 @@ def regress_soma_bone_origins(
     return template_bone_origins, bone_origins_blendshapes
 
 
-def _select_orientation_blendshape_rows(
+def _select_blendshape_rows(
     orientation_blendshapes: torch.Tensor,
     source_labels: list[str],
     target_labels: list[str],
@@ -843,7 +854,7 @@ def apply_soma_rig(data: ModelData, soma_rig_data: dict, procrustes_orientation_
     # Precomputed procrustes orientation data, with blendshape rows matching the model configuration.
     if list(procrustes_orientation_data["bone_labels"]) != [str(label) for label in bone_labels]:
         raise ValueError("Precomputed procrustes orientation data does not match the SOMA rig bones.")
-    bone_orientation_blendshapes = _select_orientation_blendshape_rows(
+    bone_orientation_blendshapes = _select_blendshape_rows(
         procrustes_orientation_data["bone_orientation_blendshapes"],
         source_labels=procrustes_orientation_data["blendshape_labels"],
         target_labels=data.metadata.blendshape_labels,

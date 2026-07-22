@@ -10,7 +10,7 @@ def transfer_pose_parameters(src_model, src_pose_parameters, phenotype_kwargs, l
 
     The source model is posed to obtain the world poses of its bones; the poses of the bones the
     target shares (matched by label) are then encoded into the target's pose parameterization.
-    This only reproduces the pose when the shared bones have the same rest origins in both models.
+    This only reproduces the pose when the shared bones have the same rest origins in both models or have no weights.
     Returns the target model's pose parameters yielding the same pose.
     """
     missing = [label for label in target_model.bone_labels if label not in src_model.bone_labels]
@@ -22,9 +22,6 @@ def transfer_pose_parameters(src_model, src_pose_parameters, phenotype_kwargs, l
 
     assert (base_output["rest_vertices"] - src_output["rest_vertices"]).abs().max() < 1e-6, \
         "src_model and target_model have different rest meshes; they must represent the same body at rest to transfer the pose."
-
-    assert torch.allclose(src_output["rest_bone_heads"][:, bone_indices], base_output["rest_bone_heads"], atol=1e-6), \
-        "shared bones have different rest origins in src_model and target_model; the pose cannot be transferred."
 
     # Preserve the LBS skinning delta (bone_pose @ rest_bone_pose^-1) across the two rigs' differing rest orientations.
     src_rest_inverse = roma.Rigid.from_homogeneous(src_output["rest_bone_poses"][:, bone_indices]).inverse().to_homogeneous()

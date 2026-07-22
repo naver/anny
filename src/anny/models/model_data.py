@@ -444,7 +444,7 @@ def _bones_to_remove_from_modifiers(modifiers: list[str]) -> set[str]:
 
 
 # Modifiers applied to the bare "anny" rig by default (pruned procrustes preset).
-_ANNY_DEFAULT_MODIFIERS = ["notongue", "nofacialexpression", "pruned"]
+_ANNY_RIG_MODIFIERS = ["notongue", "nobreasts", "nofacialexpression", "pruned"]
 
 def _validate_files(rig_filename: PathLike, weights_filename: PathLike) -> tuple[str, str]:
     rig_filename = str(rig_filename)
@@ -492,7 +492,7 @@ def _parse_rig_spec(spec: str) -> RigConfig:
         modifiers.remove("rootidentity")
 
     if base_rig in ["anny", "makehuman"]:
-        modifiers += (_ANNY_DEFAULT_MODIFIERS if base_rig == "anny" else [])
+        modifiers += (_ANNY_RIG_MODIFIERS if base_rig == "anny" else [])
         rig_spec = dataclasses.replace(rig_spec, bones_to_remove=frozenset(_bones_to_remove_from_modifiers(modifiers)))
     return rig_spec
 
