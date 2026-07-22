@@ -11,3 +11,4 @@ docs/build/
 .claude/
 smplx_models/
 test/data/
+tutorials/.ipynb_checkpoints/
