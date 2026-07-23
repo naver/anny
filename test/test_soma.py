@@ -5,7 +5,7 @@ import roma
 import torch
 
 import anny
-from anny.models.model_transforms import _select_orientation_blendshape_rows
+from anny.models.model_transforms import _select_blendshape_rows
 
 
 class TestSomaRigVertexCount(unittest.TestCase):
@@ -116,7 +116,7 @@ class TestSomaRigProcrustesOrientation(unittest.TestCase):
     def test_missing_facial_orientation_rows_are_zero(self):
         orientation_blendshapes = torch.ones((1, 2, 3, 3))
 
-        selected = _select_orientation_blendshape_rows(
+        selected = _select_blendshape_rows(
             orientation_blendshapes,
             source_labels=["universal:shape"],
             target_labels=["universal:shape", "facial_action:jawOpen"],

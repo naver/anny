@@ -41,7 +41,7 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
         self.template_bone_heads = make_buffer(self, "template_bone_heads", data.template_bone_heads, persistent=False)
         self.bone_heads_blendshapes = make_buffer(self, "bone_heads_blendshapes", data.bone_heads_blendshapes, persistent=False)
         self.reference_bone_orientations = _make_optional_buffer(self, "reference_bone_orientations", data.reference_bone_orientations)
-       
+
         self.vertex_bone_weights = make_buffer(self, "vertex_bone_weights", data.vertex_bone_weights, persistent=False)
         self.vertex_bone_indices = make_buffer(self, "vertex_bone_indices", data.vertex_bone_indices, persistent=False)
         self.base_mesh_vertex_indices = make_buffer(self, "base_mesh_vertex_indices", data.base_mesh_vertex_indices, persistent=False)
@@ -50,14 +50,14 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
 
         self.bone_orientation: BoneOrientation = bone_orientation
         self.root_identity_orientation = root_identity_orientation
-        
+
         self.bone_labels = data.metadata.bone_labels
         self.bone_parents = data.metadata.bone_parents
         self.blendshape_labels = data.metadata.blendshape_labels
 
         self.kinematic_propagation_fronts = kinematics.get_kinematic_propagation_fronts(self.bone_parents)
 
-        
+
         if self.bone_orientation == "blender":
             assert data.template_bone_tails is not None
             assert data.bone_tails_blendshapes is not None
@@ -422,7 +422,7 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
         vertices = self.get_skinned_vertices(bone_transforms=bone_transforms, rest_vertices=output["rest_vertices"].expand(bone_transforms.shape[0], -1, -1))
         output.update(vertices=vertices,
                     bone_poses=bone_poses)
-        if return_bone_ends and self.bone_orientation == "procrustes":
+        if return_bone_ends and self.bone_orientation != "blender":
             raise NotImplementedError(
                 "return_bone_ends=True is not supported for "
                 "bone_orientation='procrustes'."

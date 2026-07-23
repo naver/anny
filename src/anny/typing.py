@@ -16,5 +16,5 @@ Rig: TypeAlias = Literal["anny", "makehuman", "cmu_mb", "game_engine", "mixamo",
 
 SkinningMethod: TypeAlias = Literal["lbs", "dqs", "warp_lbs"]
 PoseParameterization: TypeAlias = Literal["world", "local-bone-world", "local-bone", "local-ref", "world-orient"]
-BoneOrientation: TypeAlias = Literal["blender", "procrustes"]
+BoneOrientation: TypeAlias = Literal["blender", "procrustes", "cached"]
 LocalChanges: TypeAlias = Literal["none", "default", "all"] | Sequence[str]

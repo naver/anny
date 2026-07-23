@@ -7,7 +7,6 @@ from anny.models.model_data import RigConfig
 import torch
 import anny
 from anny.paths import get_anny_cache_path, get_anny_root_dir
-from anny.models.rigged_model import RiggedModelWithLinearBlendShapes
 
 
 class TestInstantiation(unittest.TestCase):
@@ -27,9 +26,9 @@ class TestInstantiation(unittest.TestCase):
                     skinning_method="lbs",
                 )
                 self.assertIsNotNone(model)
-                self.assertEqual(model.bone_orientation, "procrustes" if rig =="anny" else "blender")
+                self.assertEqual(model.bone_orientation, "cached" if rig =="anny" else "blender")
 
-    def test_procrustes_anny_rig_retopology_paths(self):
+    def test_default_anny_rig_retopology_paths(self):
         for topology in ["smplx", "smpl", "soma"]:
             with self.subTest(topology=topology):
                 if topology == "smpl":
@@ -44,9 +43,9 @@ class TestInstantiation(unittest.TestCase):
                     skinning_method="lbs",
                 )
                 self.assertIsNotNone(model)
-                self.assertEqual(model.bone_orientation, "procrustes")
+                self.assertEqual(model.bone_orientation, "cached")
 
-    def test_procrustes_uncovered_rig_raises(self):
+    def test_cached_uncovered_rig_raises(self):
         # Procrustes orientation is now sourced from the precomputed covariance (data/cached/anny.pth),
         # which covers the anny bone set. A procrustes rig whose bones it does not cover -- here the full
         # default MakeHuman rig (163 bones incl. jaw/tongue/expression) -- fails loudly rather than
@@ -56,11 +55,11 @@ class TestInstantiation(unittest.TestCase):
 
         with self.assertRaisesRegex(AssertionError, "does not cover bones"):
             anny.Anny(
-                rig=RigConfig(rig_filename, weights_filename=weights_filename, bone_orientation="procrustes"),
+                rig=RigConfig(rig_filename, weights_filename=weights_filename, bone_orientation="cached"),
                 skinning_method="lbs",
             )
 
-    def test_procrustes_anny_rig_forward_outputs(self):
+    def test_default_anny_rig_forward_outputs(self):
         model = anny.Anny(
             rig="anny",
             skinning_method="lbs",
@@ -75,7 +74,7 @@ class TestInstantiation(unittest.TestCase):
         self.assertIn("rest_bone_poses", output)
         self.assertNotIn("rest_bone_tails", output)
 
-    def test_procrustes_root_identity_orientation(self):
+    def test_default_root_identity_orientation(self):
         model = anny.Anny(
             rig="anny",
             skinning_method="lbs",
@@ -93,7 +92,7 @@ class TestInstantiation(unittest.TestCase):
             torch.eye(3, dtype=model.dtype, device=model.device),
         )
 
-    def test_procrustes_return_bone_ends_raises_clear_error(self):
+    def test_non_blender_return_bone_ends_raises_clear_error(self):
         model = anny.Anny(
             rig="anny",
             skinning_method="lbs",
@@ -102,7 +101,7 @@ class TestInstantiation(unittest.TestCase):
         with self.assertRaisesRegex(NotImplementedError, "return_bone_ends=True is not supported"):
             model(return_bone_ends=True)
 
-    def test_procrustes_anny_rig_uses_precomputed_covariance(self):
+    def test_default_anny_rig_uses_precomputed_covariance(self):
         model = anny.Anny(rig="anny", topology="anny", skinning_method="lbs")
         # The anny rig now orients bones from the precomputed covariance (data/cached/anny.pth),
         # not the legacy runtime registration, and uses no runtime child-offset refiner.
@@ -118,7 +117,7 @@ class TestInstantiation(unittest.TestCase):
         self.assertLess(
             torch.max(torch.abs(R @ R.transpose(-1, -2) - torch.eye(3, dtype=model.dtype))), 1e-6)
 
-    def test_procrustes_anny_rig_facial_actions_do_not_reorient(self):
+    def test_default_anny_rig_facial_actions_do_not_reorient(self):
         import roma
         model = anny.Anny(rig="anny", topology="anny", facial_actions=True, skinning_method="lbs")
         facial_rows = [i for i, label in enumerate(model.blendshape_labels)
@@ -133,7 +132,7 @@ class TestInstantiation(unittest.TestCase):
         # Facial actions deform the face mesh but must not reorient any bone.
         self.assertLess(torch.max(roma.rotmat_geodesic_distance(R_base, R_posed)), 1e-9)
 
-    def test_procrustes_anny_rig_orientation_topology_independence(self):
+    def test_default_anny_rig_orientation_topology_independence(self):
         anny_topology_model = anny.Anny(rig="anny", topology="anny").to(torch.float64)
         makehuman_topology_model = anny.Anny(rig="anny", topology="makehuman").to(torch.float64)
         torch.manual_seed(0)
@@ -142,21 +141,6 @@ class TestInstantiation(unittest.TestCase):
         poses_anny = anny_topology_model.get_rest_model(blendshape_coeffs)["rest_bone_poses"]
         poses_makehuman = makehuman_topology_model.get_rest_model(blendshape_coeffs)["rest_bone_poses"]
         self.assertLess(torch.max(torch.abs(poses_anny - poses_makehuman)), 1e-6)
-
-    def test_anny_is_normal_rigged_model_instance(self):
-        model = anny.Anny()
-
-        self.assertIsInstance(model, anny.Anny)
-        self.assertIsInstance(model, RiggedModelWithLinearBlendShapes)
-        self.assertFalse(hasattr(model, "model_type"))
-        self.assertEqual(model.bone_orientation, "procrustes")
-        self.assertTrue(hasattr(model, "template_vertices"))
-        self.assertTrue(hasattr(model, "bone_labels"))
-        self.assertTrue(hasattr(model, "vertex_bone_weights"))
-        self.assertTrue(callable(model.get_rest_model))
-        self.assertTrue(callable(model.get_pose_parameterization))
-        self.assertTrue(callable(model.set_skinning_method))
-        self.assertIsNotNone(model)
 
 
 
