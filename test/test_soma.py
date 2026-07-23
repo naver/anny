@@ -130,5 +130,64 @@ class TestSomaRigProcrustesOrientation(unittest.TestCase):
             self.assertLess(torch.max(torch.abs(poses_subset - poses_all)), 1e-6)
 
 
+class TestSomaForwardParity(unittest.TestCase):
+    """Cross-validate anny's SOMA model against the external ``soma`` package (``py-soma-x``),
+    mirroring ``src/anny/examples/soma_comparison.py``. Only runs when ``soma`` is installed."""
+
+    def test_faces_match_soma_package(self):
+        try:
+            import soma
+        except ImportError:
+            self.skipTest("soma package not installed")
+
+        anny_soma = anny.Anny(rig="soma", topology="soma")
+        soma_layer = soma.SOMALayer(identity_model_type="anny", mode="warp",
+                                    device=torch.device("cpu"))
+        self.assertTrue(torch.equal(anny_soma.faces.to(torch.int64),
+                                    soma_layer.faces.to(torch.int64)))
+
+    def test_forward_vertices_match_soma_package(self):
+        try:
+            import soma
+        except ImportError:
+            self.skipTest("soma package not installed")
+
+        device = torch.device("cpu")
+        dtype = torch.float64
+
+        anny_soma = anny.Anny(rig="soma", topology="soma", pose_parameterization="local-ref",
+                              all_phenotypes=True).to(device=device, dtype=dtype)
+        soma_layer = soma.SOMALayer(identity_model_type="anny", mode="warp",
+                                    device=device).to(dtype=dtype)
+
+        torch.manual_seed(0)
+        phenotype_kwargs = torch.rand((1, len(anny_soma.phenotype_labels)), device=device, dtype=dtype)
+        local_changes = dict()
+        rotvec = 0.2 * torch.randn((1, 77, 3), device=device, dtype=dtype)
+        transl = 1.0 * torch.randn((1, 3), device=device, dtype=dtype)
+
+        # anny expects a full per-bone homogeneous transform stack (78 bones, root first); the
+        # soma layer pads the root internally, so prepend an identity rotation for it here.
+        extended_rotvec = torch.cat((torch.zeros((1, 1, 3), device=device, dtype=dtype), rotvec), dim=1)
+        pose_parameters = roma.Rigid(roma.rotvec_to_rotmat(extended_rotvec), translation=None).to_homogeneous()
+        pose_parameters[:, 0, :3, 3] = transl
+
+        anny_output = anny_soma(pose_parameters=pose_parameters,
+                                phenotype_kwargs=phenotype_kwargs,
+                                local_changes_kwargs=local_changes)
+        # apply_correctives=False disables the soma pose-corrective MLP that anny does not model.
+        soma_output = soma_layer(poses=rotvec, transl=transl, identity_coeffs=phenotype_kwargs,
+                                 scale_params=local_changes, apply_correctives=False)
+
+        self.assertEqual(anny_output["vertices"].shape, soma_output["vertices"].shape)
+        error = torch.linalg.norm(anny_output["vertices"] - soma_output["vertices"], dim=-1)
+        # Loose bound (seed 0: max ~7mm, mean ~0.6mm). The residual is the documented
+        # topology-transfer difference (soma RBF-retopologizes from the anny mesh, anny uses the
+        # SOMA mesh directly); exact skeleton parity is covered by
+        # test_skeleton_fit_parity_with_soma_package. Do not tighten these thresholds.
+        self.assertLess(error.max().item(), 0.015)
+        self.assertLess(error.mean().item(), 0.005)
+
+
 if __name__ == "__main__":
     unittest.main()

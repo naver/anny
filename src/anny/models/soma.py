@@ -1,3 +1,4 @@
+import dataclasses
 import os
 
 from anny.typing import LocalChanges
@@ -25,6 +26,20 @@ def _load_procrustes_orientation_data():
     return torch.load(path, weights_only=True)
 
 
+def _load_soma_faces():
+    """Load the canonical SOMA-X triangulation of the SOMA mesh.
+
+    ``data/soma/SOMA_wrap.obj`` is a quad mesh; anny's on-the-fly shortest-diagonal
+    triangulation picks per-quad diagonals that differ from the SOMA-X package's baked
+    triangles (``SOMA_neutral.npz['triangles']``) on ~18% of quads. That diagonal choice is
+    authored data, not a rule, so we bundle the canonical triangulation (a triangulation of the
+    already-bundled quad mesh) and use it verbatim so ``topology='soma'`` faces match the
+    ``soma`` package exactly.
+    """
+    path = os.path.join(get_anny_root_dir(), "data/soma/soma_faces.pt")
+    return torch.load(path, weights_only=True)
+
+
 def build_soma_rig_and_topology_model_data(local_changes: LocalChanges):
     soma_rig_data = _load_soma_rig()
     procrustes_orientation_data = _load_procrustes_orientation_data()
@@ -33,6 +48,10 @@ def build_soma_rig_and_topology_model_data(local_changes: LocalChanges):
                                       local_changes=local_changes,
                                       reference_topology="anny_from_soma")
     data = apply_soma_rig(soma_data, soma_rig_data, procrustes_orientation_data)
+    # Use the canonical SOMA-X triangulation so the SOMA-topology mesh (and the retopology
+    # source it provides for other topologies) matches the soma package exactly (see
+    # _load_soma_faces).
+    data = dataclasses.replace(data, faces=_load_soma_faces())
     return data
 
 

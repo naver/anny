@@ -21,7 +21,7 @@ from anny.typing import PathLike,AlternativeTopology, BoneOrientation, PoseParam
 
 ANNY_VERSION = importlib.metadata.version("anny")
 # Increase this if there are any non-backwards-compatible changes to the data/metadata format
-CURRENT_DATA_VERSION = 8
+CURRENT_DATA_VERSION = 9
 
 logger = logging.getLogger(__name__)
 
@@ -457,6 +457,9 @@ def _validate_files(rig_filename: PathLike, weights_filename: PathLike) -> tuple
 
 
 def _parse_rig_spec(spec: str) -> RigConfig:
+    if spec.startswith("default"):
+        spec = "makehuman" + spec[len("default"):]
+        DeprecationWarning("")
     base_rig = spec.split("-")[0]
     modifiers = spec.split("-")[1:]
     if base_rig == "soma":
