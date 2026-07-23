@@ -5,6 +5,7 @@ import roma
 import torch
 
 import anny
+from anny.models.model_transforms import _select_orientation_blendshape_rows
 
 
 class TestSomaRigVertexCount(unittest.TestCase):
@@ -112,22 +113,45 @@ class TestSomaRigProcrustesOrientation(unittest.TestCase):
             self.assertEqual(len(model.blendshape_labels), model.blendshapes.shape[0])
             self.assertEqual(len(set(model.blendshape_labels)), len(model.blendshape_labels))
 
+    def test_missing_facial_orientation_rows_are_zero(self):
+        orientation_blendshapes = torch.ones((1, 2, 3, 3))
+
+        selected = _select_orientation_blendshape_rows(
+            orientation_blendshapes,
+            source_labels=["universal:shape"],
+            target_labels=["universal:shape", "facial_action:jawOpen"],
+        )
+
+        torch.testing.assert_close(selected[0], orientation_blendshapes[0])
+        torch.testing.assert_close(selected[1], torch.zeros_like(selected[1]))
+
     def test_orientation_local_changes_slicing(self):
-        all_model = anny.Anny(rig="soma", topology="soma", local_changes="all")
-        all_index = {label: i for i, label in enumerate(all_model.blendshape_labels)}
-        arbitrary_subset = [all_model.local_change_labels[0], all_model.local_change_labels[-1]]
-        for local_changes in ["default", arbitrary_subset]:
-            subset_model = anny.Anny(rig="soma", topology="soma", local_changes=local_changes)
-            # Assign a coefficient to each blend shape of the subset model, and compare against
-            # the full model with the same coefficients on the corresponding rows.
-            torch.manual_seed(0)
-            subset_coeffs = torch.rand((4, subset_model.blendshapes.shape[0]), dtype=subset_model.dtype)
-            all_coeffs = torch.zeros((4, all_model.blendshapes.shape[0]), dtype=all_model.dtype)
-            for j, label in enumerate(subset_model.blendshape_labels):
-                all_coeffs[:, all_index[label]] = subset_coeffs[:, j]
-            poses_subset = subset_model.get_rest_model(subset_coeffs)["rest_bone_poses"]
-            poses_all = all_model.get_rest_model(all_coeffs)["rest_bone_poses"]
-            self.assertLess(torch.max(torch.abs(poses_subset - poses_all)), 1e-6)
+        for facial_actions in [False, True]:
+            all_model = anny.Anny(
+                rig="soma",
+                topology="soma",
+                local_changes="all",
+                facial_actions=facial_actions,
+            )
+            all_index = {label: i for i, label in enumerate(all_model.blendshape_labels)}
+            arbitrary_subset = [all_model.local_change_labels[0], all_model.local_change_labels[-1]]
+            for local_changes in ["default", arbitrary_subset]:
+                subset_model = anny.Anny(
+                    rig="soma",
+                    topology="soma",
+                    local_changes=local_changes,
+                    facial_actions=facial_actions,
+                )
+                # Assign a coefficient to each blend shape of the subset model, and compare against
+                # the full model with the same coefficients on the corresponding rows.
+                torch.manual_seed(0)
+                subset_coeffs = torch.rand((4, subset_model.blendshapes.shape[0]), dtype=subset_model.dtype)
+                all_coeffs = torch.zeros((4, all_model.blendshapes.shape[0]), dtype=all_model.dtype)
+                for j, label in enumerate(subset_model.blendshape_labels):
+                    all_coeffs[:, all_index[label]] = subset_coeffs[:, j]
+                poses_subset = subset_model.get_rest_model(subset_coeffs)["rest_bone_poses"]
+                poses_all = all_model.get_rest_model(all_coeffs)["rest_bone_poses"]
+                self.assertLess(torch.max(torch.abs(poses_subset - poses_all)), 1e-6)
 
 
 class TestSomaForwardParity(unittest.TestCase):

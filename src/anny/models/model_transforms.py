@@ -133,17 +133,31 @@ def _get_symmetric_bone_name(bone_name: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def filter_local_changes(data: ModelData, local_changes_mask: list[bool]) -> ModelData:
+def filter_blendshapes(
+    data: ModelData,
+    local_changes_mask: list[bool],
+    facial_actions: bool,
+) -> ModelData:
     if len(local_changes_mask) != len(data.metadata.local_change_labels):
         raise ValueError(
             f"local_changes_mask length {len(local_changes_mask)} does not match "
             f"the number of local change labels {len(data.metadata.local_change_labels)}"
         )
-    non_local_count = len(data.blendshapes) - 2 * len(local_changes_mask)
-    blend_shapes_mask = torch.concatenate(
+    facial_count = len(data.metadata.facial_action_labels)
+    non_local_count = (
+        len(data.blendshapes) - facial_count - 2 * len(local_changes_mask)
+    )
+    blend_shapes_mask = torch.cat(
         (
-            torch.ones(non_local_count, dtype=torch.bool),
-            torch.tensor(local_changes_mask).bool().repeat_interleave(2),
+            data.blendshapes.new_ones((non_local_count,), dtype=torch.bool),
+            data.blendshapes.new_full(
+                (facial_count,), facial_actions, dtype=torch.bool
+            ),
+            torch.tensor(
+                local_changes_mask,
+                dtype=torch.bool,
+                device=data.blendshapes.device,
+            ).repeat_interleave(2),
         )
     )
     extra = {}
@@ -154,7 +168,11 @@ def filter_local_changes(data: ModelData, local_changes_mask: list[bool]) -> Mod
     return dataclasses.replace(
         data,
         metadata = dataclasses.replace(
-            data.metadata, local_change_labels=local_change_labels, blendshape_labels=blendshape_labels),
+            data.metadata,
+            local_change_labels=local_change_labels,
+            facial_action_labels=data.metadata.facial_action_labels if facial_actions else [],
+            blendshape_labels=blendshape_labels,
+        ),
         blendshapes=data.blendshapes[blend_shapes_mask],
         bone_heads_blendshapes=data.bone_heads_blendshapes[blend_shapes_mask],
         **extra,
@@ -788,12 +806,19 @@ def _select_blendshape_rows(
 ) -> torch.Tensor:
     """Select the orientation blendshape rows matching a target blendshape stack, identified by their labels."""
     source_index = {label: i for i, label in enumerate(source_labels)}
-    missing = [label for label in target_labels if label not in source_index]
+    missing = [
+        label for label in target_labels
+        if label not in source_index and not label.startswith("facial_action:")
+    ]
     if missing:
         raise ValueError(
             f"Precomputed orientation data does not cover the following blend shapes: {missing}."
         )
-    return orientation_blendshapes[[source_index[label] for label in target_labels]]
+    zero = orientation_blendshapes.new_zeros(
+        (1, *orientation_blendshapes.shape[1:])
+    )
+    padded = torch.cat((orientation_blendshapes, zero))
+    return padded[[source_index.get(label, -1) for label in target_labels]]
 
 
 def _build_bone_children_buffers(

@@ -324,11 +324,12 @@ def main_soma(output_path="src/anny/data/cached/soma.pth",
 
     soma_rig_data = _load_soma_rig()
 
-    # Anny mesh and blendshapes on the SOMA topology, with the full blendshape set.
+    # Facial actions deform the face mesh but must not influence bone orientations.
     data = retopology.build_alternative_topology_model_data(
         rig=RigConfig.from_string("anny"),
         topology=TopologyConfig.from_string("soma"),
         local_changes="all",
+        facial_actions=False,
         reference_topology="anny_from_soma",
     )
     dtype = data.template_vertices.dtype

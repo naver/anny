@@ -634,7 +634,8 @@ def get_edited_mesh_faces(faces: torch.Tensor, face_texture_coordinate_indices: 
 
 def build_anny_model_data(rig: RigConfig,
                  topology: TopologyConfig,
-                 local_changes: LocalChanges) -> ModelData:
+                 local_changes: LocalChanges,
+                 facial_actions: bool) -> ModelData:
     if topology.base_mesh != "makehuman":
         raise ValueError(f"build_anny_model_data only supports 'makehuman' base mesh, got {topology.base_mesh}")
     rig_filename, weights_filename = rig.resolve_filenames()
@@ -652,10 +653,14 @@ def build_anny_model_data(rig: RigConfig,
     )
 
     local_change_mask = resolve_local_change_mask(local_changes, data.metadata.local_change_labels)
-    data = model_transforms.filter_local_changes(data, local_change_mask)
-    
+    data = model_transforms.filter_blendshapes(
+        data,
+        local_change_mask,
+        facial_actions,
+    )
+
     faces_to_keep = _faces_to_keep_from_submodel(data, topology.submodel)
-    
+
     if topology.nudity_edits or faces_to_keep is not None: # Filter faces is applied on edited mesh
         data = edit_mesh(data)
 

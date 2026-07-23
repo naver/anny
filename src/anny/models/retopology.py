@@ -38,7 +38,8 @@ def _load_target_topology_mesh(target_topology: AlternativeTopology):
     return vertices, faces
 
 def build_smplx_topology_model_data(
-                                rig: RigConfig, local_changes: LocalChanges):
+                                rig: RigConfig, local_changes: LocalChanges,
+                                facial_actions: bool):
     source_rig = with_bone_orientation(rig, "blender")
     source_topology = TopologyConfig(
         base_mesh="makehuman",
@@ -49,7 +50,8 @@ def build_smplx_topology_model_data(
         triangulate_faces=True,
     )
     ref_data = build_anny_model_data(rig=source_rig,
-                                topology=source_topology,local_changes=local_changes)
+                                topology=source_topology,local_changes=local_changes,
+                                facial_actions=facial_actions)
 
     # Load the SMPL-X topology
     state_dict = torch.load(get_anny2smplx_data_path(),
@@ -75,7 +77,8 @@ def build_smplx_topology_model_data(
     return data
 
 def build_smpl_topology_model_data(
-                                rig: RigConfig, local_changes: LocalChanges):
+                                rig: RigConfig, local_changes: LocalChanges,
+                                facial_actions: bool):
     source_rig = with_bone_orientation(rig, "blender")
     source_topology = TopologyConfig(
         base_mesh="makehuman",
@@ -86,7 +89,8 @@ def build_smpl_topology_model_data(
         triangulate_faces=True,
     )
     ref_data = build_anny_model_data(rig=source_rig,
-                                topology=source_topology, local_changes=local_changes)
+                                topology=source_topology, local_changes=local_changes,
+                                facial_actions=facial_actions)
 
     # Load the SMPL topology
     state_dict = torch.load(get_anny2smpl_data_path(),
@@ -115,6 +119,7 @@ def build_alternative_topology_model_data(
                                       rig: RigConfig,
                                       topology: TopologyConfig,
                                       local_changes: LocalChanges,
+                                      facial_actions: bool,
                                       reference_topology: Literal["legacy_default", "anny_from_soma", "anny"]="anny"):
     # For soma, the template mesh has only attached vertices and eyes+tongue
     source_rig = with_bone_orientation(rig, "blender")
@@ -126,7 +131,8 @@ def build_alternative_topology_model_data(
     
     
     ref_data = build_anny_model_data(rig=source_rig,
-                                topology=source_topology, local_changes=local_changes)
+                                topology=source_topology, local_changes=local_changes,
+                                facial_actions=facial_actions)
     if reference_topology == "anny":
         reference_vertices = ref_data.template_vertices
         reference_faces = ref_data.faces

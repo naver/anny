@@ -40,12 +40,14 @@ def _load_soma_faces():
     return torch.load(path, weights_only=True)
 
 
-def build_soma_rig_and_topology_model_data(local_changes: LocalChanges):
+def build_soma_rig_and_topology_model_data(
+        local_changes: LocalChanges, facial_actions: bool):
     soma_rig_data = _load_soma_rig()
     procrustes_orientation_data = _load_cached_orientation_data()
     soma_data = retopology.build_alternative_topology_model_data(rig=RigConfig.from_string("anny"),
                                       topology=TopologyConfig.from_string("soma"),
                                       local_changes=local_changes,
+                                      facial_actions=facial_actions,
                                       reference_topology="anny_from_soma")
     data = apply_soma_rig(soma_data, soma_rig_data, procrustes_orientation_data)
     # Use the canonical SOMA-X triangulation so the SOMA-topology mesh (and the retopology
@@ -56,8 +58,13 @@ def build_soma_rig_and_topology_model_data(local_changes: LocalChanges):
 
 
 def build_soma_rig_model_data(
-        topology: TopologyConfig, local_changes: LocalChanges):
-    soma_data = build_soma_rig_and_topology_model_data(local_changes=local_changes)
+        topology: TopologyConfig,
+        local_changes: LocalChanges,
+        facial_actions: bool):
+    soma_data = build_soma_rig_and_topology_model_data(
+        local_changes=local_changes,
+        facial_actions=facial_actions,
+    )
 
     if topology.base_mesh == "soma":
         return soma_data
@@ -74,6 +81,7 @@ def build_soma_rig_model_data(
     target_data = build_model_data(
         rig=RigConfig.from_string("anny"),
         local_changes=local_changes,
+        facial_actions=facial_actions,
         topology=topology,
     )
 

@@ -67,7 +67,8 @@ class Anny(RiggedModelWithLinearBlendShapes):
         data = build_model_data(
             rig=rig_config,
             topology=topology_config,
-            local_changes=local_changes
+            local_changes=local_changes,
+            facial_actions=facial_actions,
         )
 
         super().__init__(data,

@@ -33,37 +33,43 @@ def build_model_data(
     rig: RigConfig,
     topology: TopologyConfig,
     local_changes: LocalChanges,
+    facial_actions: bool,
 ) -> ModelData:
     if rig.base_rig == "soma":
         import anny.models.soma
         return anny.models.soma.build_soma_rig_model_data(
             topology=topology,
-            local_changes=local_changes
+            local_changes=local_changes,
+            facial_actions=facial_actions,
         )
     if topology.base_mesh == "makehuman":
         import anny.models.full_model
         return anny.models.full_model.build_anny_model_data(
             rig=rig,
             topology=topology,
-            local_changes=local_changes
+            local_changes=local_changes,
+            facial_actions=facial_actions,
         )
     # Alternative topologies
     import anny.models.retopology
     if topology.base_mesh == "smplx":
         return anny.models.retopology.build_smplx_topology_model_data(
             rig=rig,
-            local_changes=local_changes
+            local_changes=local_changes,
+            facial_actions=facial_actions,
         )
     if topology.base_mesh == "smpl":
         return anny.models.retopology.build_smpl_topology_model_data(
             rig=rig,
-            local_changes=local_changes
+            local_changes=local_changes,
+            facial_actions=facial_actions,
         )
 
     return anny.models.retopology.build_alternative_topology_model_data(
         rig=rig,
         topology=topology,
         local_changes=local_changes,
+        facial_actions=facial_actions,
         reference_topology="anny_from_soma" if topology.base_mesh == "soma" else "anny"
     )
 

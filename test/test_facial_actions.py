@@ -84,6 +84,20 @@ class TestFacialActions(unittest.TestCase):
 
         self.assertEqual(output["vertices"].shape[0], 1)
 
+    def test_disabled_facial_actions_are_filtered(self):
+        model = anny.Anny(facial_actions=False)
+
+        self.assertEqual(model.facial_action_labels, [])
+        self.assertFalse(any(
+            label.startswith("facial_action:")
+            for label in model.blendshape_labels
+        ))
+        with self.assertRaisesRegex(
+            ValueError,
+            "model was built with facial_actions='none'",
+        ):
+            model(facial_actions={"jawOpen": 0.5})
+
     def test_facial_action_scalar_dict_expands_to_pose_batch(self):
         batch_size = 3
         pose_parameters = torch.eye(4, dtype=self.dtype, device=self.device)[
