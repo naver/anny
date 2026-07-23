@@ -17,7 +17,8 @@ from anny.models.model_transforms import (
     filter_faces,
     triangulate,
     compact_skinning_weights,
-    apply_anny_procrustes_orientation,
+    apply_anny_cached_orientation,
+    apply_procrustes_orientation
 )
 import anny.utils.obj_utils
 from anny.models.facial_actions import load_facial_action_blendshapes
@@ -670,6 +671,8 @@ def build_anny_model_data(rig: RigConfig,
         data = triangulate(data)
 
     if rig.bone_orientation == "procrustes":
-        data = apply_anny_procrustes_orientation(data)
+        data = apply_procrustes_orientation(data)
+    elif rig.bone_orientation == "cached":
+        data = apply_anny_cached_orientation(data)
 
     return data

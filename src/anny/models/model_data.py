@@ -217,7 +217,7 @@ _RIG_PRESET_FILES: dict[str, tuple[str, str]] = {
 @dataclasses.dataclass(frozen=True)
 class RigConfig:
     base_rig: Rig | Path
-    bone_orientation: BoneOrientation = "procrustes"
+    bone_orientation: BoneOrientation = "cached"
     root_identity_orientation: bool = True
     weights_filename: Path | None = None
     bones_to_remove: frozenset[str] = dataclasses.field(default_factory=frozenset)
@@ -457,9 +457,6 @@ def _validate_files(rig_filename: PathLike, weights_filename: PathLike) -> tuple
 
 
 def _parse_rig_spec(spec: str) -> RigConfig:
-    if spec.startswith("default"):
-        spec = "makehuman" + spec[len("default"):]
-        DeprecationWarning("")
     base_rig = spec.split("-")[0]
     modifiers = spec.split("-")[1:]
     if base_rig == "soma":
@@ -468,7 +465,7 @@ def _parse_rig_spec(spec: str) -> RigConfig:
         return RigConfig(
             base_rig="soma",
             weights_filename=None,
-            bone_orientation="procrustes",
+            bone_orientation="cached",
             root_identity_orientation=False,
         )
     if base_rig not in _RIG_PRESET_FILES:
@@ -476,7 +473,7 @@ def _parse_rig_spec(spec: str) -> RigConfig:
  
     rig_spec = RigConfig(
         base_rig=base_rig,
-        bone_orientation="procrustes" if base_rig=="anny" else "blender",
+        bone_orientation="cached" if base_rig=="anny" else "blender",
         root_identity_orientation=True,
     )
 

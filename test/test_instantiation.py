@@ -47,7 +47,7 @@ class TestInstantiation(unittest.TestCase):
                 self.assertEqual(model.bone_orientation, "procrustes")
 
     def test_procrustes_uncovered_rig_raises(self):
-        # Procrustes orientation is now sourced from the precomputed covariance (data/procrustes/anny.pth),
+        # Procrustes orientation is now sourced from the precomputed covariance (data/cached/anny.pth),
         # which covers the anny bone set. A procrustes rig whose bones it does not cover -- here the full
         # default MakeHuman rig (163 bones incl. jaw/tongue/expression) -- fails loudly rather than
         # silently falling back to the legacy runtime registration.
@@ -104,7 +104,7 @@ class TestInstantiation(unittest.TestCase):
 
     def test_procrustes_anny_rig_uses_precomputed_covariance(self):
         model = anny.Anny(rig="anny", topology="anny", skinning_method="lbs")
-        # The anny rig now orients bones from the precomputed covariance (data/procrustes/anny.pth),
+        # The anny rig now orients bones from the precomputed covariance (data/cached/anny.pth),
         # not the legacy runtime registration, and uses no runtime child-offset refiner.
         self.assertIsNotNone(model.bone_template_orientation_matrices)
         self.assertIsNotNone(model.bone_orientation_blendshapes)

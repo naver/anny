@@ -9,7 +9,8 @@ from anny.utils import obj_utils
 from anny.models.full_model import build_anny_model_data
 from anny.models.model_data import with_bone_orientation, RigConfig, TopologyConfig
 from anny.models.model_transforms import (
-    apply_anny_procrustes_orientation,
+    apply_anny_cached_orientation,
+    apply_procrustes_orientation,
     apply_retopology,
     apply_retopology_from_mesh,
     triangulate
@@ -68,7 +69,9 @@ def build_smplx_topology_model_data(
         barycentric_coordinates=barycentric_coordinates,
     )
     if rig.bone_orientation == "procrustes":
-        data = apply_anny_procrustes_orientation(data)
+        data = apply_procrustes_orientation(data)
+    elif rig.bone_orientation == "cached":
+        data = apply_anny_cached_orientation(data)
     return data
 
 def build_smpl_topology_model_data(
@@ -103,7 +106,9 @@ def build_smpl_topology_model_data(
         barycentric_coordinates=barycentric_coordinates,
     )
     if rig.bone_orientation == "procrustes":
-        data = apply_anny_procrustes_orientation(data)
+        data = apply_procrustes_orientation(data)
+    elif rig.bone_orientation == "cached":
+        data = apply_anny_cached_orientation(data)
     return data
 
 def build_alternative_topology_model_data(
@@ -141,5 +146,7 @@ def build_alternative_topology_model_data(
     if topology.triangulate_faces:
         data = triangulate(data)
     if rig.bone_orientation == "procrustes":
-        data = apply_anny_procrustes_orientation(data)
+        data = apply_procrustes_orientation(data)
+    elif rig.bone_orientation == "cached":
+        data = apply_anny_cached_orientation(data)
     return data

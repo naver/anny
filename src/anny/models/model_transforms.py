@@ -427,8 +427,8 @@ def apply_procrustes_orientation(data: ModelData) -> ModelData:
     )
 
 
-def apply_anny_procrustes_orientation(data: ModelData) -> ModelData:
-    """Apply the precomputed tail-aimed procrustes covariance (``data/procrustes/anny.pth``) to an
+def apply_anny_cached_orientation(data: ModelData) -> ModelData:
+    """Apply the precomputed tail-aimed procrustes covariance (``data/cached/anny.pth``) to an
     anny-family rig, replacing the legacy runtime registration.
 
     Bones are selected by label (asserting full coverage); blendshape rows are selected by label. The
@@ -437,7 +437,7 @@ def apply_anny_procrustes_orientation(data: ModelData) -> ModelData:
     tail-aiming is already baked into the covariance.
     """
     orientation_data = torch.load(
-        os.path.join(get_anny_root_dir(), "data/procrustes/anny.pth"), weights_only=True
+        os.path.join(get_anny_root_dir(), "data/cached/anny.pth"), weights_only=True
     )
     dtype, device = data.template_vertices.dtype, data.template_vertices.device
 
@@ -446,7 +446,7 @@ def apply_anny_procrustes_orientation(data: ModelData) -> ModelData:
     target_bone_labels = list(data.metadata.bone_labels)
     missing = [label for label in target_bone_labels if label not in source_index]
     assert not missing, (
-        "Precomputed anny orientation data (data/procrustes/anny.pth) does not cover bones: "
+        "Precomputed anny orientation data (data/cached/anny.pth) does not cover bones: "
         f"{missing}."
     )
     bone_selection = [source_index[label] for label in target_bone_labels]

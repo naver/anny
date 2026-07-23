@@ -7,7 +7,7 @@ import torch
 import anny
 
 
-def compute_procrustes_orientation_data(
+def compute_cached_orientation_data(
     template_vertices: torch.Tensor,
     blendshapes: torch.Tensor,
     template_bone_origins: torch.Tensor,
@@ -217,7 +217,7 @@ def _compute_bone_vertex_weights(model, bone_idx: int, strategy: str) -> torch.T
         raise NotImplementedError(strategy)
 
 
-def main_anny(output_path="src/anny/data/procrustes/anny.pth",
+def main_anny(output_path="src/anny/data/cached/anny.pth",
                  bone_orientation_weighting_strategy="skinning_squared",
                  aim_weight=0.5,
                  aim_target="tail",
@@ -229,7 +229,12 @@ def main_anny(output_path="src/anny/data/procrustes/anny.pth",
     aim_weight: relative weight of the kinematic aiming term folded into the covariance (0 disables it)
     aim_target: "tail" (aim at each bone's authored tail) or "children" (aim at child joints)
     """
-    source_model = anny.Anny(rig="makehuman-notongue-nobreasts-nofacialexpression-pruned", topology="anny", local_changes="all")
+    source_model = anny.Anny(
+        rig="makehuman-notongue-nobreasts-nofacialexpression-pruned",
+        topology="anny",
+        local_changes="all",
+        facial_actions=False
+    )
 
     # The bone orientations are inconsistent across shapes (which motivates the use of a different orientation strategy).
     # We choose a particular body shape as reference (default settings in MPFB2)
@@ -242,7 +247,7 @@ def main_anny(output_path="src/anny/data/procrustes/anny.pth",
         for bone_idx in range(source_model.bone_count)
     ], dim=0)
 
-    orientation_data = compute_procrustes_orientation_data(
+    orientation_data = compute_cached_orientation_data(
         template_vertices=source_model.template_vertices,
         blendshapes=source_model.blendshapes,
         template_bone_origins=source_model.template_bone_heads,
@@ -298,7 +303,7 @@ def main_anny(output_path="src/anny/data/procrustes/anny.pth",
     _save(data, output_path)
 
 
-def main_soma(output_path="src/anny/data/procrustes/soma.pth",
+def main_soma(output_path="src/anny/data/cached/soma.pth",
               weight_threshold=0.01,
               aim_weight=0.0, aim_target="tail"):
     """
@@ -350,7 +355,7 @@ def main_soma(output_path="src/anny/data/procrustes/soma.pth",
         print(f"Warning: bind and T-pose bone rotations differ (max abs difference {bind_vs_tpose:.3e}); "
               "zero-weight bones will use their bind orientation.")
 
-    orientation_data = compute_procrustes_orientation_data(
+    orientation_data = compute_cached_orientation_data(
         template_vertices=data.template_vertices,
         blendshapes=data.blendshapes,
         template_bone_origins=template_bone_origins,
@@ -380,7 +385,7 @@ def main_soma(output_path="src/anny/data/procrustes/soma.pth",
 def main():
     parser = argparse.ArgumentParser(description="Precompute procrustes bone orientation data for a rig.")
     parser.add_argument("--rig", choices=["anny", "soma"], default="anny")
-    parser.add_argument("--output", default=None, help="Output path (defaults into src/anny/data/procrustes/XXX.pth)")
+    parser.add_argument("--output", default=None, help="Output path (defaults into src/anny/data/cached/XXX.pth)")
     parser.add_argument("--aim-weight", type=float, default=None,
                         help="Relative weight of kinematic aiming folded into the covariance "
                              "(overrides the per-rig default; 0 disables it).")
