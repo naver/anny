@@ -97,7 +97,13 @@ def main(server_name : str = None, server_port : int = None):
                     parent_id = model.bone_parents[i]
                     if parent_id >= 0:
                         bone_tail = bone_heads[parent_id]
-                        cylinder = trimesh.creation.cylinder(radius=0.0025, height=torch.norm(bone_tail - bone_head).item(), sections=16)
+                        bone_length = torch.norm(bone_tail - bone_head).item()
+                        # Skip degenerate bones coincident with their parent (e.g. root aligned onto
+                        # the pelvis): a zero-length segment makes special_gramschmidt return NaN,
+                        # which corrupts the exported scene so nothing renders.
+                        if bone_length < 1e-6:
+                            continue
+                        cylinder = trimesh.creation.cylinder(radius=0.0025, height=bone_length, sections=16)
                         t = (bone_head + bone_tail) / 2
                         M = roma.special_gramschmidt(torch.stack([bone_tail - bone_head, torch.tensor([0., 0., 1.], dtype=dtype)], dim=-1))
                         R = torch.stack([M[:, 2], M[:, 1], M[:,0]], dim=-1)
@@ -107,7 +113,7 @@ def main(server_name : str = None, server_port : int = None):
 
                 # Add some spheres at the joints
                 bone_poses = output["bone_poses"].squeeze(dim=0).cpu()
-                joint_sphere = trimesh.creation.icosphere(radius=0.008, subdivisions=2)
+                joint_sphere = trimesh.creation.icosphere(radius=0.004, subdivisions=2)
                 joint_sphere.visual = trimesh.visual.TextureVisuals(material=trimesh.visual.material.PBRMaterial(
                         baseColorFactor=[0.1, 0.1, 0.1, 1.0],
                         metallicFactor=0.5,
@@ -253,7 +259,7 @@ def main(server_name : str = None, server_port : int = None):
                 nonlocal show_self_intersections
                 show_self_intersections = show_self_intersections_checkbox
                 return export_mesh()
-            show_self_intersections_checkbox.change(update_show_self_intersections, inputs=[show_self_intersections_checkbox], outputs=[model3d, measurements_summary])
+            show_self_intersections_checkbox.change(update_show_self_intersections, inputs=[show_self_intersections_checkbox], outputs=[model3d, download_params_button, measurements_summary])
 
             def update_phenotype_label(macrodetail_label):
                 """
