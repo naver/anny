@@ -8,7 +8,6 @@ import dataclasses
 import logging
 import os
 
-import numpy as np
 import roma
 import torch
 import trimesh
@@ -490,15 +489,6 @@ def apply_anny_cached_orientation(data: ModelData) -> ModelData:
         target_labels=data.metadata.blendshape_labels,
     ).to(dtype=dtype, device=device)
 
-    # Facial actions deform the face mesh, not the skeleton: null their orientation rows so that
-    # facial-action coefficients do not reorient bones.
-    facial_action_rows = [
-        row for row, label in enumerate(data.metadata.blendshape_labels)
-        if label.startswith("facial_action")
-    ]
-    if facial_action_rows:
-        bone_orientation_blendshapes[facial_action_rows] = 0.0
-
     return dataclasses.replace(
         data,
         template_bone_heads=template_bone_heads,
@@ -804,7 +794,8 @@ def _select_blendshape_rows(
     source_labels: list[str],
     target_labels: list[str],
 ) -> torch.Tensor:
-    """Select the orientation blendshape rows matching a target blendshape stack, identified by their labels."""
+    """Copy the blendshape rows matching a target blendshape stack, identified by their labels.
+    Use zero for facial actions."""
     source_index = {label: i for i, label in enumerate(source_labels)}
     missing = [
         label for label in target_labels

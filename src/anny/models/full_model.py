@@ -410,7 +410,7 @@ def load_rig(
         bone_labels.append(bone_label)
         bone_parents.append(parent_id)
         for node in rig_data.keys():
-            if not (node in bone_labels) and rig_data[node]['parent'] == bone_label:
+            if (node not in bone_labels) and rig_data[node]['parent'] == bone_label:
                 parse_recursively(node, parent_id=bone_id)
 
     parse_recursively(root_joint, parent_id=-1)
