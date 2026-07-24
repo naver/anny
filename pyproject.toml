@@ -1,13 +1,14 @@
 [build-system]
 requires = [
-    "setuptools>=77",
+    "setuptools>=80",
+    "setuptools-scm[simple]>=8",
     "wheel"
 ]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "anny"
-version = "0.6-dev0"
+dynamic = ["version"]
 authors = [
     { name = "Romain Brégier", email = "romain.bregier@naverlabs.com" }
 ]
@@ -26,6 +27,8 @@ dependencies = [
     "safetensors",
     "trimesh"
 ]
+
+[tool.setuptools_scm]
 
 [tool.setuptools.packages.find]
 where = ["src"]
