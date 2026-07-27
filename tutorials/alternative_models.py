@@ -7,11 +7,12 @@
 #       format_version: '1.3'
 #       jupytext_version: 1.19.3
 #   kernelspec:
-#     display_name: .venv
+#     display_name: Python 3 (ipykernel)
 #     language: python
 #     name: python3
 # ---
 
+# %%
 # Anny
 # Copyright (C) 2025 NAVER Corp.
 # Apache License, Version 2.0
@@ -87,7 +88,13 @@ def add_skeleton_to_scene(scene, model, output):
 # %% [markdown]
 # ## Rigs and topology
 #
-# Anny supports two main rigs: "anny" and "mixamo". Bones that are not useful for your application can be removed from the Anny rig. Using "anny-notoes" will ignore bones animating individual toes, for example.
+# Anny supports various skeletal rigs, including:
+# - "makehuman", the default rig provided by MPFB2 (https://github.com/makehumancommunity/mpfb2) with minor vertex weights fixes.
+# - "anny" (the default), an adaptation of the "makehuman" rig with more stable bone orientations when the shape changes.
+# - "mixamo", inspired by characters from https://www.mixamo.com/.
+# - "soma", for compatibility with https://www.github.com/NVlabs/SOMA-X/.
+#
+# Bones that are not useful for your application can be removed from the Anny rig. Using "anny-notoes" will ignore bones animating individual toes, for example.
 #
 # Anny also supports various mesh topologies. A topology such as "notoes_collapse5pc" provides coarser mesh output for example, allowing to speed up inference and reduce memory consumption.
 # We provide a "smplx" topology for interoperability with the SMPL-X model (https://smpl-x.is.tue.mpg.de/), **for non-commercial use only**.
@@ -100,8 +107,8 @@ viewers = []
 for rig, topology in [("anny", "anny"),
                       ("mixamo", "anny",),
                       ("anny", "smplx",),
-                      ("anny-notoes-noexpression-nobreasts", "makehuman"),
-                      ("anny-notoes-nohands-noexpression-nobreasts", "notoes_collapse5pc"),
+                      ("anny", "soma",),
+                      ("anny-notoes-noeyes", "makehuman"),
                       ]:
     model = anny.Anny(rig=rig, topology=topology)
     output = model()
@@ -117,11 +124,83 @@ for rig, topology in [("anny", "anny"),
     scene.apply_transform(trimesh_scene_transform)
 
     # Convert to a notebook widget/HTML
-    viewers.append(Markdown(f"#### '{rig}' rig ({model.bone_count} bones)"))
+    viewers.append(Markdown(f"#### '{rig}' rig ({model.bone_count} bones) / '{topology}' topology ({len(output['vertices'].squeeze(0))} vertices, {len(model.faces)} faces)"))
     viewers.append(Markdown( "  - " + ", ".join([label for label in model.bone_labels])))
-    viewers.append(Markdown(f"#### '{topology}' topology ({len(output['vertices'].squeeze(0))} vertices, {len(model.faces)} faces)"))
     viewers.append(nb.scene_to_notebook(scene))
 
 
 # Display all viewers
 display(*viewers)
+
+# %% [markdown]
+# ## Interoperability with SMPL-X
+#
+# Beyond the SMPL-X *topology* shown above, Anny ships a first-class `SMPLX` model class
+# (`from anny.models.smpl import SMPLX`) that wraps the official
+# [SMPL-X](https://smpl-x.is.tue.mpg.de/) model. It follows the same construction and forward
+# conventions as `anny.Anny`, but is driven by SMPL-X `betas` / `expression` / pose parameters
+# rather than Anny phenotypes, making it a drop-in differentiable SMPL-X implementation.
+#
+# Running it requires the SMPL-X model files, which are distributed separately (for
+# **non-commercial use only**) at https://smpl-x.is.tue.mpg.de/. Download them and point the
+# `SMPLX_MODEL_PATH` environment variable at the directory that contains them. The cell below
+# skips itself automatically when that variable is not set.
+#
+# Here we request the `"anny"` output topology (`topology="anny"`) rather than the native SMPL-X
+# mesh. The retopology is folded into the model at construction time, so a single forward pass
+# directly outputs the body in Anny's common mesh — there is no separate conversion step. This is
+# what makes the outputs interoperable: a SMPL-X-driven body and a phenotype-driven `anny.Anny`
+# body live in the same topology, so per-vertex operations (texturing, correspondences, losses)
+# transfer directly between them. Use `topology="smplx"` instead if you need the native SMPL-X mesh.
+#
+# Note that some Anny vertices have no SMPL-X counterpart — for instance the internal mouth bag,
+# which SMPL-X does not model — and are therefore ignored by this operation.
+
+# %%
+import os
+
+smplx_model_path = os.environ.get("SMPLX_MODEL_PATH")
+if not smplx_model_path or not os.path.isdir(smplx_model_path):
+    display(Markdown(
+        "> **SMPL-X example skipped.** Download the SMPL-X model files from "
+        "[smpl-x.is.tue.mpg.de](https://smpl-x.is.tue.mpg.de/) and set the `SMPLX_MODEL_PATH` "
+        "environment variable to the directory that contains them to run this cell."
+    ))
+else:
+    from anny.models.smpl import SMPLX
+
+    dtype = torch.float32
+    # topology="anny" retopologizes the SMPL-X output onto Anny's common mesh (see above).
+    model = SMPLX(smplx_model_path, gender="neutral", use_pca=True, topology="anny").to(dtype=dtype)
+
+    # Random shape, expression and pose parameters, using SMPL-X's standard parameter
+    # dimensions (10 shape betas, 10 expression coefficients, 21 body joints, 6 PCA hand
+    # components).
+    torch.manual_seed(0)
+    pose_kwargs = dict(
+        betas=0.5 * torch.randn((1, 10), dtype=dtype),
+        expression=0.5 * torch.randn((1, 10), dtype=dtype),
+        global_orient=0.1 * torch.randn((1, 3), dtype=dtype),
+        body_pose=0.1 * torch.randn((1, 21 * 3), dtype=dtype),
+        transl=torch.zeros((1, 3), dtype=dtype),
+        jaw_pose=0.1 * torch.randn((1, 3), dtype=dtype),
+        leye_pose=0.1 * torch.randn((1, 3), dtype=dtype),
+        reye_pose=0.1 * torch.randn((1, 3), dtype=dtype),
+        left_hand_pose=torch.randn((1, 6), dtype=dtype),
+        right_hand_pose=torch.randn((1, 6), dtype=dtype),
+    )
+
+    output = model(**pose_kwargs)
+
+    # Anny's SMPL-X mesh with its skeleton.
+    mesh = trimesh.Trimesh(vertices=output["vertices"].squeeze(0).detach().cpu().numpy(),
+                           faces=model.faces.cpu().numpy())
+    mesh.visual.material = mesh_material
+    scene = trimesh.Scene([mesh])
+
+    add_skeleton_to_scene(scene, model, output)
+    scene.apply_transform(trimesh_scene_transform)
+
+    display(Markdown(f"#### `anny.SMPLX` model ({model.bone_count} bones, "
+                     f"{len(output['vertices'].squeeze(0))} vertices)"))
+    display(nb.scene_to_notebook(scene))
