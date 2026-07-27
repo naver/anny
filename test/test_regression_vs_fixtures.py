@@ -1,3 +1,7 @@
+# Anny
+# Copyright (C) 2025 NAVER Corp.
+# Apache License, Version 2.0
+
 """Regression test: compare model outputs against pre-computed fixture files.
 
 To regenerate fixtures after an intentional model change:

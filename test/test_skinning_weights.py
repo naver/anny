@@ -1,3 +1,7 @@
+# Anny
+# Copyright (C) 2025 NAVER Corp.
+# Apache License, Version 2.0
+
 """Test that the skinning weights of each bone are compact on the body shell:
 the set of body-shell vertices a bone influences forms a connected region.
 Other mesh shells (eyes, teeth, ...) are excluded so bones that legitimately

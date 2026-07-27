@@ -12,6 +12,10 @@
 #     name: python3
 # ---
 
+# Anny
+# Copyright (C) 2025 NAVER Corp.
+# Apache License, Version 2.0
+
 # %% [markdown]
 # ## Parameterizing poses with Anny
 #

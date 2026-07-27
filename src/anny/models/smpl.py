@@ -1,3 +1,7 @@
+# Anny
+# Copyright (C) 2025 NAVER Corp.
+# Apache License, Version 2.0
+
 import dataclasses
 import inspect
 from unittest.mock import patch

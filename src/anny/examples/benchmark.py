@@ -1,3 +1,7 @@
+# Anny
+# Copyright (C) 2025 NAVER Corp.
+# Apache License, Version 2.0
+
 import torch
 import torch.utils.benchmark
 import anny

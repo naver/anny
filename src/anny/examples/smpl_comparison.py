@@ -1,3 +1,7 @@
+# Anny
+# Copyright (C) 2025 NAVER Corp.
+# Apache License, Version 2.0
+
 import os
 import torch
 from anny.models.smpl import SMPL

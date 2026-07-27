@@ -1,3 +1,7 @@
+# Anny
+# Copyright (C) 2025 NAVER Corp.
+# Apache License, Version 2.0
+
 """Generate regression fixture NPZ files for test/test_regression_vs_fixtures.py.
 
 Run from the repo root:
