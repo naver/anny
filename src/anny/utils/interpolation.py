@@ -18,7 +18,7 @@ def linear_interpolation_coefficients(value, anchors, extrapolate=False):
     weights_tensor = torch.zeros(batch_size, n, dtype=anchors.dtype, device=anchors.device)
     
     # Find the indices where each value falls in the anchors
-    idx = torch.searchsorted(anchors, value, side='left')  # Shape: [bs]
+    idx = torch.searchsorted(anchors, value.contiguous(), side='left')  # Shape: [bs]
     
     # Clamp idx to valid range
     idx = torch.clamp(idx, 1, n - 1)

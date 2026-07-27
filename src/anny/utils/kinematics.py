@@ -192,11 +192,11 @@ def parallel_forward_kinematic(kinematic_propagation_fronts,
                 transforms[:, bone_id] = torch.einsum('bij,bjk->bik', root_poses, bone_rest_poses_inv[:, bone_id])
 
         # Now handle bones with parents
-        parent_mask = torch.tensor([p >= 0 for p in grouped_joints_parents], dtype=torch.bool, device=T.device)
-        children = torch.tensor(grouped_joints_indices, dtype=torch.long, device=T.device)[parent_mask]
-        parents = torch.tensor(grouped_joints_parents, dtype=torch.long, device=T.device)[parent_mask]
-
-        if children.numel() > 0:
+        children_and_parents = [(child, parent) for child, parent in zip(grouped_joints_indices, grouped_joints_parents) if parent >= 0]
+        if len(children_and_parents) > 0:
+            children, parents = zip(*children_and_parents)
+            children = torch.tensor(children, dtype=torch.long, device=T.device)
+            parents = torch.tensor(parents, dtype=torch.long, device=T.device)
             children_poses = torch.einsum('blij,bljk->blik', transforms[:, parents], T[:, children])
             poses[:, children] = children_poses
             transforms[:, children] = torch.einsum('blij,bljk->blik', children_poses, bone_rest_poses_inv[:, children])
@@ -241,11 +241,11 @@ def parallel_forward_kinematic_absolute_orientations(kinematic_propagation_front
                 transforms[:, bone_id] = torch.einsum('bij,bjk->bik', root_poses, bone_rest_poses_inv[:, bone_id])
 
         # Now handle bones with parents
-        parent_mask = torch.tensor([p >= 0 for p in grouped_joints_parents], dtype=torch.bool, device=T.device)
-        children = torch.tensor(grouped_joints_indices, dtype=torch.long, device=T.device)[parent_mask]
-        parents = torch.tensor(grouped_joints_parents, dtype=torch.long, device=T.device)[parent_mask]
-
-        if children.numel() > 0:
+        children_and_parents = [(child, parent) for child, parent in zip(grouped_joints_indices, grouped_joints_parents) if parent >= 0]
+        if len(children_and_parents) > 0:
+            children, parents = zip(*children_and_parents)
+            children = torch.tensor(children, dtype=torch.long, device=T.device)
+            parents = torch.tensor(parents, dtype=torch.long, device=T.device)
             children_poses = torch.einsum('blij,bljk->blik', transforms[:, parents], T[:, children])
             children_poses[:,:,:3,:3] = absolute_orientations[:, children,:,:]
             poses[:, children] = children_poses

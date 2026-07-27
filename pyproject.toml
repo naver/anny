@@ -19,7 +19,7 @@ requires-python = ">=3.10"
 
 dependencies = [
     "torch>=2.0.0",
-    "roma>=1.5.2.1",
+    "roma>=1.5.7",
     "numpy",
     "pyyaml",
     "pillow",
@@ -57,15 +57,15 @@ smpl = [
     "smplx",
     "chumpy"
 ]
-cu129 = ["torch"]
+cu126 = ["torch"]
 
 [tool.uv.extra-build-dependencies]
 chumpy = ["pip"]
 
 [tool.uv.sources]
-torch = { index = "torch-cu129", extra = "cu129" }
+torch = { index = "torch-cu126", extra = "cu126" }
 
 [[tool.uv.index]]
-name = "torch-cu129"
-url = "https://download.pytorch.org/whl/cu129"
+name = "torch-cu126"
+url = "https://download.pytorch.org/whl/cu126"
 explicit = true

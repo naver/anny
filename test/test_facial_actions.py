@@ -69,7 +69,7 @@ class TestFacialActions(unittest.TestCase):
         torch.testing.assert_close(tensor_output["vertices"], dict_output["vertices"])
 
     def test_unknown_dict_label_raises_value_error(self):
-        with self.assertRaisesRegex(ValueError, "Unknown face unit labels"):
+        with self.assertRaisesRegex(ValueError, "Invalid facial_actions"):
             self.model(facial_actions={"notAUnit": 0.5})
 
     def test_wrong_tensor_shape_raises_value_error(self):
@@ -94,7 +94,7 @@ class TestFacialActions(unittest.TestCase):
         ))
         with self.assertRaisesRegex(
             ValueError,
-            "model was built with facial_actions='none'",
+            "Invalid facial_actions",
         ):
             model(facial_actions={"jawOpen": 0.5})
 

@@ -2,6 +2,7 @@ import unittest
 import torch
 import anny
 import roma
+from anny.models.model_data import PHENOTYPE_LABELS
 
 class TestVarious(unittest.TestCase):
     device = torch.device('cpu')
@@ -89,13 +90,36 @@ class TestVarious(unittest.TestCase):
         self.assertEqual(results["rest_vertices"].shape[0], batch_size)
         self.assertEqual(results["bone_poses"].shape[0], batch_size)
 
+    def test_forward_dict_and_tensor_parameters_match(self):
+        model = anny.Anny(all_phenotypes=True, local_changes="default").to(
+            dtype=self.dtype,
+            device=self.device,
+        )
+        phenotype = torch.rand((2, len(model.phenotype_labels)), dtype=self.dtype)
+        local_changes = torch.rand((2, len(model.local_change_labels)), dtype=self.dtype)
+        phenotype_dict = dict(zip(model.phenotype_labels, phenotype.unbind(dim=1)))
+        local_changes_dict = dict(zip(model.local_change_labels, local_changes.unbind(dim=1)))
+
+        tensor_output = model(
+            phenotype_kwargs=phenotype,
+            local_changes_kwargs=local_changes,
+        )
+        dict_output = model(
+            phenotype_kwargs=phenotype_dict,
+            local_changes_kwargs=local_changes_dict,
+        )
+
+        torch.testing.assert_close(tensor_output["vertices"], dict_output["vertices"])
+        torch.testing.assert_close(tensor_output["bone_poses"], dict_output["bone_poses"])
+
+
     def test_local_changes(self):
         """
         Ensure that default local changes params have no impact on
         """
         batch_size = 32
-        model = anny.Anny(rig="anny").to(dtype=self.dtype, device=self.device)
-        model_local_changes = anny.Anny(rig="anny", local_changes="default").to(dtype=self.dtype, device=self.device)
+        model = anny.Anny(rig="anny", all_phenotypes=True).to(dtype=self.dtype, device=self.device)
+        model_local_changes = anny.Anny(rig="anny", local_changes="default", all_phenotypes=True).to(dtype=self.dtype, device=self.device)
         torch.use_deterministic_algorithms(True)
 
         generator = None
@@ -117,7 +141,11 @@ class TestVarious(unittest.TestCase):
         blendshape_coeffs1 = model_local_changes.get_phenotype_blendshape_coefficients(**phenotype_kwargs)
         rest_model1 = model_local_changes.get_rest_model(blendshape_coeffs1)
 
-        blendshape_coeffs2 = model_local_changes.get_phenotype_blendshape_coefficients(**phenotype_kwargs, local_changes={key: torch.zeros((batch_size,), dtype=self.dtype, device=self.device) for key in model_local_changes.local_change_labels})
+        _, phenotype_parameters, _, _ = model_local_changes.get_tensor_inputs(phenotype_kwargs=phenotype_kwargs, pose_parameters=None, local_changes_kwargs=None, facial_actions=None)
+        local_changes = torch.zeros((batch_size, len(model_local_changes.local_change_labels)), dtype=self.dtype, device=self.device)
+        facial_actions = torch.zeros((batch_size, len(model_local_changes.facial_action_labels)), dtype=self.dtype, device=self.device)
+
+        blendshape_coeffs2 = model_local_changes._get_phenotype_blendshape_coefficients(phenotype_parameters, local_changes, facial_actions)
         rest_model2 = model_local_changes.get_rest_model(blendshape_coeffs2)
 
         for key in ["rest_vertices", "rest_bone_poses"]:

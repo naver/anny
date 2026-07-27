@@ -18,33 +18,25 @@ def linear_blend_skinning(vertices, bone_weights, bone_indices, bone_transforms)
     Returns:
     torch.Tensor: Transformed vertices of shape (batch_size, num_vertices, 3).
     """
-    B1, num_vertices, _ = vertices.shape
-    max_bones_per_vertex = bone_indices.shape[2]
-    num_bones = bone_transforms.shape[1]
+    B1, _, _ = vertices.shape
     batch_size = max(B1, bone_transforms.shape[0])
 
-    # Gather the relevant bone transforms for each vertex.
-    # Expand bone_transforms so that the vertex dimension matches bone_indices for gathering
-    bone_transforms_expanded = bone_transforms.unsqueeze(1).expand(batch_size, num_vertices, num_bones, 4, 4)
+    vertices = vertices.expand(batch_size, -1, -1)
+    bone_weights = bone_weights.expand(batch_size, -1, -1)
+    bone_indices = bone_indices.expand(batch_size, -1, -1)
+    bone_transforms = bone_transforms.expand(batch_size, -1, -1, -1)
 
-    # We need to make sure bone_indices is aligned to match the gathering axis
-    bone_indices_expanded = bone_indices.unsqueeze(-1).unsqueeze(-1).expand(batch_size, num_vertices, max_bones_per_vertex, 4, 4)
-
-    # Gather along the bone dimension (axis 2) for the entire batch
-    # Note: this creates suboptimal copies. One could switch to custom CUDA/Warp kernels for better performance.
-    selected_bone_transforms = torch.gather(bone_transforms_expanded, 2, bone_indices_expanded)
+    batch_indices = torch.arange(batch_size, device=bone_indices.device)[:, None, None]
+    selected_bone_transforms = bone_transforms[batch_indices, bone_indices, :3, :]
 
     # Blend the transformations
     transforms = torch.sum(bone_weights.unsqueeze(-1).unsqueeze(dim=-1) * selected_bone_transforms, dim=2)
 
     # Apply the transformations
-    vertices_homo = torch.cat([vertices, torch.ones((batch_size, num_vertices, 1), dtype=vertices.dtype, device=vertices.device)], dim=-1)
-    skinned_vertices_homo = torch.einsum("bvik, bvk -> bvi", transforms, vertices_homo)
-
     # Strong assumption here to get consistent results:
     # The weights are supposed to sum to one, and the transformations are assumed to be affine.
-    skinned_vertices = skinned_vertices_homo[...,:3]
-    return skinned_vertices
+    vertices_homo = torch.cat([vertices, torch.ones_like(vertices[..., :1])], dim=-1)
+    return torch.einsum("bvik, bvk -> bvi", transforms, vertices_homo)
 
 def homogeneous_to_dual_quaternion(homogeneous):
     """
