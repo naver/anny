@@ -79,6 +79,7 @@ export ANNY_CACHE_DIR=/path/to/cache
 To get started with Anny, you can have a look at the different tutorials in the `tutorials` directory:
 - [Shape parameterization](https://naver.github.io/anny/build/shape_parameterization.html)
 - [Pose parameterization](https://naver.github.io/anny/build/pose_parameterization.html)
+- [Portability of pose parameterizations](https://naver.github.io/anny/build/pose_transfer.html)
 - [Texture coordinates](https://naver.github.io/anny/build/texture.html)
 - [Alternative models](https://naver.github.io/anny/build/alternative_models.html)
 

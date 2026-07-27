@@ -32,8 +32,7 @@ import torch
 import roma  # A PyTorch library useful to deal with space transformations.
 import anny  # The main library for the Anny model.
 import trimesh  # For 3D mesh visualization.
-
-from anny.utils.pose import transfer_pose_parameters
+import anny.utils.pose
 
 # The gradio/trimesh viewers use a Y-up camera; rotate the scene to compensate for Anny's Z-up frame.
 trimesh_scene_transform = roma.Rigid(linear=roma.euler_to_rotmat('x', [-90.], degrees=True), translation=None).to_homogeneous().cpu().numpy()
@@ -56,6 +55,9 @@ def body_mesh(vertices, faces, color):
 src_model = anny.Anny(rig="makehuman", topology="anny").to(dtype=torch.float32)      # blender (tail) orientation
 target_model = anny.Anny(rig="anny", topology="anny").to(dtype=torch.float32)        # procrustes orientation
 
+phenotype_kwargs=dict()
+local_changes_kwargs=dict()
+
 # %% [markdown]
 # #### Pose the source model
 #
@@ -65,7 +67,7 @@ target_model = anny.Anny(rig="anny", topology="anny").to(dtype=torch.float32)   
 src_pose_parameters = {label: torch.eye(4)[None] for label in src_model.bone_labels}
 src_pose_parameters["lowerarm01.L"] = roma.Rigid(roma.euler_to_rotmat("x", [-60.], degrees=True), translation=None).to_homogeneous()[None]
 
-src_output = src_model(pose_parameters=src_pose_parameters)
+src_output = src_model(phenotype_kwargs=phenotype_kwargs, local_changes_kwargs=local_changes_kwargs, pose_parameters=src_pose_parameters)
 
 scene = trimesh.Scene()
 scene.add_geometry(body_mesh(src_output["vertices"], src_model.faces, [0.4, 0.8, 0.8, 1.0]))
@@ -79,14 +81,14 @@ scene.show()
 # We then overlay the two posed meshes: the target (orange) matches the source (teal).
 
 # %%
-target_pose_parameters = transfer_pose_parameters(
+target_pose_parameters = anny.utils.pose.transfer_pose_parameters(
     src_model=src_model,
     src_pose_parameters=src_pose_parameters,
-    phenotype_kwargs=dict(),
-    local_changes_kwargs=dict(),
+    phenotype_kwargs=local_changes_kwargs,
+    local_changes_kwargs=local_changes_kwargs,
     target_model=target_model,
 )
-target_output = target_model(pose_parameters=target_pose_parameters)
+target_output = target_model(phenotype_kwargs=phenotype_kwargs, local_changes_kwargs=local_changes_kwargs, pose_parameters=target_pose_parameters)
 
 scene = trimesh.Scene()
 scene.add_geometry(body_mesh(src_output["vertices"], src_model.faces, [0.4, 0.8, 0.8, 0.5]))
