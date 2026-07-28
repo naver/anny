@@ -6,6 +6,7 @@
 the set of body-shell vertices a bone influences forms a connected region.
 Other mesh shells (eyes, teeth, ...) are excluded so bones that legitimately
 span multiple shells are not flagged."""
+
 import unittest
 
 import torch
@@ -24,14 +25,17 @@ class TestSkinningWeightCompactness(unittest.TestCase):
 
         # Body shell = largest connected component; other shells (eyes, teeth) are excluded.
         mesh_components = trimesh.graph.connected_components(edges=edges)
-        body_vertex_mask = torch.zeros(model.template_vertices.shape[0], dtype=torch.bool)
-        body_vertex_mask[torch.as_tensor(max(mesh_components, key=len), dtype=torch.int64)] = True
+        body_vertex_mask = torch.zeros(
+            model.template_vertices.shape[0], dtype=torch.bool
+        )
+        body_vertex_mask[
+            torch.as_tensor(max(mesh_components, key=len), dtype=torch.int64)
+        ] = True
 
         offending = []
         for bone_id, bone_name in enumerate(model.bone_labels):
             bone_vertex_mask = (
-                (model.vertex_bone_indices == bone_id)
-                & (model.vertex_bone_weights > 0)
+                (model.vertex_bone_indices == bone_id) & (model.vertex_bone_weights > 0)
             ).any(dim=-1) & body_vertex_mask
             if not bone_vertex_mask.any():
                 continue
@@ -43,7 +47,8 @@ class TestSkinningWeightCompactness(unittest.TestCase):
                 offending.append((bone_name, [len(c) for c in components]))
 
         self.assertEqual(
-            offending, [],
+            offending,
+            [],
             msg=f"Bones with non-compact skinning region on the body shell: {offending}",
         )
 
@@ -57,7 +62,8 @@ class TestSkinningWeightNormalization(unittest.TestCase):
                 torch.testing.assert_close(
                     row_sums,
                     torch.ones_like(row_sums),
-                    atol=1e-6, rtol=0,
+                    atol=1e-6,
+                    rtol=0,
                 )
 
 
@@ -82,12 +88,16 @@ class TestSkinningWeightSymmetry(unittest.TestCase):
         B = len(model.bone_labels)
 
         sym = get_symmetric_vertex_indices(
-            model.template_vertices, axis=0, threshold=1e-4,
+            model.template_vertices,
+            axis=0,
+            threshold=1e-4,
         )
 
         dense = torch.zeros(N, B, dtype=model.vertex_bone_weights.dtype)
         dense.scatter_add_(
-            1, model.vertex_bone_indices, model.vertex_bone_weights,
+            1,
+            model.vertex_bone_indices,
+            model.vertex_bone_weights,
         )
 
         name_to_id = {n: i for i, n in enumerate(model.bone_labels)}
@@ -106,7 +116,9 @@ class TestSkinningWeightSymmetry(unittest.TestCase):
                 mismatched.append((name, mate, max_err))
 
         self.assertEqual(missing, [], msg=f"L/R bones without counterpart: {missing}")
-        self.assertEqual(mismatched, [], msg=f"L/R bones with non-mirrored weights: {mismatched}")
+        self.assertEqual(
+            mismatched, [], msg=f"L/R bones with non-mirrored weights: {mismatched}"
+        )
 
 
 if __name__ == "__main__":

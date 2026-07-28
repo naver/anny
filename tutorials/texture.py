@@ -39,8 +39,9 @@ from IPython.display import display
 
 # %%
 anny_model = anny.Anny()
-trimesh.Trimesh(anny_model.template_vertices.cpu().numpy(),
-                faces=anny_model.faces.cpu().numpy()).show()
+trimesh.Trimesh(
+    anny_model.template_vertices.cpu().numpy(), faces=anny_model.faces.cpu().numpy()
+).show()
 
 # %% [markdown]
 # Each vertex of each face of the model is associated with some 2D ST texture coordinates.
@@ -49,19 +50,21 @@ trimesh.Trimesh(anny_model.template_vertices.cpu().numpy(),
 # %%
 # Create an empty image with white background
 width, height = 1024, 1024
-uv_unwrap_image = PIL.Image.new("RGB", (width, height), (0,0,0))
+uv_unwrap_image = PIL.Image.new("RGB", (width, height), (0, 0, 0))
 
 # Draw face contours on the texture image
 faces = anny_model.faces.cpu().numpy()
 face_texture_coordinates_indices = anny_model.face_texture_coordinate_indices.numpy()
 st = anny_model.texture_coordinates.numpy()
-vertex_absolute_texture_coordinates = np.array([0, height])[None] + st * np.array([width, -height])[None]
+vertex_absolute_texture_coordinates = (
+    np.array([0, height])[None] + st * np.array([width, -height])[None]
+)
 draw = PIL.ImageDraw.Draw(uv_unwrap_image)
 for face_texture_ids in face_texture_coordinates_indices:
     u0, v0 = vertex_absolute_texture_coordinates[face_texture_ids[-1]]
     for i in face_texture_ids:
-        u,v = vertex_absolute_texture_coordinates[i]
-        draw.line(((u0, v0), (u, v)), fill=(128,128,128), width=1)
+        u, v = vertex_absolute_texture_coordinates[i]
+        draw.line(((u0, v0), (u, v)), fill=(128, 128, 128), width=1)
         u0, v0 = u, v  # Update the starting point for the next line
 display(uv_unwrap_image)
 
@@ -80,7 +83,9 @@ mask = PIL.Image.fromarray(np.all(np.asarray(uv_unwrap_image) != 0, axis=-1))
 overlay_image.paste(uv_unwrap_image, mask=mask)
 display(overlay_image)
 
-with open(get_anny_root_dir() / "data/segmentation/body_parts_segmentation.yaml", "r") as f:
+with open(
+    get_anny_root_dir() / "data/segmentation/body_parts_segmentation.yaml", "r"
+) as f:
     body_parts_segmentation = yaml.safe_load(f)
 display(f"Body parts: {list(body_parts_segmentation['colors'].keys())}")
 
@@ -100,7 +105,7 @@ mesh = trimesh.Trimesh(
     vertices=duplicated_vertices,
     faces=duplicated_faces,
     process=False,
-    maintain_order=True
+    maintain_order=True,
 )
 
 material = trimesh.visual.material.PBRMaterial(
@@ -108,32 +113,67 @@ material = trimesh.visual.material.PBRMaterial(
     baseColorTexture=body_parts_segmentation_image,
     metallicFactor=0.5,
     doubleSided=True,
-    )
+)
 import trimesh.visual
+
 mesh.visual = trimesh.visual.texture.TextureVisuals(
-        uv=duplicated_uvs,
-        material=material
-    )
+    uv=duplicated_uvs, material=material
+)
 
 mesh.show()
 
 # %%
 # Retrieve the central color of each face
 body_parts_segmentation_array = np.asarray(body_parts_segmentation_image)
-face_center_texture_coordinates = anny_model.texture_coordinates[anny_model.face_texture_coordinate_indices].mean(dim=1)
+face_center_texture_coordinates = anny_model.texture_coordinates[
+    anny_model.face_texture_coordinate_indices
+].mean(dim=1)
 
-u = torch.round(face_center_texture_coordinates[:, 0] * body_parts_segmentation_array.shape[1]).to(dtype=torch.int64).clamp_max(body_parts_segmentation_array.shape[0] - 1).detach().cpu().numpy()
-v = torch.round((1-face_center_texture_coordinates[:, 1]) * body_parts_segmentation_array.shape[0]).to(dtype=torch.int64).clamp_max(body_parts_segmentation_array.shape[1] - 1).detach().cpu().numpy()
+u = (
+    torch.round(
+        face_center_texture_coordinates[:, 0] * body_parts_segmentation_array.shape[1]
+    )
+    .to(dtype=torch.int64)
+    .clamp_max(body_parts_segmentation_array.shape[0] - 1)
+    .detach()
+    .cpu()
+    .numpy()
+)
+v = (
+    torch.round(
+        (1 - face_center_texture_coordinates[:, 1])
+        * body_parts_segmentation_array.shape[0]
+    )
+    .to(dtype=torch.int64)
+    .clamp_max(body_parts_segmentation_array.shape[1] - 1)
+    .detach()
+    .cpu()
+    .numpy()
+)
 
-face_colors = body_parts_segmentation_array[v,u]
+face_colors = body_parts_segmentation_array[v, u]
 
 # %%
 # Segment the head based on face colors
 face_mask = np.zeros(len(faces), dtype=bool)
 
-labels = ["head", "eye_cavity.R", "eye_cavity.L", "mouth_cavity", "eye_front.L", "eye_back.L", "eye_front.R", "eye_back.L", "tongue"]
+labels = [
+    "head",
+    "eye_cavity.R",
+    "eye_cavity.L",
+    "mouth_cavity",
+    "eye_front.L",
+    "eye_back.L",
+    "eye_front.R",
+    "eye_back.L",
+    "tongue",
+]
 for label in labels:
-    face_mask |= np.all(face_colors == np.asarray(body_parts_segmentation['colors'][label]), axis=-1)
+    face_mask |= np.all(
+        face_colors == np.asarray(body_parts_segmentation["colors"][label]), axis=-1
+    )
 
-trimesh.Trimesh(vertices=vertices,
-                faces=faces[face_mask],).show()
+trimesh.Trimesh(
+    vertices=vertices,
+    faces=faces[face_mask],
+).show()

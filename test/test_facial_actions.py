@@ -16,10 +16,9 @@ class TestFacialActions(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.model = anny.Anny(
-            facial_actions=True,
-            topology="anny"
-        ).to(dtype=cls.dtype, device=cls.device)
+        cls.model = anny.Anny(facial_actions=True, topology="anny").to(
+            dtype=cls.dtype, device=cls.device
+        )
 
     def _values(self, batch_size=1, **kwargs):
         values = torch.zeros(
@@ -62,14 +61,20 @@ class TestFacialActions(unittest.TestCase):
         )
         dict_values = {
             "jawOpen": torch.full((2,), 0.8, dtype=self.dtype, device=self.device),
-            "mouthSmileLeft": torch.full((2,), 0.4, dtype=self.dtype, device=self.device),
-            "eyeBlinkRight": torch.full((2,), 0.25, dtype=self.dtype, device=self.device),
+            "mouthSmileLeft": torch.full(
+                (2,), 0.4, dtype=self.dtype, device=self.device
+            ),
+            "eyeBlinkRight": torch.full(
+                (2,), 0.25, dtype=self.dtype, device=self.device
+            ),
         }
 
         tensor_output = self.model(facial_actions=values)
         dict_output = self.model(facial_actions=dict_values)
 
-        torch.testing.assert_close(tensor_output["rest_vertices"], dict_output["rest_vertices"])
+        torch.testing.assert_close(
+            tensor_output["rest_vertices"], dict_output["rest_vertices"]
+        )
         torch.testing.assert_close(tensor_output["vertices"], dict_output["vertices"])
 
     def test_unknown_dict_label_raises_value_error(self):
@@ -77,9 +82,13 @@ class TestFacialActions(unittest.TestCase):
             self.model(facial_actions={"notAUnit": 0.5})
 
     def test_wrong_tensor_shape_raises_value_error(self):
-        with self.assertRaisesRegex(ValueError, "facial_actions tensor must have shape"):
+        with self.assertRaisesRegex(
+            ValueError, "facial_actions tensor must have shape"
+        ):
             self.model(facial_actions=torch.zeros((1, 53), dtype=self.dtype))
-        with self.assertRaisesRegex(ValueError, "facial_actions tensor must have shape"):
+        with self.assertRaisesRegex(
+            ValueError, "facial_actions tensor must have shape"
+        ):
             self.model(facial_actions=torch.zeros((52,), dtype=self.dtype))
 
     def test_empty_facial_actions_are_allowed_on_default_model(self):
@@ -92,10 +101,9 @@ class TestFacialActions(unittest.TestCase):
         model = anny.Anny(facial_actions=False)
 
         self.assertEqual(model.facial_action_labels, [])
-        self.assertFalse(any(
-            label.startswith("facial_action:")
-            for label in model.blendshape_labels
-        ))
+        self.assertFalse(
+            any(label.startswith("facial_action:") for label in model.blendshape_labels)
+        )
         with self.assertRaisesRegex(
             ValueError,
             "Invalid facial_actions",
@@ -104,9 +112,11 @@ class TestFacialActions(unittest.TestCase):
 
     def test_facial_action_scalar_dict_expands_to_pose_batch(self):
         batch_size = 3
-        pose_parameters = torch.eye(4, dtype=self.dtype, device=self.device)[
-            None, None
-        ].expand(batch_size, self.model.bone_count, 4, 4).clone()
+        pose_parameters = (
+            torch.eye(4, dtype=self.dtype, device=self.device)[None, None]
+            .expand(batch_size, self.model.bone_count, 4, 4)
+            .clone()
+        )
 
         output = self.model(
             pose_parameters=pose_parameters,

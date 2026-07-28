@@ -5,6 +5,7 @@ import torch
 from anny.paths import get_anny_root_dir
 from anny.torch_compat import make_buffer
 
+
 class KeypointsRegressor(torch.nn.Module):
     """Regresses named anatomical keypoints from model output vertices via a linear blend.
 
@@ -19,10 +20,8 @@ class KeypointsRegressor(torch.nn.Module):
     Forward input: a model output dict containing ``vertices`` of shape ``(B, V, D)``.
     Forward output: tensor of shape ``(B, K, D)`` where ``K = len(labels)``.
     """
-    def __init__(self,
-                 model,
-                 labels : list[str],
-                 path : str = "coco"):
+
+    def __init__(self, model, labels: list[str], path: str = "coco"):
         super().__init__()
         if path == "coco":
             path = get_anny_root_dir() / "data/keypoints/coco.pth"
@@ -38,11 +37,17 @@ class KeypointsRegressor(torch.nn.Module):
 
         regression_weights = torch.zeros((K, V), dtype=dtype, device=device)
         for k, label in enumerate(labels):
-            weights = keypoints_data[label][model.base_mesh_vertex_indices].to(dtype=dtype, device=device)
+            weights = keypoints_data[label][model.base_mesh_vertex_indices].to(
+                dtype=dtype, device=device
+            )
             assert torch.abs(weights.sum() - 1) < 1e-3
             regression_weights[k] = weights
-        self.regression_weights = make_buffer(self, "regression_weights", regression_weights, persistent=False)
+        self.regression_weights = make_buffer(
+            self, "regression_weights", regression_weights, persistent=False
+        )
         self.labels = labels
 
     def forward(self, model_output):
-        return torch.einsum("kv, bvd -> bkd", self.regression_weights, model_output["vertices"])
+        return torch.einsum(
+            "kv, bvd -> bkd", self.regression_weights, model_output["vertices"]
+        )

@@ -18,6 +18,7 @@ from anny.utils.warp_mesh_utils import point_to_mesh_distance_and_face_uvs
 from anny.paths import get_anny_root_dir
 from anny.models import retopology
 
+
 def _load_soma_rig():
     """Load soma rig data, preferring .safetensors and falling back to legacy .pt."""
     pt_path = os.path.join(get_anny_root_dir(), "data/soma/soma_rig.pt")
@@ -45,14 +46,17 @@ def _load_soma_faces():
 
 
 def build_soma_rig_and_topology_model_data(
-        local_changes: LocalChanges, facial_actions: bool):
+    local_changes: LocalChanges, facial_actions: bool
+):
     soma_rig_data = _load_soma_rig()
     procrustes_orientation_data = _load_cached_orientation_data()
-    soma_data = retopology.build_alternative_topology_model_data(rig=RigConfig.from_string("anny"),
-                                      topology=TopologyConfig.from_string("soma"),
-                                      local_changes=local_changes,
-                                      facial_actions=facial_actions,
-                                      reference_topology="anny_from_soma")
+    soma_data = retopology.build_alternative_topology_model_data(
+        rig=RigConfig.from_string("anny"),
+        topology=TopologyConfig.from_string("soma"),
+        local_changes=local_changes,
+        facial_actions=facial_actions,
+        reference_topology="anny_from_soma",
+    )
     data = apply_soma_rig(soma_data, soma_rig_data, procrustes_orientation_data)
     # Use the canonical SOMA-X triangulation so the SOMA-topology mesh (and the retopology
     # source it provides for other topologies) matches the soma package exactly (see
@@ -62,9 +66,8 @@ def build_soma_rig_and_topology_model_data(
 
 
 def build_soma_rig_model_data(
-        topology: TopologyConfig,
-        local_changes: LocalChanges,
-        facial_actions: bool):
+    topology: TopologyConfig, local_changes: LocalChanges, facial_actions: bool
+):
     soma_data = build_soma_rig_and_topology_model_data(
         local_changes=local_changes,
         facial_actions=facial_actions,
@@ -72,7 +75,6 @@ def build_soma_rig_model_data(
 
     if topology.base_mesh == "soma":
         return soma_data
-
 
     source_vertices = soma_data.template_vertices
     source_triangular_faces = torch.tensor(
@@ -82,6 +84,7 @@ def build_soma_rig_model_data(
 
     # Lazy import to avoid circular dependency with models/__init__.py
     from anny.models import build_model_data
+
     target_data = build_model_data(
         rig=RigConfig.from_string("anny"),
         local_changes=local_changes,
@@ -95,13 +98,13 @@ def build_soma_rig_model_data(
         points=vertices.to(dtype=torch.float32),
         vertices=source_vertices.to(dtype=torch.float32),
         faces=source_triangular_faces,
-        max_dist=1000.,
+        max_dist=1000.0,
     )
 
     uvs = uvs.to(dtype=source_vertices.dtype)
 
     u, v = uvs[:, 0], uvs[:, 1]
-    w = 1. - u - v
+    w = 1.0 - u - v
     target2source_barycentric_coordinates = torch.stack([u, v, w], dim=0)
     reference_vertex_indices = source_triangular_faces[target2source_face_ids]
 

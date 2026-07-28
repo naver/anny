@@ -23,6 +23,7 @@ from anny.utils.mesh_utils import (
     triangulate_faces_with_texture_coordinates,
 )
 from anny.utils.warp_mesh_utils import point_to_mesh_distance_and_face_uvs
+
 logger = logging.getLogger(__name__)
 
 
@@ -64,9 +65,7 @@ def _build_procrustes_buffers(
     active_bone_indices = active_bone_indices.to(device=device)
     bone_world_transforms = bone_world_transforms.to(dtype=vertex_dtype, device=device)
 
-    max_vertices_per_bone = max(
-        indices.numel() for indices in per_bone_vertex_indices
-    )
+    max_vertices_per_bone = max(indices.numel() for indices in per_bone_vertex_indices)
     active_bone_count = active_bone_indices.numel()
     bone_vertex_indices = torch.zeros(
         (active_bone_count, max_vertices_per_bone),
@@ -83,7 +82,9 @@ def _build_procrustes_buffers(
         zip(per_bone_vertex_indices, per_bone_vertex_weights)
     ):
         if indices.numel() != weights.numel():
-            raise ValueError("Procrustes vertex indices and weights must have matching lengths.")
+            raise ValueError(
+                "Procrustes vertex indices and weights must have matching lengths."
+            )
         count = indices.numel()
         bone_vertex_indices[row, :count] = indices.to(dtype=torch.int64, device=device)
         bone_vertex_weights[row, :count] = weights.to(dtype=weight_dtype, device=device)
@@ -143,9 +144,7 @@ def filter_blendshapes(
             f"the number of local change labels {len(data.metadata.local_change_labels)}"
         )
     facial_count = len(data.metadata.facial_action_labels)
-    non_local_count = (
-        len(data.blendshapes) - facial_count - 2 * len(local_changes_mask)
-    )
+    non_local_count = len(data.blendshapes) - facial_count - 2 * len(local_changes_mask)
     blend_shapes_mask = torch.cat(
         (
             data.blendshapes.new_ones((non_local_count,), dtype=torch.bool),
@@ -162,20 +161,33 @@ def filter_blendshapes(
     extra = {}
     if data.bone_tails_blendshapes is not None:
         extra["bone_tails_blendshapes"] = data.bone_tails_blendshapes[blend_shapes_mask]
-    local_change_labels = [data.metadata.local_change_labels[i] for i in range(len(data.metadata.local_change_labels)) if local_changes_mask[i]]
-    blendshape_labels = [label for label, keep in zip(data.metadata.blendshape_labels, blend_shapes_mask.tolist()) if keep]
+    local_change_labels = [
+        data.metadata.local_change_labels[i]
+        for i in range(len(data.metadata.local_change_labels))
+        if local_changes_mask[i]
+    ]
+    blendshape_labels = [
+        label
+        for label, keep in zip(
+            data.metadata.blendshape_labels, blend_shapes_mask.tolist()
+        )
+        if keep
+    ]
     return dataclasses.replace(
         data,
-        metadata = dataclasses.replace(
+        metadata=dataclasses.replace(
             data.metadata,
             local_change_labels=local_change_labels,
-            facial_action_labels=data.metadata.facial_action_labels if facial_actions else [],
+            facial_action_labels=data.metadata.facial_action_labels
+            if facial_actions
+            else [],
             blendshape_labels=blendshape_labels,
         ),
         blendshapes=data.blendshapes[blend_shapes_mask],
         bone_heads_blendshapes=data.bone_heads_blendshapes[blend_shapes_mask],
         **extra,
     )
+
 
 # ---------------------------------------------------------------------------
 # Mesh topology operations
@@ -471,9 +483,9 @@ def apply_anny_cached_orientation(data: ModelData) -> ModelData:
     bone_template_orientation_matrices = orientation_data[
         "bone_template_orientation_matrices"
     ][bone_selection].to(dtype=dtype, device=device)
-    reference_bone_orientations = orientation_data[
-        "reference_bone_orientations"
-    ][bone_selection].to(dtype=dtype, device=device)
+    reference_bone_orientations = orientation_data["reference_bone_orientations"][
+        bone_selection
+    ].to(dtype=dtype, device=device)
     bone_orientation_blendshapes = _select_blendshape_rows(
         orientation_data["bone_orientation_blendshapes"][:, bone_selection],
         source_labels=orientation_data["blendshape_labels"],
@@ -482,7 +494,9 @@ def apply_anny_cached_orientation(data: ModelData) -> ModelData:
 
     # Bone origins ("heads") from the precomputed data (with the root realigned to the pelvis), kept
     # consistent with the frames the covariance was computed against.
-    template_bone_heads = orientation_data["template_bone_heads"][bone_selection].to(dtype=dtype, device=device)
+    template_bone_heads = orientation_data["template_bone_heads"][bone_selection].to(
+        dtype=dtype, device=device
+    )
     bone_heads_blendshapes = _select_blendshape_rows(
         orientation_data["bone_heads_blendshapes"][:, bone_selection],
         source_labels=orientation_data["blendshape_labels"],
@@ -710,7 +724,9 @@ def apply_procrustes_retopology(
     w = 1.0 - u - v
     ref2target_bary = torch.stack([u, v, w], dim=0)
 
-    source = RiggedModelWithLinearBlendShapes(source_model, bone_orientation="procrustes")
+    source = RiggedModelWithLinearBlendShapes(
+        source_model, bone_orientation="procrustes"
+    )
     rest_bone_poses = source.get_rest_model(
         torch.zeros(
             (1, source_model.blendshapes.shape[0]),
@@ -798,16 +814,15 @@ def _select_blendshape_rows(
     Use zero for facial actions."""
     source_index = {label: i for i, label in enumerate(source_labels)}
     missing = [
-        label for label in target_labels
+        label
+        for label in target_labels
         if label not in source_index and not label.startswith("facial_action:")
     ]
     if missing:
         raise ValueError(
             f"Precomputed orientation data does not cover the following blend shapes: {missing}."
         )
-    zero = orientation_blendshapes.new_zeros(
-        (1, *orientation_blendshapes.shape[1:])
-    )
+    zero = orientation_blendshapes.new_zeros((1, *orientation_blendshapes.shape[1:]))
     padded = torch.cat((orientation_blendshapes, zero))
     return padded[[source_index.get(label, -1) for label in target_labels]]
 
@@ -831,17 +846,23 @@ def _build_bone_children_buffers(
     bone_children_mask = torch.zeros((bone_count, max_children), dtype=dtype)
     for bone_idx, bone_children in enumerate(children):
         count = len(bone_children)
-        bone_children_indices[bone_idx, :count] = torch.tensor(bone_children, dtype=torch.int64)
+        bone_children_indices[bone_idx, :count] = torch.tensor(
+            bone_children, dtype=torch.int64
+        )
         bone_children_mask[bone_idx, :count] = 1.0
 
     bind = bind_world_transforms.to(dtype=dtype)
     offsets = bind[bone_children_indices, :3, 3] - bind[:, None, :3, 3]
     bone_children_local_offsets = torch.einsum("kji,kcj->kci", bind[:, :3, :3], offsets)
-    bone_children_local_offsets = bone_children_local_offsets * bone_children_mask[:, :, None]
+    bone_children_local_offsets = (
+        bone_children_local_offsets * bone_children_mask[:, :, None]
+    )
     return bone_children_indices, bone_children_mask, bone_children_local_offsets
 
 
-def apply_soma_rig(data: ModelData, soma_rig_data: dict, procrustes_orientation_data: dict) -> ModelData:
+def apply_soma_rig(
+    data: ModelData, soma_rig_data: dict, procrustes_orientation_data: dict
+) -> ModelData:
     """Replace the rig in *data* with the SOMA rig while keeping the mesh and blendshapes.
 
     Bone orientations come from the precomputed procrustes orientation data generated by
@@ -868,8 +889,12 @@ def apply_soma_rig(data: ModelData, soma_rig_data: dict, procrustes_orientation_
     vertex_bone_indices = raw_indices[:, :k_lbs]
 
     # Precomputed procrustes orientation data, with blendshape rows matching the model configuration.
-    if list(procrustes_orientation_data["bone_labels"]) != [str(label) for label in bone_labels]:
-        raise ValueError("Precomputed procrustes orientation data does not match the SOMA rig bones.")
+    if list(procrustes_orientation_data["bone_labels"]) != [
+        str(label) for label in bone_labels
+    ]:
+        raise ValueError(
+            "Precomputed procrustes orientation data does not match the SOMA rig bones."
+        )
     bone_orientation_blendshapes = _select_blendshape_rows(
         procrustes_orientation_data["bone_orientation_blendshapes"],
         source_labels=procrustes_orientation_data["blendshape_labels"],
@@ -884,8 +909,8 @@ def apply_soma_rig(data: ModelData, soma_rig_data: dict, procrustes_orientation_
     )
 
     # Children structure and bind-frame offsets, used to refine the orientations like the SOMA skeleton fit.
-    bone_children_indices, bone_children_mask, bone_children_local_offsets = _build_bone_children_buffers(
-        bone_parents, bind_world_transforms, dtype=dtype
+    bone_children_indices, bone_children_mask, bone_children_local_offsets = (
+        _build_bone_children_buffers(bone_parents, bind_world_transforms, dtype=dtype)
     )
 
     return dataclasses.replace(

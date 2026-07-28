@@ -17,6 +17,7 @@ _ANNY_ROOT_DIR = [pathlib.Path(os.getenv("ANNY_ROOT_DIR", str(DEFAULT_ANNY_ROOT_
 
 logger = logging.getLogger(__name__)
 
+
 def get_anny_cache_path() -> pathlib.Path:
     """
     Get the path to the Anny cache directory.
@@ -25,6 +26,7 @@ def get_anny_cache_path() -> pathlib.Path:
         pathlib.Path: The path to the Anny cache directory.
     """
     return _ANNY_CACHE_DIR[0]
+
 
 def set_anny_cache_path(path: PathLike):
     """
@@ -36,6 +38,7 @@ def set_anny_cache_path(path: PathLike):
     global _ANNY_CACHE_DIR
     _ANNY_CACHE_DIR[0] = pathlib.Path(path)
 
+
 def get_anny_root_dir() -> pathlib.Path:
     """
     Get the path to the Anny root directory.
@@ -44,6 +47,7 @@ def get_anny_root_dir() -> pathlib.Path:
         pathlib.Path: The path to the Anny root directory.
     """
     return _ANNY_ROOT_DIR[0]
+
 
 def set_anny_root_dir(path: PathLike):
     """
@@ -55,6 +59,7 @@ def set_anny_root_dir(path: PathLike):
     global _ANNY_ROOT_DIR
     _ANNY_ROOT_DIR[0] = pathlib.Path(path)
 
+
 def get_anny2smplx_data_path() -> pathlib.Path:
     """
     Get the path to the Anny2SMPLX data file.
@@ -64,8 +69,9 @@ def get_anny2smplx_data_path() -> pathlib.Path:
     """
     path = get_anny_cache_path() / "noncommercial/anny2smplx.pth"
     if not path.exists():
-            download_noncommercial_data()
+        download_noncommercial_data()
     return path
+
 
 def get_anny2smpl_data_path() -> pathlib.Path:
     """
@@ -79,9 +85,12 @@ def get_anny2smpl_data_path() -> pathlib.Path:
         download_noncommercial_data()
     return path
 
+
 def download_noncommercial_data():
     cache_dir = get_anny_cache_path()
-    noncommercial_data_url = "https://download.europe.naverlabs.com/humans/Anny/noncommercial.zip"
+    noncommercial_data_url = (
+        "https://download.europe.naverlabs.com/humans/Anny/noncommercial.zip"
+    )
     dest_path = cache_dir / "noncommercial"
 
     logger.info("Downloading non-commercial data...")
@@ -90,13 +99,15 @@ def download_noncommercial_data():
 
     # Download the file
     import requests
+
     response = requests.get(noncommercial_data_url)
-    with open(zip_path, 'wb') as f:
+    with open(zip_path, "wb") as f:
         f.write(response.content)
 
     # Unzip the file
     import zipfile
-    with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+
+    with zipfile.ZipFile(zip_path, "r") as zip_ref:
         zip_ref.extractall(dest_path)
 
     # Show the license file
@@ -104,7 +115,7 @@ def download_noncommercial_data():
     if license_file.exists():
         logger.info("License Information:")
         logger.info("---------------------")
-        with open(license_file, 'r') as f:
+        with open(license_file, "r") as f:
             logger.info(f.read())
     else:
         logger.info("LICENSE.txt file not found.")
@@ -114,7 +125,7 @@ def download_noncommercial_data():
     notice_file = dest_path / "NOTICE.txt"
     if notice_file.exists():
         logger.info("-------------------")
-        with open(notice_file, 'r') as f:
+        with open(notice_file, "r") as f:
             logger.info(f.read())
     else:
         logger.info("NOTICE.txt file not found.")

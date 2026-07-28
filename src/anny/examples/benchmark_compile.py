@@ -12,6 +12,7 @@ import anny
 from anny.typing import SkinningMethod
 from anny.examples.benchmark import benchmark_gpu_peak
 
+
 def _synchronize(device: Any) -> None:
     if device.type == "cuda":
         torch.cuda.synchronize(device)
@@ -62,11 +63,15 @@ def benchmark_method(
 ) -> list[dict[str, str | int | float]]:
     torch.set_num_threads(num_threads)
     device = torch.device(0) if torch.cuda.is_available() else torch.device("cpu")
-    model = anny.Anny(
-        local_changes="default",
-        facial_actions=True,
-        skinning_method=skinning_method,
-    ).to(device=device, dtype=torch.float32).eval()
+    model = (
+        anny.Anny(
+            local_changes="default",
+            facial_actions=True,
+            skinning_method=skinning_method,
+        )
+        .to(device=device, dtype=torch.float32)
+        .eval()
+    )
     compile_kwargs: dict[str, Any] = {"fullgraph": fullgraph}
     if backend is not None:
         compile_kwargs["backend"] = backend
@@ -84,8 +89,12 @@ def benchmark_method(
             _synchronize(device)
             first_call_seconds = time.perf_counter() - started
 
-        torch.testing.assert_close(compiled_output["vertices"], eager_output["vertices"])
-        torch.testing.assert_close(compiled_output["bone_poses"], eager_output["bone_poses"])
+        torch.testing.assert_close(
+            compiled_output["vertices"], eager_output["vertices"]
+        )
+        torch.testing.assert_close(
+            compiled_output["bone_poses"], eager_output["bone_poses"]
+        )
 
         def eager_run():
             with torch.no_grad():
@@ -97,19 +106,31 @@ def benchmark_method(
                 compiled_model(**kwargs)
             _synchronize(device)
 
-        eager_seconds = torch.utils.benchmark.Timer(
-            stmt="run()",
-            globals={"run": eager_run},
-            num_threads=num_threads,
-        ).blocked_autorange(min_run_time=min_run_time).median
-        compiled_seconds = torch.utils.benchmark.Timer(
-            stmt="run()",
-            globals={"run": compiled_run},
-            num_threads=num_threads,
-        ).blocked_autorange(min_run_time=min_run_time).median
+        eager_seconds = (
+            torch.utils.benchmark.Timer(
+                stmt="run()",
+                globals={"run": eager_run},
+                num_threads=num_threads,
+            )
+            .blocked_autorange(min_run_time=min_run_time)
+            .median
+        )
+        compiled_seconds = (
+            torch.utils.benchmark.Timer(
+                stmt="run()",
+                globals={"run": compiled_run},
+                num_threads=num_threads,
+            )
+            .blocked_autorange(min_run_time=min_run_time)
+            .median
+        )
 
-        eager_backward_kwargs = _make_kwargs(model, batch_size, device, requires_grad=True)
-        compiled_backward_kwargs = _make_kwargs(model, batch_size, device, requires_grad=True)
+        eager_backward_kwargs = _make_kwargs(
+            model, batch_size, device, requires_grad=True
+        )
+        compiled_backward_kwargs = _make_kwargs(
+            model, batch_size, device, requires_grad=True
+        )
 
         def eager_backward_run():
             _clear_grads(eager_backward_kwargs)
@@ -145,23 +166,36 @@ def benchmark_method(
         for key, eager_grad in eager_backward_grads.items():
             torch.testing.assert_close(compiled_backward_kwargs[key].grad, eager_grad)
 
-        backward_eager_seconds = torch.utils.benchmark.Timer(
-            stmt="run()",
-            globals={"run": eager_backward_run},
-            num_threads=num_threads,
-        ).blocked_autorange(min_run_time=min_run_time).median
-        backward_compiled_seconds = torch.utils.benchmark.Timer(
-            stmt="run()",
-            globals={"run": compiled_backward_run},
-            num_threads=num_threads,
-        ).blocked_autorange(min_run_time=min_run_time).median
+        backward_eager_seconds = (
+            torch.utils.benchmark.Timer(
+                stmt="run()",
+                globals={"run": eager_backward_run},
+                num_threads=num_threads,
+            )
+            .blocked_autorange(min_run_time=min_run_time)
+            .median
+        )
+        backward_compiled_seconds = (
+            torch.utils.benchmark.Timer(
+                stmt="run()",
+                globals={"run": compiled_backward_run},
+                num_threads=num_threads,
+            )
+            .blocked_autorange(min_run_time=min_run_time)
+            .median
+        )
 
         allocated_eager, reserved_eager = benchmark_gpu_peak(eager_run, iters=10)
-        allocated_compiled, reserved_compiled = benchmark_gpu_peak(compiled_run, iters=10)
+        allocated_compiled, reserved_compiled = benchmark_gpu_peak(
+            compiled_run, iters=10
+        )
 
-        backward_allocated_eager, backward_reserved_eager = benchmark_gpu_peak(eager_backward_run, iters=10)
-        backward_allocated_compiled, backward_reserved_compiled = benchmark_gpu_peak(compiled_backward_run, iters=10)
-
+        backward_allocated_eager, backward_reserved_eager = benchmark_gpu_peak(
+            eager_backward_run, iters=10
+        )
+        backward_allocated_compiled, backward_reserved_compiled = benchmark_gpu_peak(
+            compiled_backward_run, iters=10
+        )
 
         result = {
             "skinning_method": skinning_method,
@@ -190,9 +224,8 @@ def benchmark_method(
             f"eager={eager_seconds * 1000:>9.3f}ms "
             f"compiled={compiled_seconds * 1000:>9.3f}ms "
             f"speedup={result['speedup']:>6.2f}x "
-            f"eager mem={allocated_eager / 1024 ** 2:>7.2f}MB ({reserved_eager / 1024 ** 2:>7.2f}MB) "
-            f"compiled mem={allocated_compiled / 1024 ** 2:>7.2f}MB ({reserved_compiled / 1024 ** 2:>7.2f}MB)"
-
+            f"eager mem={allocated_eager / 1024**2:>7.2f}MB ({reserved_eager / 1024**2:>7.2f}MB) "
+            f"compiled mem={allocated_compiled / 1024**2:>7.2f}MB ({reserved_compiled / 1024**2:>7.2f}MB)"
         )
         print(
             f"{skinning_method:>8} backward batch={batch_size:>4} "
@@ -200,8 +233,8 @@ def benchmark_method(
             f"eager={backward_eager_seconds * 1000:>9.3f}ms "
             f"compiled={backward_compiled_seconds * 1000:>9.3f}ms "
             f"speedup={result['backward_speedup']:>6.2f}x"
-            f"eager mem={backward_allocated_eager / 1024 ** 2:>7.2f}MB ({backward_reserved_eager / 1024 ** 2:>7.2f}MB) "
-            f"compiled mem={backward_allocated_compiled / 1024 ** 2:>7.2f}MB ({backward_reserved_compiled / 1024 ** 2:>7.2f}MB)"
+            f"eager mem={backward_allocated_eager / 1024**2:>7.2f}MB ({backward_reserved_eager / 1024**2:>7.2f}MB) "
+            f"compiled mem={backward_allocated_compiled / 1024**2:>7.2f}MB ({backward_reserved_compiled / 1024**2:>7.2f}MB)"
         )
 
     return results

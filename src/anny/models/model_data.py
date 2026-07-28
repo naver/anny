@@ -17,7 +17,16 @@ from typing import Callable, Literal
 import torch
 
 from anny.paths import get_anny_cache_path, get_anny_root_dir
-from anny.typing import PathLike,AlternativeTopology, BoneOrientation, PoseParameterization, SkinningMethod, Submodel, Rig, LocalChanges
+from anny.typing import (
+    PathLike,
+    AlternativeTopology,
+    BoneOrientation,
+    PoseParameterization,
+    SkinningMethod,
+    Submodel,
+    Rig,
+    LocalChanges,
+)
 
 ANNY_VERSION = importlib.metadata.version("anny")
 # Increase this if there are any non-backwards-compatible changes to the data/metadata format
@@ -26,18 +35,21 @@ CURRENT_DATA_VERSION = 9
 logger = logging.getLogger(__name__)
 
 PHENOTYPE_VARIATIONS = dict(
-            race=["african", "asian", "caucasian"],
-            gender=["male", "female"],
-            age=["newborn", "baby", "child", "young", "old"],
-            muscle=["minmuscle", "averagemuscle", "maxmuscle"],
-            weight=["minweight", "averageweight", "maxweight"],
-            height=["minheight", "maxheight"],
-            proportions=["idealproportions", "uncommonproportions"],
-            cupsize=["mincup", "averagecup", "maxcup"],
-            firmness=["minfirmness", "averagefirmness", "maxfirmness"])
+    race=["african", "asian", "caucasian"],
+    gender=["male", "female"],
+    age=["newborn", "baby", "child", "young", "old"],
+    muscle=["minmuscle", "averagemuscle", "maxmuscle"],
+    weight=["minweight", "averageweight", "maxweight"],
+    height=["minheight", "maxheight"],
+    proportions=["idealproportions", "uncommonproportions"],
+    cupsize=["mincup", "averagecup", "maxcup"],
+    firmness=["minfirmness", "averagefirmness", "maxfirmness"],
+)
 
-PHENOTYPE_LABELS = [key for key in PHENOTYPE_VARIATIONS.keys() if key != "race"] + PHENOTYPE_VARIATIONS["race"]
-EXCLUDED_PHENOTYPES = ['cupsize', 'firmness'] + PHENOTYPE_VARIATIONS["race"]
+PHENOTYPE_LABELS = [
+    key for key in PHENOTYPE_VARIATIONS.keys() if key != "race"
+] + PHENOTYPE_VARIATIONS["race"]
+EXCLUDED_PHENOTYPES = ["cupsize", "firmness"] + PHENOTYPE_VARIATIONS["race"]
 
 
 _eye_bone_labels = {"eye.L", "eye.R"}
@@ -204,9 +216,11 @@ _hand_bone_labels = {
 _breast_bone_labels = {"breast.L", "breast.R"}
 
 
-
 _RIG_PRESET_FILES: dict[str, tuple[str, str]] = {
-    "anny": ("rig.default.json", "weights.default.json"), # default weights: see scripts/compute_skinning_weights.py
+    "anny": (
+        "rig.default.json",
+        "weights.default.json",
+    ),  # default weights: see scripts/compute_skinning_weights.py
     "makehuman": ("rig.default.json", "weights.default.json"),
     "cmu_mb": ("rig.cmu_mb.json", "weights.cmu_mb.json"),
     "game_engine": ("rig.game_engine.json", "weights.game_engine.json"),
@@ -233,7 +247,7 @@ class RigConfig:
 @dataclasses.dataclass(frozen=True)
 class TopologyConfig:
     base_mesh: AlternativeTopology | Literal["makehuman"]
-    nudity_edits : bool = True
+    nudity_edits: bool = True
     remove_unattached_vertices: bool = True
     triangulate_faces: bool = True
     eyes: bool = True
@@ -243,6 +257,7 @@ class TopologyConfig:
     @classmethod
     def from_string(cls, spec: str) -> TopologyConfig:
         return _parse_topology_spec(spec)
+
 
 @dataclasses.dataclass(frozen=True)
 class AnnyModelConfig:
@@ -257,6 +272,7 @@ class AnnyModelConfig:
     rig: RigConfig
     topology: TopologyConfig
 
+
 @dataclasses.dataclass(frozen=True)
 class ModelMetadata:
     bone_labels: list[str]
@@ -270,8 +286,8 @@ class ModelMetadata:
 
 @dataclasses.dataclass(frozen=True)
 class ModelData:
-    """Typed, immutable container for all data needed to construct any RiggedModelWithLinearBlendShapes model.
-    """
+    """Typed, immutable container for all data needed to construct any RiggedModelWithLinearBlendShapes model."""
+
     # Always present
     metadata: ModelMetadata
 
@@ -314,30 +330,37 @@ class ModelData:
         """Serialize to a safetensors file.  Non-None tensors are stored as-is; ``metadata``
         is packed as a JSON string in the safetensors header under the key ``"metadata"``."""
         import safetensors.torch
+
         tensors = {
             f.name: getattr(self, f.name).contiguous()
             for f in dataclasses.fields(self)
             if f.name != "metadata" and getattr(self, f.name) is not None
         }
         meta_json = json.dumps(dataclasses.asdict(self.metadata))
-        safetensors.torch.save_file(tensors, path,
+        safetensors.torch.save_file(
+            tensors,
+            path,
             metadata={
                 "metadata": meta_json,
                 "metadata_class": self.metadata.__class__.__name__,
                 "data_version": str(CURRENT_DATA_VERSION),
-                "anny_version": ANNY_VERSION}
+                "anny_version": ANNY_VERSION,
+            },
         )
 
     @classmethod
     def load_safetensors(cls, path: PathLike) -> ModelData:
         """Deserialize from a safetensors file previously written by :meth:`save_safetensors`."""
         from safetensors import safe_open
+
         tensors = {}
 
         with safe_open(path, framework="pt") as f:
             data_version = f.metadata().get("data_version", 1)
             if int(data_version) != CURRENT_DATA_VERSION:
-                raise ValueError(f"Data version mismatch: file {path} has data_version={data_version}, but current code expects data_version={CURRENT_DATA_VERSION}")
+                raise ValueError(
+                    f"Data version mismatch: file {path} has data_version={data_version}, but current code expects data_version={CURRENT_DATA_VERSION}"
+                )
 
             meta_str = f.metadata().get("metadata", "{}")
             for k in f.keys():
@@ -348,7 +371,10 @@ class ModelData:
 
         return cls(**tensors, metadata=metadata)
 
-def _get_builder_metadata(f: Callable[..., ModelData], *args, **kwargs) -> dict[str, str | int | bool]:
+
+def _get_builder_metadata(
+    f: Callable[..., ModelData], *args, **kwargs
+) -> dict[str, str | int | bool]:
     all_kwargs = {}
 
     def _to_valid(x):
@@ -372,7 +398,9 @@ def _get_builder_metadata(f: Callable[..., ModelData], *args, **kwargs) -> dict[
         elif param.default is not param.empty:
             value = _to_valid(param.default)
         else:
-            raise ValueError(f"Missing value for parameter {param.name} of builder function {f.__name__}")
+            raise ValueError(
+                f"Missing value for parameter {param.name} of builder function {f.__name__}"
+            )
 
         if param.name == "facial_actions" and value == "none":
             continue
@@ -380,29 +408,43 @@ def _get_builder_metadata(f: Callable[..., ModelData], *args, **kwargs) -> dict[
         all_kwargs[param.name] = value
     return all_kwargs
 
+
 def cache_builder(f: Callable[..., ModelData]) -> Callable[..., ModelData]:
     """Decorator to add metadata about the model-building function and its arguments to the resulting ModelData."""
+
     @functools.wraps(f)
     def wrapper(*args, **kwargs) -> ModelData:
         cache_path = get_anny_cache_path()
         if cache_path is None:
-            logger.info("No cache directory specified, building model data without caching...")
+            logger.info(
+                "No cache directory specified, building model data without caching..."
+            )
             return f(*args, **kwargs)
 
         metadata = _get_builder_metadata(f, *args, **kwargs)
-        hex = hashlib.sha256(json.dumps(metadata, sort_keys=True).encode()).hexdigest()[:32]
-        cache_path = Path(cache_path) / f"v{CURRENT_DATA_VERSION}" / f"{f.__name__}_{hex}.safetensors"
+        hex = hashlib.sha256(json.dumps(metadata, sort_keys=True).encode()).hexdigest()[
+            :32
+        ]
+        cache_path = (
+            Path(cache_path)
+            / f"v{CURRENT_DATA_VERSION}"
+            / f"{f.__name__}_{hex}.safetensors"
+        )
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         if cache_path.exists():
             logger.info(f"Loading cached model data from {cache_path}")
             data = ModelData.load_safetensors(cache_path)
         else:
-            logger.info(f"No cached model data found at {cache_path}, building model data...")
+            logger.info(
+                f"No cached model data found at {cache_path}, building model data..."
+            )
             data = f(*args, **kwargs)
             data.save_safetensors(cache_path)
             logger.info(f"Saved built model data to cache at {cache_path}")
         return data
+
     return wrapper
+
 
 def _standard_rig_dir(root_dirname: PathLike) -> str:
     return os.path.join(root_dirname, "data/mpfb2/rigs/standard")
@@ -416,6 +458,7 @@ def _preset_filenames(preset: str, root_dirname: PathLike) -> tuple[str, str]:
         os.path.join(standard_dir, weights_basename),
     )
 
+
 def _bones_to_remove_from_modifier(modifier: str) -> set[str]:
     if modifier == "pruned":
         return set(_zero_weight_bone_labels)
@@ -426,7 +469,11 @@ def _bones_to_remove_from_modifier(modifier: str) -> set[str]:
     if modifier == "nofacialexpression":
         return set(_facial_expression_bone_labels)
     if modifier == "noexpression":
-        return set(_facial_expression_bone_labels) | set(_eye_bone_labels) | set(_tongue_bone_labels)
+        return (
+            set(_facial_expression_bone_labels)
+            | set(_eye_bone_labels)
+            | set(_tongue_bone_labels)
+        )
     if modifier == "notoes":
         return set(_toe_bone_labels)
     if modifier == "nohands":
@@ -446,7 +493,10 @@ def _bones_to_remove_from_modifiers(modifiers: list[str]) -> set[str]:
 # Modifiers applied to the bare "anny" rig by default (pruned procrustes preset).
 _ANNY_RIG_MODIFIERS = ["notongue", "nobreasts", "nofacialexpression", "pruned"]
 
-def _validate_files(rig_filename: PathLike, weights_filename: PathLike) -> tuple[str, str]:
+
+def _validate_files(
+    rig_filename: PathLike, weights_filename: PathLike
+) -> tuple[str, str]:
     rig_filename = str(rig_filename)
     weights_filename = str(weights_filename)
     if not Path(rig_filename).exists():
@@ -461,7 +511,9 @@ def _parse_rig_spec(spec: str) -> RigConfig:
     modifiers = spec.split("-")[1:]
     if base_rig == "soma":
         if len(modifiers) > 0:
-            raise ValueError(f"Invalid rig spec: {spec}. 'soma' rig does not support modifiers.")
+            raise ValueError(
+                f"Invalid rig spec: {spec}. 'soma' rig does not support modifiers."
+            )
         return RigConfig(
             base_rig="soma",
             weights_filename=None,
@@ -473,7 +525,7 @@ def _parse_rig_spec(spec: str) -> RigConfig:
 
     rig_spec = RigConfig(
         base_rig=base_rig,
-        bone_orientation="cached" if base_rig=="anny" else "blender",
+        bone_orientation="cached" if base_rig == "anny" else "blender",
         root_identity_orientation=True,
     )
 
@@ -484,7 +536,9 @@ def _parse_rig_spec(spec: str) -> RigConfig:
 
     if "blender" in modifiers:
         assert "procrustes" not in modifiers
-        rig_spec = dataclasses.replace(rig_spec, bone_orientation="blender",  root_identity_orientation=False)
+        rig_spec = dataclasses.replace(
+            rig_spec, bone_orientation="blender", root_identity_orientation=False
+        )
         modifiers.remove("blender")
 
     if "rootidentity" in modifiers:
@@ -492,33 +546,87 @@ def _parse_rig_spec(spec: str) -> RigConfig:
         modifiers.remove("rootidentity")
 
     if base_rig in ["anny", "makehuman"]:
-        modifiers += (_ANNY_RIG_MODIFIERS if base_rig == "anny" else [])
-        rig_spec = dataclasses.replace(rig_spec, bones_to_remove=frozenset(_bones_to_remove_from_modifiers(modifiers)))
+        modifiers += _ANNY_RIG_MODIFIERS if base_rig == "anny" else []
+        rig_spec = dataclasses.replace(
+            rig_spec,
+            bones_to_remove=frozenset(_bones_to_remove_from_modifiers(modifiers)),
+        )
     return rig_spec
+
 
 def _parse_topology_spec(spec: str) -> TopologyConfig:
     parts = spec.split("-")
     spec_base = parts[0]
     modifiers = parts[1:]
     if spec_base in AlternativeTopology.__args__:
-        obj = TopologyConfig(base_mesh=spec_base, submodel="body", nudity_edits=False, eyes=True, tongue=True, remove_unattached_vertices=True, triangulate_faces=True)
+        obj = TopologyConfig(
+            base_mesh=spec_base,
+            submodel="body",
+            nudity_edits=False,
+            eyes=True,
+            tongue=True,
+            remove_unattached_vertices=True,
+            triangulate_faces=True,
+        )
         if len(modifiers) > 0:
             if len(modifiers) > 1 or modifiers[0] != "quads":
                 raise ValueError(f"Unknown topology specifier: {spec}")
             if spec_base in ["smplx", "smpl", "soma"]:
-                raise ValueError(f"Topology specifier '{spec_base}' does not support 'quads' modifier.")
+                raise ValueError(
+                    f"Topology specifier '{spec_base}' does not support 'quads' modifier."
+                )
             obj = dataclasses.replace(obj, triangulate_faces=False)
         return obj
     if spec_base == "head":
-        obj = TopologyConfig(base_mesh="makehuman", submodel="head", nudity_edits=False, eyes=True, tongue=True, remove_unattached_vertices=True, triangulate_faces=True)
+        obj = TopologyConfig(
+            base_mesh="makehuman",
+            submodel="head",
+            nudity_edits=False,
+            eyes=True,
+            tongue=True,
+            remove_unattached_vertices=True,
+            triangulate_faces=True,
+        )
     elif spec_base == "hand.L":
-        obj = TopologyConfig(base_mesh="makehuman", submodel="hand.L", nudity_edits=False, eyes=False, tongue=False, remove_unattached_vertices=True, triangulate_faces=True)
+        obj = TopologyConfig(
+            base_mesh="makehuman",
+            submodel="hand.L",
+            nudity_edits=False,
+            eyes=False,
+            tongue=False,
+            remove_unattached_vertices=True,
+            triangulate_faces=True,
+        )
     elif spec_base == "hand.R":
-        obj = TopologyConfig(base_mesh="makehuman", submodel="hand.R", nudity_edits=False, eyes=False, tongue=False, remove_unattached_vertices=True, triangulate_faces=True)
+        obj = TopologyConfig(
+            base_mesh="makehuman",
+            submodel="hand.R",
+            nudity_edits=False,
+            eyes=False,
+            tongue=False,
+            remove_unattached_vertices=True,
+            triangulate_faces=True,
+        )
     elif spec_base == "anny":
-        obj = TopologyConfig(base_mesh="makehuman", submodel="body", nudity_edits=True, eyes=True, tongue=True, remove_unattached_vertices=True, triangulate_faces=True)
+        obj = TopologyConfig(
+            base_mesh="makehuman",
+            submodel="body",
+            nudity_edits=True,
+            eyes=True,
+            tongue=True,
+            remove_unattached_vertices=True,
+            triangulate_faces=True,
+        )
     elif spec_base == "makehuman":
-        obj = TopologyConfig(base_mesh="makehuman", submodel="body", nudity_edits=False, eyes=False, tongue=False, remove_unattached_vertices=False, triangulate_faces=False)
+        obj = TopologyConfig(
+            base_mesh="makehuman",
+            submodel="body",
+            nudity_edits=False,
+            eyes=False,
+            tongue=False,
+            remove_unattached_vertices=False,
+            triangulate_faces=False,
+        )
     elif spec_base == "default":
         raise ValueError(
             "Topology specifier 'default' is only valid in legacy create_fullbody_model, use 'anny' or 'makehuman' instead."
@@ -527,7 +635,7 @@ def _parse_topology_spec(spec: str) -> TopologyConfig:
         raise ValueError(f"Unknown Anny topology: {spec_base}")
 
     for modifier in modifiers:
-        if spec_base in ["anny", "makehuman","head","hand.R","hand.L"]:
+        if spec_base in ["anny", "makehuman", "head", "hand.R", "hand.L"]:
             if modifier == "noeyes":
                 obj = dataclasses.replace(obj, eyes=False)
                 continue
@@ -539,7 +647,9 @@ def _parse_topology_spec(spec: str) -> TopologyConfig:
                 continue
         if spec_base == "anny":
             if modifier == "full":
-                obj = dataclasses.replace(obj, remove_unattached_vertices=False, nudity_edits=False)
+                obj = dataclasses.replace(
+                    obj, remove_unattached_vertices=False, nudity_edits=False
+                )
                 continue
         if spec_base == "makehuman":
             if modifier == "sfw":
@@ -550,29 +660,40 @@ def _parse_topology_spec(spec: str) -> TopologyConfig:
 
     return obj
 
+
 def _resolve_rig_filenames(
     spec: RigConfig,
 ) -> tuple[str | None, str | None]:
     root_dirname = get_anny_root_dir()
     if isinstance(spec.base_rig, str) and spec.base_rig in _RIG_PRESET_FILES:
-        rig_filename, preset_weights_filename = _preset_filenames(spec.base_rig, root_dirname)
+        rig_filename, preset_weights_filename = _preset_filenames(
+            spec.base_rig, root_dirname
+        )
         weights_filename = spec.weights_filename or preset_weights_filename
         return _validate_files(rig_filename, weights_filename)
 
     if spec.weights_filename is None:
-        raise ValueError("weights_filename must be provided when using a custom rig path")
+        raise ValueError(
+            "weights_filename must be provided when using a custom rig path"
+        )
     return _validate_files(spec.base_rig, spec.weights_filename)
 
 
-def with_bone_orientation(rig: RigConfig, bone_orientation: BoneOrientation) -> RigConfig:
+def with_bone_orientation(
+    rig: RigConfig, bone_orientation: BoneOrientation
+) -> RigConfig:
     return dataclasses.replace(rig, bone_orientation=bone_orientation)
 
 
-def resolve_local_change_mask(local_changes: LocalChanges, local_changes_labels: list[str]) -> list[bool]:
+def resolve_local_change_mask(
+    local_changes: LocalChanges, local_changes_labels: list[str]
+) -> list[bool]:
     if local_changes == "none":
         local_changes_mask = [False] * len(local_changes_labels)
     elif local_changes == "default":
-        local_changes_mask = ["nipple" not in label.lower() for label in local_changes_labels]
+        local_changes_mask = [
+            "nipple" not in label.lower() for label in local_changes_labels
+        ]
     elif local_changes == "all":
         local_changes_mask = [True] * len(local_changes_labels)
     elif isinstance(local_changes, str):
@@ -586,6 +707,7 @@ def resolve_local_change_mask(local_changes: LocalChanges, local_changes_labels:
         for label in local_changes:
             local_changes_mask[label_to_idx[label]] = True
     return local_changes_mask
+
 
 def resolve_phenotypes(all_phenotypes: bool) -> list[str]:
     if all_phenotypes:

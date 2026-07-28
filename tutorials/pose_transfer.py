@@ -39,16 +39,31 @@ import trimesh  # For 3D mesh visualization.
 import anny.utils.pose
 
 # The gradio/trimesh viewers use a Y-up camera; rotate the scene to compensate for Anny's Z-up frame.
-trimesh_scene_transform = roma.Rigid(linear=roma.euler_to_rotmat('x', [-90.], degrees=True), translation=None).to_homogeneous().cpu().numpy()
+trimesh_scene_transform = (
+    roma.Rigid(
+        linear=roma.euler_to_rotmat("x", [-90.0], degrees=True), translation=None
+    )
+    .to_homogeneous()
+    .cpu()
+    .numpy()
+)
+
 
 def body_material(color):
-    return trimesh.visual.material.PBRMaterial(baseColorFactor=color, metallicFactor=0.5,
-                                               doubleSided=False, alphaMode='BLEND')
+    return trimesh.visual.material.PBRMaterial(
+        baseColorFactor=color, metallicFactor=0.5, doubleSided=False, alphaMode="BLEND"
+    )
+
 
 def body_mesh(vertices, faces, color):
-    mesh = trimesh.Trimesh(vertices=vertices.squeeze(0).cpu().numpy(), faces=faces.cpu().numpy(), process=False)
+    mesh = trimesh.Trimesh(
+        vertices=vertices.squeeze(0).cpu().numpy(),
+        faces=faces.cpu().numpy(),
+        process=False,
+    )
     mesh.visual = trimesh.visual.TextureVisuals(material=body_material(color))
     return mesh
+
 
 # %% [markdown]
 # #### The source and target models
@@ -56,11 +71,15 @@ def body_mesh(vertices, faces, color):
 # Both use the `anny` topology (same mesh) but different rigs, hence different rest bone orientations.
 
 # %%
-src_model = anny.Anny(rig="makehuman", topology="anny").to(dtype=torch.float32)      # blender (tail) orientation
-target_model = anny.Anny(rig="anny", topology="anny").to(dtype=torch.float32)        # procrustes orientation
+src_model = anny.Anny(rig="makehuman", topology="anny").to(
+    dtype=torch.float32
+)  # blender (tail) orientation
+target_model = anny.Anny(rig="anny", topology="anny").to(
+    dtype=torch.float32
+)  # procrustes orientation
 
-phenotype_kwargs=dict()
-local_changes_kwargs=dict()
+phenotype_kwargs = dict()
+local_changes_kwargs = dict()
 
 # %% [markdown]
 # #### Pose the source model
@@ -69,12 +88,20 @@ local_changes_kwargs=dict()
 
 # %%
 src_pose_parameters = {label: torch.eye(4)[None] for label in src_model.bone_labels}
-src_pose_parameters["lowerarm01.L"] = roma.Rigid(roma.euler_to_rotmat("x", [-60.], degrees=True), translation=None).to_homogeneous()[None]
+src_pose_parameters["lowerarm01.L"] = roma.Rigid(
+    roma.euler_to_rotmat("x", [-60.0], degrees=True), translation=None
+).to_homogeneous()[None]
 
-src_output = src_model(phenotype_kwargs=phenotype_kwargs, local_changes_kwargs=local_changes_kwargs, pose_parameters=src_pose_parameters)
+src_output = src_model(
+    phenotype_kwargs=phenotype_kwargs,
+    local_changes_kwargs=local_changes_kwargs,
+    pose_parameters=src_pose_parameters,
+)
 
 scene = trimesh.Scene()
-scene.add_geometry(body_mesh(src_output["vertices"], src_model.faces, [0.4, 0.8, 0.8, 1.0]))
+scene.add_geometry(
+    body_mesh(src_output["vertices"], src_model.faces, [0.4, 0.8, 0.8, 1.0])
+)
 scene.apply_transform(trimesh_scene_transform)
 scene.show()
 
@@ -92,11 +119,19 @@ target_pose_parameters = anny.utils.pose.transfer_pose_parameters(
     local_changes_kwargs=local_changes_kwargs,
     target_model=target_model,
 )
-target_output = target_model(phenotype_kwargs=phenotype_kwargs, local_changes_kwargs=local_changes_kwargs, pose_parameters=target_pose_parameters)
+target_output = target_model(
+    phenotype_kwargs=phenotype_kwargs,
+    local_changes_kwargs=local_changes_kwargs,
+    pose_parameters=target_pose_parameters,
+)
 
 scene = trimesh.Scene()
-scene.add_geometry(body_mesh(src_output["vertices"], src_model.faces, [0.4, 0.8, 0.8, 0.5]))
-scene.add_geometry(body_mesh(target_output["vertices"], target_model.faces, [0.9, 0.6, 0.2, 0.5]))
+scene.add_geometry(
+    body_mesh(src_output["vertices"], src_model.faces, [0.4, 0.8, 0.8, 0.5])
+)
+scene.add_geometry(
+    body_mesh(target_output["vertices"], target_model.faces, [0.9, 0.6, 0.2, 0.5])
+)
 scene.apply_transform(trimesh_scene_transform)
 scene.show()
 
@@ -104,8 +139,12 @@ scene.show()
 # The two meshes coincide up to numerical precision:
 
 # %%
-max_error = torch.linalg.norm(src_output["vertices"] - target_output["vertices"], dim=-1).max()
-print(f"max vertex distance between the source and re-posed target meshes: {max_error:.2e} m")
+max_error = torch.linalg.norm(
+    src_output["vertices"] - target_output["vertices"], dim=-1
+).max()
+print(
+    f"max vertex distance between the source and re-posed target meshes: {max_error:.2e} m"
+)
 
 # %% [markdown]
 # #### How it works

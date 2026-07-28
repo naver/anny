@@ -12,7 +12,11 @@ import anny
 class TestTorchCapture(unittest.TestCase):
     def _make_base_model_inputs(self):
         model = anny.Anny(skinning_method="lbs")
-        pose_parameters = torch.eye(4, dtype=torch.float64)[None, None].expand(1, model.bone_count, 4, 4).clone()
+        pose_parameters = (
+            torch.eye(4, dtype=torch.float64)[None, None]
+            .expand(1, model.bone_count, 4, 4)
+            .clone()
+        )
         return model, pose_parameters
 
     @unittest.skipIf(not hasattr(torch, "compile"), "torch.compile is not available")
@@ -23,8 +27,12 @@ class TestTorchCapture(unittest.TestCase):
         compiled_model = torch.compile(model, backend="eager", fullgraph=True)
         compiled_output = compiled_model(pose_parameters)
 
-        torch.testing.assert_close(compiled_output["vertices"], eager_output["vertices"])
-        torch.testing.assert_close(compiled_output["bone_poses"], eager_output["bone_poses"])
+        torch.testing.assert_close(
+            compiled_output["vertices"], eager_output["vertices"]
+        )
+        torch.testing.assert_close(
+            compiled_output["bone_poses"], eager_output["bone_poses"]
+        )
 
     @unittest.skipIf(
         not hasattr(torch, "export") or not hasattr(torch.export, "export"),
@@ -33,7 +41,7 @@ class TestTorchCapture(unittest.TestCase):
     def test_rigged_model_supports_export(self):
         model, pose_parameters = self._make_base_model_inputs()
 
-        exported_program = torch.export.export(model, (pose_parameters, ))
+        exported_program = torch.export.export(model, (pose_parameters,))
 
         self.assertIsNotNone(exported_program)
 
@@ -67,6 +75,7 @@ class TestTorchCapture(unittest.TestCase):
 
         torch.testing.assert_close(compiled_vertices, eager_vertices)
         torch.testing.assert_close(compiled_phenotype.grad, eager_phenotype.grad)
+
 
 if __name__ == "__main__":
     unittest.main()

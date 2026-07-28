@@ -66,8 +66,6 @@ FACIAL_ACTION_LABELS: list[str] = [
 ]
 
 
-
-
 def load_plain_target(
     filename: PathLike,
     vertices_count: int,
@@ -107,7 +105,9 @@ def load_facial_action_blendshapes(
     if vertices_count is None:
         raise ValueError("vertices_count must be provided to load facial actions.")
     if world_transformation is None:
-        raise ValueError("world_transformation must be provided to load facial actions.")
+        raise ValueError(
+            "world_transformation must be provided to load facial actions."
+        )
 
     faceunit_dir = Path(root_dirname) / "data/faceunits01/targets/faceunits"
     blendshapes: list[torch.Tensor] = []

@@ -28,22 +28,32 @@
 
 # %%
 import torch
-import roma # A PyTorch library useful to deal with space transformations.
-import anny # The main library for the Anny model.
-import trimesh # For 3D mesh visualization.
+import roma  # A PyTorch library useful to deal with space transformations.
+import anny  # The main library for the Anny model.
+import trimesh  # For 3D mesh visualization.
+
 # Create and show multiple rigs in one cell
 from IPython.display import display, Markdown
 import trimesh.viewer.notebook as nb
 
 # Some helper objects for visualization.
-trimesh_scene_transform = roma.Rigid(linear=roma.euler_to_rotmat('x', [-90.], degrees=True), translation=None).to_homogeneous().cpu().numpy()
+trimesh_scene_transform = (
+    roma.Rigid(
+        linear=roma.euler_to_rotmat("x", [-90.0], degrees=True), translation=None
+    )
+    .to_homogeneous()
+    .cpu()
+    .numpy()
+)
 
-mesh_material = trimesh.visual.material.PBRMaterial(baseColorFactor=[0.6, 0.8, 0.7, 0.5],
-                                                        metallicFactor=0.5,
-                                                        doubleSided=False,
-                                                        alphaMode='BLEND')
+mesh_material = trimesh.visual.material.PBRMaterial(
+    baseColorFactor=[0.6, 0.8, 0.7, 0.5],
+    metallicFactor=0.5,
+    doubleSided=False,
+    alphaMode="BLEND",
+)
 
-world_axis = trimesh.creation.axis(axis_length=1.)
+world_axis = trimesh.creation.axis(axis_length=1.0)
 axis = trimesh.creation.axis(axis_length=0.1)
 
 
@@ -53,11 +63,15 @@ def add_skeleton_to_scene(scene, model, output):
     bone_poses = output["bone_poses"].squeeze(dim=0).cpu()
     bone_heads = bone_poses[:, :3, 3]
     bone_color = [0.8, 0.3, 0.3, 1.0]
-    bone_visual = trimesh.visual.TextureVisuals(material=trimesh.visual.material.PBRMaterial(baseColorFactor=bone_color,
-                                                            metallicFactor=0.,
-                                                            roughnessFactor=1.,
-                                                            doubleSided=True,
-                                                            alphaMode='BLEND'))
+    bone_visual = trimesh.visual.TextureVisuals(
+        material=trimesh.visual.material.PBRMaterial(
+            baseColorFactor=bone_color,
+            metallicFactor=0.0,
+            roughnessFactor=1.0,
+            doubleSided=True,
+            alphaMode="BLEND",
+        )
+    )
     for i in range(1, len(bone_heads)):
         bone_head = bone_heads[model.bone_parents[i]]
         bone_tail = bone_heads[i]
@@ -66,23 +80,41 @@ def add_skeleton_to_scene(scene, model, output):
             continue
         cylinder = trimesh.creation.cylinder(radius=0.005, height=length, sections=16)
         t = (bone_head + bone_tail) / 2
-        M = roma.special_gramschmidt(torch.stack([bone_tail - bone_head, torch.tensor([0., 0., 1.], dtype=torch.float32)], dim=-1))
-        R = torch.stack([M[:, 2], M[:, 1], M[:,0]], dim=-1)
+        M = roma.special_gramschmidt(
+            torch.stack(
+                [
+                    bone_tail - bone_head,
+                    torch.tensor([0.0, 0.0, 1.0], dtype=torch.float32),
+                ],
+                dim=-1,
+            )
+        )
+        R = torch.stack([M[:, 2], M[:, 1], M[:, 0]], dim=-1)
         cylinder.visual = bone_visual
-        scene.add_geometry(cylinder, transform=roma.Rigid(R, t).to_homogeneous().numpy(),
-                            node_name=f"bone_{model.bone_labels[i]}")
-
+        scene.add_geometry(
+            cylinder,
+            transform=roma.Rigid(R, t).to_homogeneous().numpy(),
+            node_name=f"bone_{model.bone_labels[i]}",
+        )
 
     # Add some spheres at the joints
     joint_sphere = trimesh.creation.icosphere(radius=0.008, subdivisions=2)
-    joint_sphere.visual = trimesh.visual.TextureVisuals(material=trimesh.visual.material.PBRMaterial(
+    joint_sphere.visual = trimesh.visual.TextureVisuals(
+        material=trimesh.visual.material.PBRMaterial(
             baseColorFactor=[0.1, 0.1, 0.1, 1.0],
             metallicFactor=0.5,
-            roughnessFactor=1.,
+            roughnessFactor=1.0,
             doubleSided=True,
-            alphaMode='OPAQUE'))
+            alphaMode="OPAQUE",
+        )
+    )
     for i in range(len(bone_poses)):
-        scene.add_geometry(joint_sphere, transform=bone_poses[i], node_name=f"joint_{model.bone_labels[i]}")
+        scene.add_geometry(
+            joint_sphere,
+            transform=bone_poses[i],
+            node_name=f"joint_{model.bone_labels[i]}",
+        )
+
 
 # %% [markdown]
 # ## Rigs and topology
@@ -103,18 +135,28 @@ def add_skeleton_to_scene(scene, model, output):
 # %%
 viewers = []
 
-for rig, topology in [("anny", "anny"),
-                      ("mixamo", "anny",),
-                      ("anny", "smplx",),
-                      ("anny", "soma",),
-                      ("anny-notoes-noeyes", "makehuman"),
-                      ]:
+for rig, topology in [
+    ("anny", "anny"),
+    (
+        "mixamo",
+        "anny",
+    ),
+    (
+        "anny",
+        "smplx",
+    ),
+    (
+        "anny",
+        "soma",
+    ),
+    ("anny-notoes-noeyes", "makehuman"),
+]:
     model = anny.Anny(rig=rig, topology=topology)
     output = model()
 
     mesh = trimesh.Trimesh(
         vertices=output["vertices"].squeeze(0).cpu().numpy(),
-        faces=model.faces.cpu().numpy()
+        faces=model.faces.cpu().numpy(),
     )
     mesh.visual.material = mesh_material
     scene = trimesh.Scene([mesh])
@@ -123,8 +165,12 @@ for rig, topology in [("anny", "anny"),
     scene.apply_transform(trimesh_scene_transform)
 
     # Convert to a notebook widget/HTML
-    viewers.append(Markdown(f"#### '{rig}' rig ({model.bone_count} bones) / '{topology}' topology ({len(output['vertices'].squeeze(0))} vertices, {len(model.faces)} faces)"))
-    viewers.append(Markdown( "  - " + ", ".join([label for label in model.bone_labels])))
+    viewers.append(
+        Markdown(
+            f"#### '{rig}' rig ({model.bone_count} bones) / '{topology}' topology ({len(output['vertices'].squeeze(0))} vertices, {len(model.faces)} faces)"
+        )
+    )
+    viewers.append(Markdown("  - " + ", ".join([label for label in model.bone_labels])))
     viewers.append(nb.scene_to_notebook(scene))
 
 
@@ -160,17 +206,21 @@ import os
 
 smplx_model_path = os.environ.get("SMPLX_MODEL_PATH")
 if not smplx_model_path or not os.path.isdir(smplx_model_path):
-    display(Markdown(
-        "> **SMPL-X example skipped.** Download the SMPL-X model files from "
-        "[smpl-x.is.tue.mpg.de](https://smpl-x.is.tue.mpg.de/) and set the `SMPLX_MODEL_PATH` "
-        "environment variable to the directory that contains them to run this cell."
-    ))
+    display(
+        Markdown(
+            "> **SMPL-X example skipped.** Download the SMPL-X model files from "
+            "[smpl-x.is.tue.mpg.de](https://smpl-x.is.tue.mpg.de/) and set the `SMPLX_MODEL_PATH` "
+            "environment variable to the directory that contains them to run this cell."
+        )
+    )
 else:
     from anny.models.smpl import SMPLX
 
     dtype = torch.float32
     # topology="anny" retopologizes the SMPL-X output onto Anny's common mesh (see above).
-    model = SMPLX(smplx_model_path, gender="neutral", use_pca=True, topology="anny").to(dtype=dtype)
+    model = SMPLX(smplx_model_path, gender="neutral", use_pca=True, topology="anny").to(
+        dtype=dtype
+    )
 
     # Random shape, expression and pose parameters, using SMPL-X's standard parameter
     # dimensions (10 shape betas, 10 expression coefficients, 21 body joints, 6 PCA hand
@@ -192,14 +242,20 @@ else:
     output = model(**pose_kwargs)
 
     # Anny's SMPL-X mesh with its skeleton.
-    mesh = trimesh.Trimesh(vertices=output["vertices"].squeeze(0).detach().cpu().numpy(),
-                           faces=model.faces.cpu().numpy())
+    mesh = trimesh.Trimesh(
+        vertices=output["vertices"].squeeze(0).detach().cpu().numpy(),
+        faces=model.faces.cpu().numpy(),
+    )
     mesh.visual.material = mesh_material
     scene = trimesh.Scene([mesh])
 
     add_skeleton_to_scene(scene, model, output)
     scene.apply_transform(trimesh_scene_transform)
 
-    display(Markdown(f"#### `anny.SMPLX` model ({model.bone_count} bones, "
-                     f"{len(output['vertices'].squeeze(0))} vertices)"))
+    display(
+        Markdown(
+            f"#### `anny.SMPLX` model ({model.bone_count} bones, "
+            f"{len(output['vertices'].squeeze(0))} vertices)"
+        )
+    )
     display(nb.scene_to_notebook(scene))

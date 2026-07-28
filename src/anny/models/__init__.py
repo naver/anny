@@ -37,6 +37,7 @@ def build_model_data(
 ) -> ModelData:
     if rig.base_rig == "soma":
         import anny.models.soma
+
         return anny.models.soma.build_soma_rig_model_data(
             topology=topology,
             local_changes=local_changes,
@@ -44,6 +45,7 @@ def build_model_data(
         )
     if topology.base_mesh == "makehuman":
         import anny.models.full_model
+
         return anny.models.full_model.build_anny_model_data(
             rig=rig,
             topology=topology,
@@ -52,6 +54,7 @@ def build_model_data(
         )
     # Alternative topologies
     import anny.models.retopology
+
     if topology.base_mesh == "smplx":
         return anny.models.retopology.build_smplx_topology_model_data(
             rig=rig,
@@ -70,8 +73,9 @@ def build_model_data(
         topology=topology,
         local_changes=local_changes,
         facial_actions=facial_actions,
-        reference_topology="anny_from_soma" if topology.base_mesh == "soma" else "anny"
+        reference_topology="anny_from_soma" if topology.base_mesh == "soma" else "anny",
     )
+
 
 def create_fullbody_model(
     rig: str = "default",
@@ -105,19 +109,20 @@ def create_fullbody_model(
         bone_orientation,
     )
     anny_rig = legacy_rig_to_anny(rig, bone_orientation)
-    anny_topology = legacy_topology_to_anny(topology, remove_unattached_vertices, triangulate_faces)
+    anny_topology = legacy_topology_to_anny(
+        topology, remove_unattached_vertices, triangulate_faces
+    )
 
     return Anny(
-            rig=anny_rig,
-            topology=anny_topology,
-            local_changes=local_changes,
-            extrapolate_phenotypes=extrapolate_phenotypes,
-            all_phenotypes=all_phenotypes,
-            facial_actions=False,
-            skinning_method=skinning_method,
-            pose_parameterization=pose_parameterization
-        )
-
+        rig=anny_rig,
+        topology=anny_topology,
+        local_changes=local_changes,
+        extrapolate_phenotypes=extrapolate_phenotypes,
+        all_phenotypes=all_phenotypes,
+        facial_actions=False,
+        skinning_method=skinning_method,
+        pose_parameterization=pose_parameterization,
+    )
 
 
 def create_hand_model(
@@ -135,10 +140,16 @@ def create_hand_model(
         stacklevel=2,
     )
     topology = f"hand.{side}"
-    topology = legacy_topology_to_anny(topology=topology, remove_unattached_vertices=remove_unattached_vertices, triangulate_faces=triangulate_faces)
+    topology = legacy_topology_to_anny(
+        topology=topology,
+        remove_unattached_vertices=remove_unattached_vertices,
+        triangulate_faces=triangulate_faces,
+    )
     # Keep the full rig: head/hand part models need the expression/eye/tongue
     # bones that the default "anny" pruning would otherwise strip.
-    rig = RigConfig(base_rig="anny", root_identity_orientation=True, bones_to_remove=frozenset())
+    rig = RigConfig(
+        base_rig="anny", root_identity_orientation=True, bones_to_remove=frozenset()
+    )
     return Anny(
         rig=rig,
         topology=topology,
@@ -170,11 +181,20 @@ def create_head_model(
         topology += "-noeyes"
     if not tongue:
         topology += "-notongue"
-    topology = legacy_topology_to_anny(topology=topology, remove_unattached_vertices=remove_unattached_vertices, triangulate_faces=triangulate_faces)
+    topology = legacy_topology_to_anny(
+        topology=topology,
+        remove_unattached_vertices=remove_unattached_vertices,
+        triangulate_faces=triangulate_faces,
+    )
     # The head part model keeps the full (unpruned) rig with its expression/eye/tongue bones and uses
     # the legacy blender (tail-based) orientation. Those facial bones are absent from the precomputed
     # procrustes covariance (built on the pruned full-body anny rig), so the head model does not use it.
-    rig = RigConfig(base_rig="anny", bone_orientation="blender", root_identity_orientation=True, bones_to_remove=frozenset())
+    rig = RigConfig(
+        base_rig="anny",
+        bone_orientation="blender",
+        root_identity_orientation=True,
+        bones_to_remove=frozenset(),
+    )
     return Anny(
         rig=rig,
         topology=topology,

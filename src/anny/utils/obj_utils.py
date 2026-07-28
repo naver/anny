@@ -3,6 +3,7 @@
 # Apache License, Version 2.0
 import torch
 
+
 def _pack_face_list(faces, pack_as_tensor):
     """Pack face indices as a tensor when possible, otherwise return as list."""
     if not pack_as_tensor or not faces:
@@ -12,9 +13,7 @@ def _pack_face_list(faces, pack_as_tensor):
     return torch.as_tensor(faces)
 
 
-def load_obj_file(mesh_filename,
-                  dtype = torch.float32,
-                  pack_as_tensor = True):
+def load_obj_file(mesh_filename, dtype=torch.float32, pack_as_tensor=True):
     """
     Simple OBJ file parser.
     """
@@ -22,7 +21,7 @@ def load_obj_file(mesh_filename,
     vertices = []
     texture_coordinates = []
 
-    as_tensor = torch.as_tensor if pack_as_tensor else lambda x, **kwargs : x
+    as_tensor = torch.as_tensor if pack_as_tensor else lambda x, **kwargs: x
 
     groups = dict()
     # The first group is called "noname" by default
@@ -51,17 +50,29 @@ def load_obj_file(mesh_filename,
                     # Pack data from the previous group
                     if len(face_vertex_indices) > 0:
                         groups[group_name] = dict(
-                            face_vertex_indices=_pack_face_list(face_vertex_indices, pack_as_tensor),
-                            face_texture_coordinate_indices=_pack_face_list(face_texture_coordinate_indices, pack_as_tensor),
+                            face_vertex_indices=_pack_face_list(
+                                face_vertex_indices, pack_as_tensor
+                            ),
+                            face_texture_coordinate_indices=_pack_face_list(
+                                face_texture_coordinate_indices, pack_as_tensor
+                            ),
                         )
                     # Initialize group data
                     group_name = split[1]
                     if group_name in groups:
                         # Continue adding to existing group
-                        fvi = groups[group_name]['face_vertex_indices']
-                        ftci = groups[group_name]['face_texture_coordinate_indices']
-                        face_vertex_indices = fvi.numpy().tolist() if isinstance(fvi, torch.Tensor) else list(fvi)
-                        face_texture_coordinate_indices = ftci.numpy().tolist() if isinstance(ftci, torch.Tensor) else list(ftci)
+                        fvi = groups[group_name]["face_vertex_indices"]
+                        ftci = groups[group_name]["face_texture_coordinate_indices"]
+                        face_vertex_indices = (
+                            fvi.numpy().tolist()
+                            if isinstance(fvi, torch.Tensor)
+                            else list(fvi)
+                        )
+                        face_texture_coordinate_indices = (
+                            ftci.numpy().tolist()
+                            if isinstance(ftci, torch.Tensor)
+                            else list(ftci)
+                        )
                     else:
                         face_vertex_indices = []
                         face_texture_coordinate_indices = []
@@ -71,7 +82,7 @@ def load_obj_file(mesh_filename,
                     vtids = []
                     for x in split[1:]:
                         # Use 0 as initial index (hence the minus 1)
-                        data = [int(y) - 1 for y in x.split('/')]
+                        data = [int(y) - 1 for y in x.split("/")]
                         vids.append(data[0])
                         if len(data) == 2:
                             vtids.append(data[1])
@@ -81,7 +92,9 @@ def load_obj_file(mesh_filename,
     if len(face_vertex_indices) > 0:
         groups[group_name] = dict(
             face_vertex_indices=_pack_face_list(face_vertex_indices, pack_as_tensor),
-            face_texture_coordinate_indices=_pack_face_list(face_texture_coordinate_indices, pack_as_tensor),
+            face_texture_coordinate_indices=_pack_face_list(
+                face_texture_coordinate_indices, pack_as_tensor
+            ),
         )
 
     vertices = as_tensor(vertices, dtype=dtype)
@@ -90,10 +103,11 @@ def load_obj_file(mesh_filename,
 
     return vertices, texture_coordinates, groups
 
+
 def save_obj_file(mesh_filename, vertices, faces):
     with open(mesh_filename, "w") as f:
         for vertex in vertices:
             f.write(f"v {' '.join([str(vertex[i]) for i in range(3)])}\n")
 
         for face in faces:
-            f.write(f"f {' '.join([str(i+1) for i in face])}\n")
+            f.write(f"f {' '.join([str(i + 1) for i in face])}\n")

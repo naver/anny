@@ -86,16 +86,28 @@ def compute_cached_orientation_data(
     if aim_weight > 0:
         if aim_target == "children":
             if bone_parents is None:
-                raise ValueError("bone_parents is required when aim_target == 'children'")
+                raise ValueError(
+                    "bone_parents is required when aim_target == 'children'"
+                )
             for bone_idx in range(bone_count):
                 parent = bone_parents[bone_idx]
-                if parent is not None and 0 <= parent < bone_count and parent != bone_idx:
+                if (
+                    parent is not None
+                    and 0 <= parent < bone_count
+                    and parent != bone_idx
+                ):
                     bone_children[parent].append(bone_idx)
         elif aim_target == "tail":
-            if template_bone_tails is None or bone_tails_blendshapes is None or reference_bone_tails is None:
+            if (
+                template_bone_tails is None
+                or bone_tails_blendshapes is None
+                or reference_bone_tails is None
+            ):
                 raise ValueError("tail tensors are required when aim_target == 'tail'")
         else:
-            raise ValueError(f"unknown aim_target {aim_target!r}; expected 'tail' or 'children'")
+            raise ValueError(
+                f"unknown aim_target {aim_target!r}; expected 'tail' or 'children'"
+            )
 
     def aim_correspondences(bone_idx):
         """Per-bone (template_offsets (n,3), offset_blendshapes (A,n,3), bind_local (n,3)) or None."""
@@ -103,18 +115,32 @@ def compute_cached_orientation_data(
             children = bone_children[bone_idx]
             if not children:
                 return None
-            reference_offsets = reference_bone_origins[children] - reference_bone_origins[bone_idx]
-            template_offsets = template_bone_origins[children] - template_bone_origins[bone_idx]
-            offset_blendshapes = (bone_origins_blendshapes[:, children, :]
-                                  - bone_origins_blendshapes[:, bone_idx:bone_idx + 1, :])
+            reference_offsets = (
+                reference_bone_origins[children] - reference_bone_origins[bone_idx]
+            )
+            template_offsets = (
+                template_bone_origins[children] - template_bone_origins[bone_idx]
+            )
+            offset_blendshapes = (
+                bone_origins_blendshapes[:, children, :]
+                - bone_origins_blendshapes[:, bone_idx : bone_idx + 1, :]
+            )
         else:  # "tail"
-            reference_offsets = (reference_bone_tails[bone_idx] - reference_bone_origins[bone_idx])[None]
+            reference_offsets = (
+                reference_bone_tails[bone_idx] - reference_bone_origins[bone_idx]
+            )[None]
             if torch.linalg.norm(reference_offsets) < 1e-9:
                 return None
-            template_offsets = (template_bone_tails[bone_idx] - template_bone_origins[bone_idx])[None]
-            offset_blendshapes = (bone_tails_blendshapes[:, bone_idx, :]
-                                  - bone_origins_blendshapes[:, bone_idx, :])[:, None, :]
-        bind_local = reference_offsets @ reference_bone_orientations[bone_idx]  # R_ref^T @ offsets
+            template_offsets = (
+                template_bone_tails[bone_idx] - template_bone_origins[bone_idx]
+            )[None]
+            offset_blendshapes = (
+                bone_tails_blendshapes[:, bone_idx, :]
+                - bone_origins_blendshapes[:, bone_idx, :]
+            )[:, None, :]
+        bind_local = (
+            reference_offsets @ reference_bone_orientations[bone_idx]
+        )  # R_ref^T @ offsets
         return template_offsets, offset_blendshapes, bind_local
 
     bone_template_orientation_matrices = []
@@ -122,7 +148,7 @@ def compute_cached_orientation_data(
 
     for bone_idx in range(bone_count):
         weights = bone_vertex_weights[bone_idx]
-        if torch.sum(weights) == 0.:
+        if torch.sum(weights) == 0.0:
             label = bone_labels[bone_idx] if bone_labels is not None else bone_idx
             print("No weights attached for", label)
             # No attached weights. Use the reference orientation.
@@ -130,7 +156,7 @@ def compute_cached_orientation_data(
             orientation_blendshapes = torch.zeros((blendshape_count, 3, 3), dtype=dtype)
         else:
             ref_origin = reference_bone_origins[bone_idx]
-            diff = (reference_vertices - ref_origin)
+            diff = reference_vertices - ref_origin
 
             # Scaling factor which may be useful for numerical precision
             scaling = 1.0 / torch.sqrt(torch.sum(torch.square(weights[:, None] * diff)))
@@ -138,24 +164,34 @@ def compute_cached_orientation_data(
             xref = scaling * diff
 
             # Express the reference in reference bone coordinate system
-            xref_local = roma.Rotation(reference_bone_orientations[None, bone_idx]).inverse().linear_apply(xref)
+            xref_local = (
+                roma.Rotation(reference_bone_orientations[None, bone_idx])
+                .inverse()
+                .linear_apply(xref)
+            )
 
             template_origin = template_bone_origins[bone_idx]
             x0 = scaling * (template_vertices - template_origin[None])
 
             # Matrix from which to recover template bone orientation
             # Note: one could give add some strong weight to the bone tail vertex, to provide incentive to keep the head-tail direction consistent.
-            template_orientation_matrix = torch.einsum("i, ik, il -> kl", weights, x0, xref_local) # left side: target, right side; source (to be aligned)
+            template_orientation_matrix = torch.einsum(
+                "i, ik, il -> kl", weights, x0, xref_local
+            )  # left side: target, right side; source (to be aligned)
 
             orientation_blendshapes = []
             for blendshape_idx in range(blendshape_count):
                 vertices = template_vertices + blendshapes[blendshape_idx]
-                center = template_origin + bone_origins_blendshapes[blendshape_idx, bone_idx]
+                center = (
+                    template_origin + bone_origins_blendshapes[blendshape_idx, bone_idx]
+                )
 
                 x = scaling * (vertices - center[None])
 
                 # Matrix from which to recover bone orientation
-                M = torch.einsum("i, ik, il -> kl", weights, x, xref_local) # left side: target, right side; source (to be aligned)
+                M = torch.einsum(
+                    "i, ik, il -> kl", weights, x, xref_local
+                )  # left side: target, right side; source (to be aligned)
                 # We express the matrices relative to a base template, so that orientation remains well defined even when blendshape coefficients are zero
                 B = M - template_orientation_matrix
                 orientation_blendshapes.append(B)
@@ -167,24 +203,35 @@ def compute_cached_orientation_data(
                 # (source) and the current shape (target), form a covariance linear in the blendshape
                 # coefficients, exactly like the vertex term.
                 template_offsets, offset_blendshapes, bind_local = correspondences
-                aim_template_matrix = torch.einsum("ni, nj -> ij", template_offsets, bind_local)
+                aim_template_matrix = torch.einsum(
+                    "ni, nj -> ij", template_offsets, bind_local
+                )
                 current_offsets = template_offsets[None] + offset_blendshapes
-                aim_blendshapes = torch.einsum("ani, nj -> aij", current_offsets, bind_local) - aim_template_matrix[None]
+                aim_blendshapes = (
+                    torch.einsum("ani, nj -> aij", current_offsets, bind_local)
+                    - aim_template_matrix[None]
+                )
 
-                vertex_scale = torch.linalg.matrix_norm(template_orientation_matrix) + 1e-12
+                vertex_scale = (
+                    torch.linalg.matrix_norm(template_orientation_matrix) + 1e-12
+                )
                 aim_scale = torch.linalg.matrix_norm(aim_template_matrix) + 1e-12
                 template_orientation_matrix = (
-                    template_orientation_matrix / vertex_scale + aim_weight * aim_template_matrix / aim_scale
+                    template_orientation_matrix / vertex_scale
+                    + aim_weight * aim_template_matrix / aim_scale
                 )
                 orientation_blendshapes = (
-                    orientation_blendshapes / vertex_scale + aim_weight * aim_blendshapes / aim_scale
+                    orientation_blendshapes / vertex_scale
+                    + aim_weight * aim_blendshapes / aim_scale
                 )
 
         bone_template_orientation_matrices.append(template_orientation_matrix)
         bone_orientation_blendshapes.append(orientation_blendshapes)
 
     return dict(
-        bone_template_orientation_matrices=torch.stack(bone_template_orientation_matrices, dim=0),
+        bone_template_orientation_matrices=torch.stack(
+            bone_template_orientation_matrices, dim=0
+        ),
         bone_orientation_blendshapes=torch.stack(bone_orientation_blendshapes, dim=1),
     )
 
@@ -211,7 +258,9 @@ def _compute_bone_vertex_weights(model, bone_idx: int, strategy: str) -> torch.T
     elif strategy == "principal_squared":
         # Consider only the highest weights
         values, principal_bone_slot_id = torch.max(model.vertex_bone_weights, dim=1)
-        principal_bone_id = model.vertex_bone_indices[torch.arange(len(principal_bone_slot_id)), principal_bone_slot_id]
+        principal_bone_id = model.vertex_bone_indices[
+            torch.arange(len(principal_bone_slot_id)), principal_bone_slot_id
+        ]
         mask = principal_bone_id == bone_idx
         bone_vertex_weights = values
         bone_vertex_weights[~mask] = 0
@@ -221,11 +270,13 @@ def _compute_bone_vertex_weights(model, bone_idx: int, strategy: str) -> torch.T
         raise NotImplementedError(strategy)
 
 
-def main_anny(output_path="src/anny/data/cached/anny.pth",
-                 bone_orientation_weighting_strategy="skinning_squared",
-                 aim_weight=0.5,
-                 aim_target="tail",
-                 align_root_with_pelvis=True):
+def main_anny(
+    output_path="src/anny/data/cached/anny.pth",
+    bone_orientation_weighting_strategy="skinning_squared",
+    aim_weight=0.5,
+    aim_target="tail",
+    align_root_with_pelvis=True,
+):
     """
     Precompute the procrustes orientation data for the pruned anny rig.
 
@@ -237,19 +288,26 @@ def main_anny(output_path="src/anny/data/cached/anny.pth",
         rig="makehuman-notongue-nobreasts-nofacialexpression-pruned",
         topology="anny",
         local_changes="all",
-        facial_actions=False
+        facial_actions=False,
     )
 
     # The bone orientations are inconsistent across shapes (which motivates the use of a different orientation strategy).
     # We choose a particular body shape as reference (default settings in MPFB2)
-    ref_output = source_model(phenotype_kwargs=dict(age=2/3))
-    reference_bone_orientations = ref_output["rest_bone_poses"].squeeze(dim=0)[:,:3,:3]
+    ref_output = source_model(phenotype_kwargs=dict(age=2 / 3))
+    reference_bone_orientations = ref_output["rest_bone_poses"].squeeze(dim=0)[
+        :, :3, :3
+    ]
     reference_bone_tails = ref_output["rest_bone_tails"].squeeze(dim=0)
 
-    bone_vertex_weights = torch.stack([
-        _compute_bone_vertex_weights(source_model, bone_idx, bone_orientation_weighting_strategy)
-        for bone_idx in range(source_model.bone_count)
-    ], dim=0)
+    bone_vertex_weights = torch.stack(
+        [
+            _compute_bone_vertex_weights(
+                source_model, bone_idx, bone_orientation_weighting_strategy
+            )
+            for bone_idx in range(source_model.bone_count)
+        ],
+        dim=0,
+    )
 
     orientation_data = compute_cached_orientation_data(
         template_vertices=source_model.template_vertices,
@@ -276,19 +334,28 @@ def main_anny(output_path="src/anny/data/cached/anny.pth",
         root_id = source_model.bone_labels.index("root")
         pelvis_left_id = source_model.bone_labels.index("pelvis.L")
         pelvis_right_id = source_model.bone_labels.index("pelvis.R")
-        assert torch.all(source_model.template_bone_heads[pelvis_left_id] == source_model.template_bone_heads[pelvis_right_id])
-        assert torch.all(source_model.bone_heads_blendshapes[:, pelvis_left_id] == source_model.bone_heads_blendshapes[:, pelvis_left_id])
+        assert torch.all(
+            source_model.template_bone_heads[pelvis_left_id]
+            == source_model.template_bone_heads[pelvis_right_id]
+        )
+        assert torch.all(
+            source_model.bone_heads_blendshapes[:, pelvis_left_id]
+            == source_model.bone_heads_blendshapes[:, pelvis_left_id]
+        )
         # The root bone must carry no skinning weights, so moving its origin leaves the mesh unchanged.
         root_skinning_weight = torch.where(
             source_model.vertex_bone_indices == root_id,
             source_model.vertex_bone_weights,
             torch.zeros_like(source_model.vertex_bone_weights),
         ).sum()
-        assert root_skinning_weight == 0, \
+        assert root_skinning_weight == 0, (
             "root bone has skinning weights; its origin cannot be safely realigned with the pelvis."
+        )
 
         template_bone_heads[root_id] = source_model.template_bone_heads[pelvis_left_id]
-        bone_heads_blendshapes[:, root_id] = source_model.bone_heads_blendshapes[:, pelvis_left_id]
+        bone_heads_blendshapes[:, root_id] = source_model.bone_heads_blendshapes[
+            :, pelvis_left_id
+        ]
 
     data = dict(
         # Metadata
@@ -307,9 +374,12 @@ def main_anny(output_path="src/anny/data/cached/anny.pth",
     _save(data, output_path)
 
 
-def main_soma(output_path="src/anny/data/cached/soma.pth",
-              weight_threshold=0.01,
-              aim_weight=0.0, aim_target="tail"):
+def main_soma(
+    output_path="src/anny/data/cached/soma.pth",
+    weight_threshold=0.01,
+    aim_weight=0.0,
+    aim_target="tail",
+):
     """
     Precompute the procrustes orientation data for the SOMA rig.
 
@@ -320,7 +390,8 @@ def main_soma(output_path="src/anny/data/cached/soma.pth",
         raise NotImplementedError(
             "The SOMA rig performs child-joint aiming at runtime via ChildOffsetOrientationRefiner "
             "to match soma.SOMALayer, and has no authored tails; baking an aim term into the "
-            "covariance is neither needed nor supported here.")
+            "covariance is neither needed nor supported here."
+        )
     from anny.models import retopology
     from anny.models.model_data import RigConfig, TopologyConfig
     from anny.models.model_transforms import regress_soma_bone_origins
@@ -355,10 +426,14 @@ def main_soma(output_path="src/anny/data/cached/soma.pth",
 
     # Zero-weight bones fall back to their bind orientation; warn if it differs from the
     # T-pose orientation kept as reference_bone_orientations for pose parameterization.
-    bind_vs_tpose = torch.max(torch.abs(bind_world_transforms[:, :3, :3] - t_pose_world[:, :3, :3]))
+    bind_vs_tpose = torch.max(
+        torch.abs(bind_world_transforms[:, :3, :3] - t_pose_world[:, :3, :3])
+    )
     if bind_vs_tpose > 1e-6:
-        print(f"Warning: bind and T-pose bone rotations differ (max abs difference {bind_vs_tpose:.3e}); "
-              "zero-weight bones will use their bind orientation.")
+        print(
+            f"Warning: bind and T-pose bone rotations differ (max abs difference {bind_vs_tpose:.3e}); "
+            "zero-weight bones will use their bind orientation."
+        )
 
     orientation_data = compute_cached_orientation_data(
         template_vertices=data.template_vertices,
@@ -388,14 +463,28 @@ def main_soma(output_path="src/anny/data/cached/soma.pth",
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Precompute procrustes bone orientation data for a rig.")
+    parser = argparse.ArgumentParser(
+        description="Precompute procrustes bone orientation data for a rig."
+    )
     parser.add_argument("--rig", choices=["anny", "soma"], default="anny")
-    parser.add_argument("--output", default=None, help="Output path (defaults into src/anny/data/cached/XXX.pth)")
-    parser.add_argument("--aim-weight", type=float, default=None,
-                        help="Relative weight of kinematic aiming folded into the covariance "
-                             "(overrides the per-rig default; 0 disables it).")
-    parser.add_argument("--aim-target", choices=["tail", "children"], default="tail",
-                        help="Aim at each bone's authored tail (default) or at its child joints.")
+    parser.add_argument(
+        "--output",
+        default=None,
+        help="Output path (defaults into src/anny/data/cached/XXX.pth)",
+    )
+    parser.add_argument(
+        "--aim-weight",
+        type=float,
+        default=None,
+        help="Relative weight of kinematic aiming folded into the covariance "
+        "(overrides the per-rig default; 0 disables it).",
+    )
+    parser.add_argument(
+        "--aim-target",
+        choices=["tail", "children"],
+        default="tail",
+        help="Aim at each bone's authored tail (default) or at its child joints.",
+    )
     args = parser.parse_args()
     # Leave aim_weight to each rig's own default (0.5 for anny, 0 for soma) unless overridden.
     kwargs = {"aim_target": args.aim_target}

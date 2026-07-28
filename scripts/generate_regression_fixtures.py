@@ -39,6 +39,7 @@ def config_to_slug(cfg: dict) -> str:
         return "default"
     return "__".join(f"{k}_{v}" for k, v in sorted(cfg.items()))
 
+
 def generate_config(cfg: dict, seed: int) -> dict:
     model = anny.Anny(**cfg)
     dtype = model.dtype
@@ -51,40 +52,60 @@ def generate_config(cfg: dict, seed: int) -> dict:
     ).to_homogeneous()
 
     phenotype_kwargs = {
-        key: torch.rand((BATCH_SIZE,), dtype=dtype)
-        for key in model.phenotype_labels
+        key: torch.rand((BATCH_SIZE,), dtype=dtype) for key in model.phenotype_labels
     }
 
-    local_changes = random.sample(model.local_change_labels, k=min(2, len(model.local_change_labels)))
+    local_changes = random.sample(
+        model.local_change_labels, k=min(2, len(model.local_change_labels))
+    )
     local_changes_kwargs = {
-        key: torch.rand((BATCH_SIZE,), dtype=dtype)
-        for key in local_changes    }
+        key: torch.rand((BATCH_SIZE,), dtype=dtype) for key in local_changes
+    }
     return {
         "slug": slug,
         "config": cfg,
         "model_kwargs": {
-        "phenotype_kwargs": {key: val.tolist() for key, val in phenotype_kwargs.items()},
-        "pose_parameters": pose_parameters.tolist(),
-        "local_changes_kwargs": {key: val.tolist() for key, val in local_changes_kwargs.items()}
-        }
+            "phenotype_kwargs": {
+                key: val.tolist() for key, val in phenotype_kwargs.items()
+            },
+            "pose_parameters": pose_parameters.tolist(),
+            "local_changes_kwargs": {
+                key: val.tolist() for key, val in local_changes_kwargs.items()
+            },
+        },
     }
+
 
 def generate_fixture(cfg: dict, output_dir: str) -> None:
     slug = cfg["slug"]
     out_path = os.path.join(output_dir, f"regression_{slug}.npz")
     if os.path.exists(out_path):
-        print(f"Fixture already exists: {out_path} - loading existing data for comparison.")
+        print(
+            f"Fixture already exists: {out_path} - loading existing data for comparison."
+        )
         old_data = np.load(out_path)
     else:
         old_data = None
 
     model = anny.Anny(**cfg["config"])
 
-    pose_parameters = torch.tensor(cfg["model_kwargs"]["pose_parameters"], dtype=model.dtype)
-    phenotype_kwargs = {key: torch.tensor(val, dtype=model.dtype) for key, val in cfg["model_kwargs"]["phenotype_kwargs"].items()}
-    local_changes_kwargs = {key: torch.tensor(val, dtype=model.dtype) for key, val in cfg["model_kwargs"]["local_changes_kwargs"].items()}
+    pose_parameters = torch.tensor(
+        cfg["model_kwargs"]["pose_parameters"], dtype=model.dtype
+    )
+    phenotype_kwargs = {
+        key: torch.tensor(val, dtype=model.dtype)
+        for key, val in cfg["model_kwargs"]["phenotype_kwargs"].items()
+    }
+    local_changes_kwargs = {
+        key: torch.tensor(val, dtype=model.dtype)
+        for key, val in cfg["model_kwargs"]["local_changes_kwargs"].items()
+    }
     with torch.no_grad():
-        fwd_output = model(pose_parameters=pose_parameters, phenotype_kwargs=phenotype_kwargs, local_changes_kwargs=local_changes_kwargs)
+        fwd_output = model(
+            pose_parameters=pose_parameters,
+            phenotype_kwargs=phenotype_kwargs,
+            local_changes_kwargs=local_changes_kwargs,
+        )
 
     data = {
         "template_vertices": model.template_vertices.numpy(),
@@ -97,14 +118,15 @@ def generate_fixture(cfg: dict, output_dir: str) -> None:
     if old_data is not None:
         for key in data:
             if not np.allclose(data[key], old_data[key]):
-                print(f"Warning: Data mismatch for {slug} key {key} - overwriting fixture.")
+                print(
+                    f"Warning: Data mismatch for {slug} key {key} - overwriting fixture."
+                )
                 np.savez_compressed(out_path, **data)
                 print(f"Saved: {out_path}")
                 break
     else:
         np.savez_compressed(out_path, **data)
         print(f"Saved: {out_path}")
-
 
 
 def generate_configs(output_dir: str = "test/data") -> None:
@@ -119,7 +141,10 @@ def generate_configs(output_dir: str = "test/data") -> None:
         json.dump(configs, f, indent=4)
     print("Saved: test/data/regression_configs.json")
 
-def generate_fixtures(output_dir: str = "test/data", config_slugs: list[str] | None = None) -> None:
+
+def generate_fixtures(
+    output_dir: str = "test/data", config_slugs: list[str] | None = None
+) -> None:
     """Generate regression fixture NPZ files."""
     os.makedirs(output_dir, exist_ok=True)
     configs = json.load(open("test/data/regression_configs.json"))

@@ -14,7 +14,9 @@ class TorchCompatTest(unittest.TestCase):
         module = torch.nn.Module()
         tensor = torch.ones(2)
 
-        module.weights = torch_compat.make_buffer(module, "weights", tensor, persistent=False)
+        module.weights = torch_compat.make_buffer(
+            module, "weights", tensor, persistent=False
+        )
 
         self.assertIn("weights", dict(module.named_buffers()))
         self.assertNotIn("weights", module.state_dict())
@@ -26,7 +28,9 @@ class TorchCompatTest(unittest.TestCase):
             module = torch.nn.Module()
             tensor = torch.ones(2)
 
-            module.weights = torch_compat.make_buffer(module, "weights", tensor, persistent=False)
+            module.weights = torch_compat.make_buffer(
+                module, "weights", tensor, persistent=False
+            )
 
             self.assertIn("weights", dict(module.named_buffers()))
             self.assertNotIn("weights", module.state_dict())

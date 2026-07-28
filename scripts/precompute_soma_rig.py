@@ -7,6 +7,7 @@ import copy
 import json
 import torch
 
+
 def precompute_soma_rig():
     """
     Creates and returns a model with SOMA topology and SOMA rig.
@@ -17,10 +18,15 @@ def precompute_soma_rig():
     soma_layer = soma.SOMALayer(device=device).to(dtype=dtype)
 
     # Compute bone positions and blendshapes from neutral pose
-    sparse_rbf_matrix = soma_layer.skeleton_transfer.sparse_rbf_matrix.to(dtype=dtype, device=device)
-    skinning_weights=soma_layer.skeleton_transfer.skinning_weights.to(dtype=dtype, device=device)
-    bind_world_transforms = soma_layer.skeleton_transfer.bind_world_transforms.to(dtype=dtype, device=device)
-
+    sparse_rbf_matrix = soma_layer.skeleton_transfer.sparse_rbf_matrix.to(
+        dtype=dtype, device=device
+    )
+    skinning_weights = soma_layer.skeleton_transfer.skinning_weights.to(
+        dtype=dtype, device=device
+    )
+    bind_world_transforms = soma_layer.skeleton_transfer.bind_world_transforms.to(
+        dtype=dtype, device=device
+    )
 
     bone_labels = [str(label) for label in soma_layer.rig_data["joint_names"]]
     bone_parents = copy.copy(soma_layer.skeleton_transfer.joint_parent_ids)
@@ -42,7 +48,12 @@ def precompute_soma_rig():
 
 def save_soma_rig_safetensors(data, path):
     import safetensors.torch
-    tensors = {k: v.to_dense().contiguous() for k, v in data.items() if isinstance(v, torch.Tensor)}
+
+    tensors = {
+        k: v.to_dense().contiguous()
+        for k, v in data.items()
+        if isinstance(v, torch.Tensor)
+    }
     meta = {
         "bone_labels": data["bone_labels"],
         "bone_parents": data["bone_parents"],

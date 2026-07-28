@@ -8,12 +8,22 @@ from typing import TYPE_CHECKING, final
 import torch
 
 from anny.torch_compat import make_buffer
-from anny.models.rigged_model import PoseParameterization, RiggedModelWithLinearBlendShapes
+from anny.models.rigged_model import (
+    PoseParameterization,
+    RiggedModelWithLinearBlendShapes,
+)
 
 if TYPE_CHECKING:
     from anny.models.model_data import ModelData
     from anny.typing import LocalChanges, SkinningMethod, BoneOrientation
-from anny.models.model_data import AnnyModelConfig, PHENOTYPE_LABELS, PHENOTYPE_VARIATIONS, RigConfig, TopologyConfig, resolve_phenotypes
+from anny.models.model_data import (
+    AnnyModelConfig,
+    PHENOTYPE_LABELS,
+    PHENOTYPE_VARIATIONS,
+    RigConfig,
+    TopologyConfig,
+    resolve_phenotypes,
+)
 import anny.utils.interpolation
 import anny.utils.relu
 
@@ -21,7 +31,7 @@ import anny.utils.relu
 class BufferDict(torch.nn.Module):
     def __init__(self, input_dict):
         super().__init__()
-        for k,v in input_dict.items():
+        for k, v in input_dict.items():
             self.register_buffer(k, v)
 
     def __getitem__(self, key):
@@ -36,8 +46,11 @@ def to_batched_tensor(value, device, dtype):
     if value.dim() == 0:
         value = value.unsqueeze(dim=0)
     if value.dim() != 1:
-        raise ValueError(f"Must be a scalar or a 1-D tensor, got shape {tuple(value.shape)}.")
+        raise ValueError(
+            f"Must be a scalar or a 1-D tensor, got shape {tuple(value.shape)}."
+        )
     return value
+
 
 @final
 class Anny(RiggedModelWithLinearBlendShapes):
@@ -55,8 +68,13 @@ class Anny(RiggedModelWithLinearBlendShapes):
         skinning_method: SkinningMethod | None = None,
     ) -> None:
         from anny.models import build_model_data
+
         rig_config = RigConfig.from_string(rig) if isinstance(rig, str) else rig
-        topology_config = TopologyConfig.from_string(topology) if isinstance(topology, str) else topology
+        topology_config = (
+            TopologyConfig.from_string(topology)
+            if isinstance(topology, str)
+            else topology
+        )
         self.config = AnnyModelConfig(
             rig=rig_config,
             topology=topology_config,
@@ -74,64 +92,85 @@ class Anny(RiggedModelWithLinearBlendShapes):
             local_changes=local_changes,
             facial_actions=facial_actions,
         )
-        self._init_from_model_data(data, pose_parameterization=self.config.pose_parameterization,
-                                    skinning_method=skinning_method,
-                                    bone_orientation=rig_config.bone_orientation,
-                                    root_identity_orientation=rig_config.root_identity_orientation,
-                                    all_phenotypes=all_phenotypes,
-                                    extrapolate_phenotypes=extrapolate_phenotypes)
+        self._init_from_model_data(
+            data,
+            pose_parameterization=self.config.pose_parameterization,
+            skinning_method=skinning_method,
+            bone_orientation=rig_config.bone_orientation,
+            root_identity_orientation=rig_config.root_identity_orientation,
+            all_phenotypes=all_phenotypes,
+            extrapolate_phenotypes=extrapolate_phenotypes,
+        )
 
     @staticmethod
-    def from_model_data(data: ModelData,
-        skinning_method: SkinningMethod | None = None,
-        pose_parameterization: PoseParameterization = "local-bone",
-        bone_orientation: BoneOrientation = "blender",
-        root_identity_orientation: bool = True,
-         all_phenotypes: bool = False,
-        extrapolate_phenotypes: bool = False):
-        """Construct an Anny model from a ModelData object."""
-        model = Anny.__new__(Anny)
-        model.config = None
-        model._init_from_model_data(data, pose_parameterization=pose_parameterization,
-                                    skinning_method=skinning_method,
-                                    bone_orientation=bone_orientation,
-                                    root_identity_orientation=root_identity_orientation,
-                                    all_phenotypes=all_phenotypes,
-                                    extrapolate_phenotypes=extrapolate_phenotypes)
-        return model
-
-    def _init_from_model_data(self, data: ModelData,
+    def from_model_data(
+        data: ModelData,
         skinning_method: SkinningMethod | None = None,
         pose_parameterization: PoseParameterization = "local-bone",
         bone_orientation: BoneOrientation = "blender",
         root_identity_orientation: bool = True,
         all_phenotypes: bool = False,
-        extrapolate_phenotypes: bool = False):
-        super().__init__(data,
+        extrapolate_phenotypes: bool = False,
+    ):
+        """Construct an Anny model from a ModelData object."""
+        model = Anny.__new__(Anny)
+        model.config = None
+        model._init_from_model_data(
+            data,
             pose_parameterization=pose_parameterization,
             skinning_method=skinning_method,
             bone_orientation=bone_orientation,
-            root_identity_orientation=root_identity_orientation)
+            root_identity_orientation=root_identity_orientation,
+            all_phenotypes=all_phenotypes,
+            extrapolate_phenotypes=extrapolate_phenotypes,
+        )
+        return model
+
+    def _init_from_model_data(
+        self,
+        data: ModelData,
+        skinning_method: SkinningMethod | None = None,
+        pose_parameterization: PoseParameterization = "local-bone",
+        bone_orientation: BoneOrientation = "blender",
+        root_identity_orientation: bool = True,
+        all_phenotypes: bool = False,
+        extrapolate_phenotypes: bool = False,
+    ):
+        super().__init__(
+            data,
+            pose_parameterization=pose_parameterization,
+            skinning_method=skinning_method,
+            bone_orientation=bone_orientation,
+            root_identity_orientation=root_identity_orientation,
+        )
         if data.stacked_phenotype_blend_shapes_mask is None:
-            raise ValueError("Model data does not contain stacked_phenotype_blend_shapes_mask, cannot initialize Anny model.")
+            raise ValueError(
+                "Model data does not contain stacked_phenotype_blend_shapes_mask, cannot initialize Anny model."
+            )
         self._init_phenotype_parameters(
             stacked_phenotype_blend_shapes_mask=data.stacked_phenotype_blend_shapes_mask,
             local_change_labels=data.metadata.local_change_labels,
             facial_action_labels=data.metadata.facial_action_labels,
             base_mesh_vertex_indices=data.base_mesh_vertex_indices,
             extrapolate_phenotypes=extrapolate_phenotypes,
-            phenotype_labels=resolve_phenotypes(
-                all_phenotypes=all_phenotypes),
+            phenotype_labels=resolve_phenotypes(all_phenotypes=all_phenotypes),
         )
 
-    def _init_phenotype_parameters(self,
-                                   stacked_phenotype_blend_shapes_mask: torch.Tensor,
-                                   local_change_labels: list[str],
-                                   facial_action_labels: list[str],
-                                   base_mesh_vertex_indices: torch.Tensor,
-                                   extrapolate_phenotypes: bool,
-                                   phenotype_labels: list[str]):
-        self.stacked_phenotype_blend_shapes_mask = make_buffer(self, "stacked_phenotype_blend_shapes_mask", stacked_phenotype_blend_shapes_mask, persistent=False)
+    def _init_phenotype_parameters(
+        self,
+        stacked_phenotype_blend_shapes_mask: torch.Tensor,
+        local_change_labels: list[str],
+        facial_action_labels: list[str],
+        base_mesh_vertex_indices: torch.Tensor,
+        extrapolate_phenotypes: bool,
+        phenotype_labels: list[str],
+    ):
+        self.stacked_phenotype_blend_shapes_mask = make_buffer(
+            self,
+            "stacked_phenotype_blend_shapes_mask",
+            stacked_phenotype_blend_shapes_mask,
+            persistent=False,
+        )
         self.local_change_labels = local_change_labels
         self.facial_action_labels = facial_action_labels
         self.base_mesh_vertex_indices = base_mesh_vertex_indices
@@ -140,9 +179,31 @@ class Anny(RiggedModelWithLinearBlendShapes):
         self.anchors = BufferDict(self._make_phenotype_anchors())
 
     def _make_phenotype_anchors(self) -> dict[str, torch.Tensor]:
-        anchors = {'age': torch.linspace(-1/3, 1., len(PHENOTYPE_VARIATIONS['age']), dtype=self.dtype, device=self.device)}
-        for label in ['gender', 'muscle', 'weight', 'height', 'proportions', 'cupsize', 'firmness']:
-            anchors[label] = torch.linspace(0., 1., len(PHENOTYPE_VARIATIONS[label]), dtype=self.dtype, device=self.device)
+        anchors = {
+            "age": torch.linspace(
+                -1 / 3,
+                1.0,
+                len(PHENOTYPE_VARIATIONS["age"]),
+                dtype=self.dtype,
+                device=self.device,
+            )
+        }
+        for label in [
+            "gender",
+            "muscle",
+            "weight",
+            "height",
+            "proportions",
+            "cupsize",
+            "firmness",
+        ]:
+            anchors[label] = torch.linspace(
+                0.0,
+                1.0,
+                len(PHENOTYPE_VARIATIONS[label]),
+                dtype=self.dtype,
+                device=self.device,
+            )
         return anchors
 
     def _parse_parameter_kwargs(
@@ -153,13 +214,13 @@ class Anny(RiggedModelWithLinearBlendShapes):
         name: str,
     ) -> torch.Tensor:
         if kwargs is None:
-            return default * torch.ones((1, len(labels)), dtype=self.dtype, device=self.device)
+            return default * torch.ones(
+                (1, len(labels)), dtype=self.dtype, device=self.device
+            )
         if isinstance(kwargs, dict):
             unknown = set(kwargs) - set(labels)
             if unknown:
-                raise ValueError(
-                    f"Invalid {name}: {unknown}; available: {labels}"
-                )
+                raise ValueError(f"Invalid {name}: {unknown}; available: {labels}")
         if isinstance(kwargs, torch.Tensor):
             if kwargs.dim() != 2 or kwargs.shape[1] != len(labels):
                 raise ValueError(
@@ -175,7 +236,8 @@ class Anny(RiggedModelWithLinearBlendShapes):
             return torch.empty((batch_size, 0), dtype=self.dtype, device=self.device)
         return torch.stack([value.expand(batch_size) for value in values], dim=1)
 
-    def get_phenotype_blendshape_coefficients(self,
+    def get_phenotype_blendshape_coefficients(
+        self,
         gender: float | torch.Tensor = 0.5,
         age: float | torch.Tensor = 0.5,
         muscle: float | torch.Tensor = 0.5,
@@ -187,7 +249,8 @@ class Anny(RiggedModelWithLinearBlendShapes):
         african: float | torch.Tensor = 0.5,
         asian: float | torch.Tensor = 0.5,
         caucasian: float | torch.Tensor = 0.5,
-        local_changes: dict[str, float | torch.Tensor] | None = None):
+        local_changes: dict[str, float | torch.Tensor] | None = None,
+    ):
         """
         Return blendshape coefficients corresponding to the input phenotype description.
         Deprecated but kept for compatibility with SOMA.
@@ -216,7 +279,12 @@ class Anny(RiggedModelWithLinearBlendShapes):
         return self._get_phenotype_blendshape_coefficients(
             phenotype_parameters,
             local_changes_parameters,
-            torch.zeros(phenotype_parameters.shape[0], len(self.facial_action_labels), dtype=phenotype_parameters.dtype, device=phenotype_parameters.device),
+            torch.zeros(
+                phenotype_parameters.shape[0],
+                len(self.facial_action_labels),
+                dtype=phenotype_parameters.dtype,
+                device=phenotype_parameters.device,
+            ),
         )
 
     def _get_phenotype_blendshape_coefficients(
@@ -240,25 +308,58 @@ class Anny(RiggedModelWithLinearBlendShapes):
             return phenotype_parameters.new_full((batch_size,), 0.5)
 
         weight_dicts = {}
-        for feature in ['age', 'gender', 'muscle', 'weight', 'height', 'proportions', 'cupsize', 'firmness']:
-            interpolation_coeffs = anny.utils.interpolation.linear_interpolation_coefficients(
-                phenotype_value(feature), self.anchors[feature], extrapolate=self.extrapolate_phenotypes)
-            weight_dicts[feature] = {key: interpolation_coeffs[:, i] for i, key in enumerate(PHENOTYPE_VARIATIONS[feature])}
+        for feature in [
+            "age",
+            "gender",
+            "muscle",
+            "weight",
+            "height",
+            "proportions",
+            "cupsize",
+            "firmness",
+        ]:
+            interpolation_coeffs = (
+                anny.utils.interpolation.linear_interpolation_coefficients(
+                    phenotype_value(feature),
+                    self.anchors[feature],
+                    extrapolate=self.extrapolate_phenotypes,
+                )
+            )
+            weight_dicts[feature] = {
+                key: interpolation_coeffs[:, i]
+                for i, key in enumerate(PHENOTYPE_VARIATIONS[feature])
+            }
 
         race_values = torch.stack(
             [phenotype_value(key) for key in ("african", "asian", "caucasian")],
             dim=1,
         )
-        race_weights = torch.nan_to_num(race_values / torch.sum(race_values, dim=1, keepdim=True), 1/3, 1/3, 1/3)
+        race_weights = torch.nan_to_num(
+            race_values / torch.sum(race_values, dim=1, keepdim=True),
+            1 / 3,
+            1 / 3,
+            1 / 3,
+        )
 
         dict_phens = {
-            **weight_dicts['age'], **weight_dicts['gender'], **weight_dicts['muscle'],
-            **weight_dicts['weight'], **weight_dicts['height'], **weight_dicts['proportions'],
-            **weight_dicts['cupsize'], **weight_dicts['firmness'],
-            'african': race_weights[:, 0], 'asian': race_weights[:, 1], 'caucasian': race_weights[:, 2],
+            **weight_dicts["age"],
+            **weight_dicts["gender"],
+            **weight_dicts["muscle"],
+            **weight_dicts["weight"],
+            **weight_dicts["height"],
+            **weight_dicts["proportions"],
+            **weight_dicts["cupsize"],
+            **weight_dicts["firmness"],
+            "african": race_weights[:, 0],
+            "asian": race_weights[:, 1],
+            "caucasian": race_weights[:, 2],
         }
         phens = torch.stack(
-            [dict_phens[key] for key_list in PHENOTYPE_VARIATIONS.values() for key in key_list],
+            [
+                dict_phens[key]
+                for key_list in PHENOTYPE_VARIATIONS.values()
+                for key in key_list
+            ],
             dim=1,
         )
 
@@ -277,34 +378,46 @@ class Anny(RiggedModelWithLinearBlendShapes):
             )
             for i in range(len(self.local_change_labels)):
                 value = local_changes[:, i]
-                local_weights[:, 2*i] = anny.utils.relu.relu_with_gradient_at_zero(value)
-                local_weights[:, 2*i+1] = anny.utils.relu.relu_with_gradient_at_zero(-value)
+                local_weights[:, 2 * i] = anny.utils.relu.relu_with_gradient_at_zero(
+                    value
+                )
+                local_weights[:, 2 * i + 1] = (
+                    anny.utils.relu.relu_with_gradient_at_zero(-value)
+                )
             coefficient_groups.append(local_weights)
 
         return torch.cat(coefficient_groups, dim=1)
 
-    def parse_phenotype_kwargs(self, phenotype_kwargs: dict[str, float | torch.Tensor] | torch.Tensor) -> dict[str, torch.Tensor]:
+    def parse_phenotype_kwargs(
+        self, phenotype_kwargs: dict[str, float | torch.Tensor] | torch.Tensor
+    ) -> dict[str, torch.Tensor]:
         """
         For backward compatibility only. Used by SOMA.
         """
-        tensor = self._parse_parameter_kwargs(phenotype_kwargs, self.phenotype_labels, 0.5, "phenotype_kwargs")
-        return {
-            k: tensor[:, i] for (i, k) in enumerate(self.phenotype_labels)
-        }
+        tensor = self._parse_parameter_kwargs(
+            phenotype_kwargs, self.phenotype_labels, 0.5, "phenotype_kwargs"
+        )
+        return {k: tensor[:, i] for (i, k) in enumerate(self.phenotype_labels)}
 
-    def get_tensor_inputs(self,
-        pose_parameters: dict[str, torch.Tensor] | torch.Tensor |  tuple[torch.Tensor, ...] | None,
+    def get_tensor_inputs(
+        self,
+        pose_parameters: dict[str, torch.Tensor]
+        | torch.Tensor
+        | tuple[torch.Tensor, ...]
+        | None,
         phenotype_kwargs: dict[str, float | torch.Tensor] | torch.Tensor | None,
         local_changes_kwargs: dict[str, float | torch.Tensor] | torch.Tensor | None,
-        facial_actions:  dict[str, float | torch.Tensor] | torch.Tensor | None,
+        facial_actions: dict[str, float | torch.Tensor] | torch.Tensor | None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         pose_parameters = self.parse_delta_transforms_dict(pose_parameters)
-        phenotype_parameters = self._parse_parameter_kwargs(phenotype_kwargs,
+        phenotype_parameters = self._parse_parameter_kwargs(
+            phenotype_kwargs,
             self.phenotype_labels,
             0.5,
             "phenotype_kwargs",
         )
-        local_change_parameters = self._parse_parameter_kwargs(local_changes_kwargs,
+        local_change_parameters = self._parse_parameter_kwargs(
+            local_changes_kwargs,
             self.local_change_labels,
             0.0,
             "local_changes_kwargs",
@@ -315,18 +428,33 @@ class Anny(RiggedModelWithLinearBlendShapes):
             0.0,
             "facial_actions",
         )
-        return pose_parameters, phenotype_parameters, local_change_parameters, facial_action_parameters
+        return (
+            pose_parameters,
+            phenotype_parameters,
+            local_change_parameters,
+            facial_action_parameters,
+        )
 
     def forward(
         self,
-        pose_parameters: torch.Tensor | dict[str, torch.Tensor] | tuple[torch.Tensor, ...] | None = None,
+        pose_parameters: torch.Tensor
+        | dict[str, torch.Tensor]
+        | tuple[torch.Tensor, ...]
+        | None = None,
         phenotype_kwargs: dict[str, float | torch.Tensor] | torch.Tensor | None = None,
-        local_changes_kwargs: dict[str, float | torch.Tensor] | torch.Tensor | None = None,
-        facial_actions: dict[str, float | torch.Tensor]  | torch.Tensor | None = None,
+        local_changes_kwargs: dict[str, float | torch.Tensor]
+        | torch.Tensor
+        | None = None,
+        facial_actions: dict[str, float | torch.Tensor] | torch.Tensor | None = None,
         pose_parameterization: PoseParameterization | None = None,
         return_bone_ends: bool = False,
     ) -> dict[str, torch.Tensor]:
-        pose_parameters, phenotype_parameters, local_change_parameters, facial_action_parameters = self.get_tensor_inputs(
+        (
+            pose_parameters,
+            phenotype_parameters,
+            local_change_parameters,
+            facial_action_parameters,
+        ) = self.get_tensor_inputs(
             pose_parameters,
             phenotype_kwargs,
             local_changes_kwargs,
@@ -337,8 +465,16 @@ class Anny(RiggedModelWithLinearBlendShapes):
             local_change_parameters,
             facial_action_parameters,
         )
-        return super().forward(pose_parameters, blendshape_coeffs, pose_parameterization=pose_parameterization, return_bone_ends=return_bone_ends)
+        return super().forward(
+            pose_parameters,
+            blendshape_coeffs,
+            pose_parameterization=pose_parameterization,
+            return_bone_ends=return_bone_ends,
+        )
 
     def to_model_data(self) -> "ModelData":
         model_data = super().to_model_data()
-        return dataclasses.replace(model_data, stacked_phenotype_blend_shapes_mask=self.stacked_phenotype_blend_shapes_mask)
+        return dataclasses.replace(
+            model_data,
+            stacked_phenotype_blend_shapes_mask=self.stacked_phenotype_blend_shapes_mask,
+        )

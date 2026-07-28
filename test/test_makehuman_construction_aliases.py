@@ -8,6 +8,7 @@ spec are meant to be interchangeable entry points into the same model. This test
 contract so a future change to the legacy shim, the rig-spec parser or the string->config
 defaults cannot silently break it.
 """
+
 import unittest
 import warnings
 
@@ -48,11 +49,19 @@ class TestMakehumanConstructionAliases(unittest.TestCase):
 
     def _assert_close_all(self, key, out_a, out_b, out_c):
         torch.testing.assert_close(
-            out_a[key], out_b[key], rtol=0, atol=self.atol,
-            msg=f"'{key}' differs between config A (legacy factory) and config B (RigConfig)")
+            out_a[key],
+            out_b[key],
+            rtol=0,
+            atol=self.atol,
+            msg=f"'{key}' differs between config A (legacy factory) and config B (RigConfig)",
+        )
         torch.testing.assert_close(
-            out_a[key], out_c[key], rtol=0, atol=self.atol,
-            msg=f"'{key}' differs between config A (legacy factory) and config C (string spec)")
+            out_a[key],
+            out_c[key],
+            rtol=0,
+            atol=self.atol,
+            msg=f"'{key}' differs between config A (legacy factory) and config C (string spec)",
+        )
 
     def test_construction_equivalence(self):
         model_a, model_b, model_c = self._build_models()
@@ -63,21 +72,42 @@ class TestMakehumanConstructionAliases(unittest.TestCase):
             self.assertEqual(model.bone_orientation, "blender")
             self.assertIs(model.root_identity_orientation, True)
 
-        for attr in ["bone_count", "phenotype_labels", "blendshape_labels", "bone_labels"]:
+        for attr in [
+            "bone_count",
+            "phenotype_labels",
+            "blendshape_labels",
+            "bone_labels",
+        ]:
             values = [getattr(m, attr) for m in models]
-            self.assertEqual(values[0], values[1], f"'{attr}' differs between config A and B")
-            self.assertEqual(values[0], values[2], f"'{attr}' differs between config A and C")
+            self.assertEqual(
+                values[0], values[1], f"'{attr}' differs between config A and B"
+            )
+            self.assertEqual(
+                values[0], values[2], f"'{attr}' differs between config A and C"
+            )
 
-        self.assertEqual(model_a.template_vertices.shape, model_b.template_vertices.shape)
-        self.assertEqual(model_a.template_vertices.shape, model_c.template_vertices.shape)
-        self.assertTrue(torch.equal(model_a.faces, model_b.faces), "faces differ between config A and B")
-        self.assertTrue(torch.equal(model_a.faces, model_c.faces), "faces differ between config A and C")
+        self.assertEqual(
+            model_a.template_vertices.shape, model_b.template_vertices.shape
+        )
+        self.assertEqual(
+            model_a.template_vertices.shape, model_c.template_vertices.shape
+        )
+        self.assertTrue(
+            torch.equal(model_a.faces, model_b.faces),
+            "faces differ between config A and B",
+        )
+        self.assertTrue(
+            torch.equal(model_a.faces, model_c.faces),
+            "faces differ between config A and C",
+        )
 
         # --- Static template geometry -----------------------------------------------
         torch.testing.assert_close(
-            model_a.template_vertices, model_b.template_vertices, rtol=0, atol=self.atol)
+            model_a.template_vertices, model_b.template_vertices, rtol=0, atol=self.atol
+        )
         torch.testing.assert_close(
-            model_a.template_vertices, model_c.template_vertices, rtol=0, atol=self.atol)
+            model_a.template_vertices, model_c.template_vertices, rtol=0, atol=self.atol
+        )
 
         # --- Rest-pose forward (default pose and phenotypes) ------------------------
         rest_a, rest_b, rest_c = model_a(), model_b(), model_c()
@@ -93,7 +123,9 @@ class TestMakehumanConstructionAliases(unittest.TestCase):
         rots = roma.random_rotmat((batch_size, bone_count), dtype=self.dtype)
         translations = torch.randn((batch_size, bone_count, 3), dtype=self.dtype)
         pose_parameters = roma.Rigid(rots, translations).to_homogeneous()
-        phenotype_kwargs = {k: torch.rand(batch_size, dtype=self.dtype) for k in phenotype_labels}
+        phenotype_kwargs = {
+            k: torch.rand(batch_size, dtype=self.dtype) for k in phenotype_labels
+        }
 
         def run(model):
             return model(

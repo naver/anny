@@ -2,6 +2,7 @@
 # Copyright (C) 2025 NAVER Corp.
 # Apache License, Version 2.0
 """Every ``.py`` file in the repository must carry the project copyright header."""
+
 import pathlib
 import unittest
 
@@ -35,7 +36,7 @@ def _has_header(text: str) -> bool:
         stripped = line.strip()
         if stripped and not stripped.startswith("#"):
             break
-        if lines[i:i + 3] == HEADER_LINES:
+        if lines[i : i + 3] == HEADER_LINES:
             return True
     return False
 

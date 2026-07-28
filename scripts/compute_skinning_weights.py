@@ -16,6 +16,7 @@ Re-run this script whenever the original weights or the cleanup transforms chang
 
     uv run python scripts/compute_skinning_weights.py
 """
+
 import json
 import os
 

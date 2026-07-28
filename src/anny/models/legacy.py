@@ -9,9 +9,9 @@ from anny.models.model_data import RigConfig
 from anny.typing import BoneOrientation, PoseParameterization
 
 LegacyBoneOrientation = BoneOrientation | Literal["blender-rootidentity"]
-LegacyPoseParameterization = PoseParameterization | Literal[
-    "root_relative", "root_relative_world"
-]
+LegacyPoseParameterization = (
+    PoseParameterization | Literal["root_relative", "root_relative_world"]
+)
 
 
 def legacy_bone_orientation_to_rig_options(
@@ -29,6 +29,7 @@ def legacy_bone_orientation_to_rig_options(
     raise ValueError(
         "bone_orientation must be 'blender', 'blender-rootidentity', or 'procrustes'."
     )
+
 
 def check_legacy_pose_parameterization(
     pose_parameterization: LegacyPoseParameterization,
@@ -60,16 +61,19 @@ def check_legacy_pose_parameterization(
         return "local-bone", bone_orientation
     return pose_parameterization, bone_orientation
 
+
 def legacy_topology_to_anny(
     topology: str = "default",
     remove_unattached_vertices: bool = True,
-    triangulate_faces: bool = False) -> str:
+    triangulate_faces: bool = False,
+) -> str:
     new_topology = topology.replace("default", "anny")
     if not triangulate_faces and new_topology not in ["smpl", "smplx", "soma"]:
         new_topology = new_topology + "-quads"
     if not remove_unattached_vertices:
         new_topology = new_topology + "-full"
     return new_topology
+
 
 def legacy_rig_to_anny(
     rig: str,

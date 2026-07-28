@@ -47,7 +47,9 @@ class TestInstantiation(unittest.TestCase):
                     skinning_method="lbs",
                 )
                 self.assertIsNotNone(model)
-                self.assertEqual(model.bone_orientation, "cached" if rig =="anny" else "blender")
+                self.assertEqual(
+                    model.bone_orientation, "cached" if rig == "anny" else "blender"
+                )
 
     def test_default_anny_rig_retopology_paths(self):
         for topology in ["smplx", "smpl", "soma"]:
@@ -72,11 +74,17 @@ class TestInstantiation(unittest.TestCase):
         # default MakeHuman rig (163 bones incl. jaw/tongue/expression) -- fails loudly rather than
         # silently falling back to the legacy runtime registration.
         rig_filename = get_anny_root_dir() / "data/mpfb2/rigs/standard/rig.default.json"
-        weights_filename = get_anny_root_dir() / "data/mpfb2/rigs/standard/weights.default.json"
+        weights_filename = (
+            get_anny_root_dir() / "data/mpfb2/rigs/standard/weights.default.json"
+        )
 
         with self.assertRaisesRegex(AssertionError, "does not cover bones"):
             anny.Anny(
-                rig=RigConfig(rig_filename, weights_filename=weights_filename, bone_orientation="cached"),
+                rig=RigConfig(
+                    rig_filename,
+                    weights_filename=weights_filename,
+                    bone_orientation="cached",
+                ),
                 skinning_method="lbs",
             )
 
@@ -119,7 +127,9 @@ class TestInstantiation(unittest.TestCase):
             skinning_method="lbs",
         )
 
-        with self.assertRaisesRegex(NotImplementedError, "return_bone_ends=True is not supported"):
+        with self.assertRaisesRegex(
+            NotImplementedError, "return_bone_ends=True is not supported"
+        ):
             model(return_bone_ends=True)
 
     def test_default_anny_rig_uses_precomputed_covariance(self):
@@ -133,16 +143,28 @@ class TestInstantiation(unittest.TestCase):
         self.assertIsNone(model.bone_vertex_weights)
         self.assertIsNone(model.template_bone_vertices)
         self.assertIsNone(model.bone_nonzeroweight_mask)
-        blendshape_coeffs = torch.zeros((1, model.blendshapes.shape[0]), dtype=model.dtype)
+        blendshape_coeffs = torch.zeros(
+            (1, model.blendshapes.shape[0]), dtype=model.dtype
+        )
         R = model.get_rest_model(blendshape_coeffs)["rest_bone_poses"][0, :, :3, :3]
         self.assertLess(
-            torch.max(torch.abs(R @ R.transpose(-1, -2) - torch.eye(3, dtype=model.dtype))), 1e-6)
+            torch.max(
+                torch.abs(R @ R.transpose(-1, -2) - torch.eye(3, dtype=model.dtype))
+            ),
+            1e-6,
+        )
 
     def test_default_anny_rig_facial_actions_do_not_reorient(self):
         import roma
-        model = anny.Anny(rig="anny", topology="anny", facial_actions=True, skinning_method="lbs")
-        facial_rows = [i for i, label in enumerate(model.blendshape_labels)
-                       if label.startswith("facial_action")]
+
+        model = anny.Anny(
+            rig="anny", topology="anny", facial_actions=True, skinning_method="lbs"
+        )
+        facial_rows = [
+            i
+            for i, label in enumerate(model.blendshape_labels)
+            if label.startswith("facial_action")
+        ]
         self.assertGreater(len(facial_rows), 0)
         base = torch.zeros((1, model.blendshapes.shape[0]), dtype=model.dtype)
         posed = base.clone()
@@ -155,14 +177,20 @@ class TestInstantiation(unittest.TestCase):
 
     def test_default_anny_rig_orientation_topology_independence(self):
         anny_topology_model = anny.Anny(rig="anny", topology="anny").to(torch.float64)
-        makehuman_topology_model = anny.Anny(rig="anny", topology="makehuman").to(torch.float64)
+        makehuman_topology_model = anny.Anny(rig="anny", topology="makehuman").to(
+            torch.float64
+        )
         torch.manual_seed(0)
         blendshape_coeffs = torch.rand(
-            (2, anny_topology_model.blendshapes.shape[0]), dtype=torch.float64)
-        poses_anny = anny_topology_model.get_rest_model(blendshape_coeffs)["rest_bone_poses"]
-        poses_makehuman = makehuman_topology_model.get_rest_model(blendshape_coeffs)["rest_bone_poses"]
+            (2, anny_topology_model.blendshapes.shape[0]), dtype=torch.float64
+        )
+        poses_anny = anny_topology_model.get_rest_model(blendshape_coeffs)[
+            "rest_bone_poses"
+        ]
+        poses_makehuman = makehuman_topology_model.get_rest_model(blendshape_coeffs)[
+            "rest_bone_poses"
+        ]
         self.assertLess(torch.max(torch.abs(poses_anny - poses_makehuman)), 1e-6)
-
 
 
 if __name__ == "__main__":

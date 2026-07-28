@@ -22,6 +22,7 @@ from pathlib import Path
 
 ANNY_FIXTURES_DIR = os.getenv("ANNY_FIXTURES_DIR", "")
 
+
 class TestRegressionVsFixtures(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
@@ -38,12 +39,9 @@ class TestRegressionVsFixtures(unittest.TestCase):
         cls._cache_dir.cleanup()
         anny.paths.set_anny_cache_path(cls._old_cache_dir)
 
-
     def _run_config(self, cfg: dict) -> None:
         slug = cfg["slug"]
-        fixture_path = os.path.join(
-            ANNY_FIXTURES_DIR, f"regression_{slug}.npz"
-        )
+        fixture_path = os.path.join(ANNY_FIXTURES_DIR, f"regression_{slug}.npz")
         if not os.path.exists(fixture_path):
             self.skipTest(f"Fixture not found: {fixture_path}.")
         if slug == "topology_notoes__triangulate_faces_True":
@@ -52,21 +50,31 @@ class TestRegressionVsFixtures(unittest.TestCase):
         ref = np.load(fixture_path)
         model = anny.create_fullbody_model(**cfg["config"])
 
-        pose_parameters = torch.tensor(cfg["model_kwargs"]["pose_parameters"], dtype=model.dtype)
-        phenotype_kwargs = {key: torch.tensor(val, dtype=model.dtype) for key, val in cfg["model_kwargs"]["phenotype_kwargs"].items()}
-        local_changes_kwargs = {key: torch.tensor(val, dtype=model.dtype) for key, val in cfg["model_kwargs"]["local_changes_kwargs"].items()}
+        pose_parameters = torch.tensor(
+            cfg["model_kwargs"]["pose_parameters"], dtype=model.dtype
+        )
+        phenotype_kwargs = {
+            key: torch.tensor(val, dtype=model.dtype)
+            for key, val in cfg["model_kwargs"]["phenotype_kwargs"].items()
+        }
+        local_changes_kwargs = {
+            key: torch.tensor(val, dtype=model.dtype)
+            for key, val in cfg["model_kwargs"]["local_changes_kwargs"].items()
+        }
 
         torch.testing.assert_close(
             model.template_vertices,
             torch.from_numpy(ref["template_vertices"]),
             rtol=0,
             atol=1e-6,
-            msg=f"Template vertices mismatch for config: {cfg['slug']}"
+            msg=f"Template vertices mismatch for config: {cfg['slug']}",
         )
 
         with torch.no_grad():
             fwd_output = model(
-                pose_parameters=pose_parameters, phenotype_kwargs=phenotype_kwargs, local_changes_kwargs=local_changes_kwargs
+                pose_parameters=pose_parameters,
+                phenotype_kwargs=phenotype_kwargs,
+                local_changes_kwargs=local_changes_kwargs,
             )
 
         # Leaf bones without any skinning weight attached have an arbitrary orientation convention
@@ -108,7 +116,6 @@ class TestRegressionVsFixtures(unittest.TestCase):
         )
 
     def test_regression_vs_fixtures(self):
-
         if len(ANNY_FIXTURES_DIR) == 0:
             self.skipTest("Set ANNY_FIXTURES_DIR environment variable.")
         path = Path(ANNY_FIXTURES_DIR) / "regression_configs.json"
