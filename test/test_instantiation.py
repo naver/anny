@@ -17,6 +17,27 @@ class TestInstantiation(unittest.TestCase):
                     model = anny.Anny(rig=rig, topology=topology)
                     self.assertIsNotNone(model)
 
+    def test_model_data_roundtrip(self):
+        model = anny.Anny(skinning_method="lbs")
+        restored = anny.Anny.from_model_data(
+            model.to_model_data(),
+            skinning_method="lbs",
+            pose_parameterization=model.pose_parameterization,
+            bone_orientation=model.bone_orientation,
+            root_identity_orientation=model.root_identity_orientation,
+        )
+        phenotype_kwargs = {label: 0.25 for label in model.phenotype_labels}
+
+        expected = model(phenotype_kwargs=phenotype_kwargs)
+        actual = restored(phenotype_kwargs=phenotype_kwargs)
+
+        torch.testing.assert_close(actual["vertices"], expected["vertices"])
+        torch.testing.assert_close(actual["bone_poses"], expected["bone_poses"])
+        torch.testing.assert_close(
+            restored.to_model_data().stacked_phenotype_blend_shapes_mask,
+            model.stacked_phenotype_blend_shapes_mask,
+        )
+
     def test_bone_orientation_default(self):
         for rig in ["anny", "cmu_mb", "game_engine", "mixamo"]:
             with self.subTest(rig=rig):

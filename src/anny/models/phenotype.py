@@ -2,14 +2,17 @@
 # Copyright (C) 2025 NAVER Corp.
 # Apache License, Version 2.0
 from __future__ import annotations
+import dataclasses
 from typing import TYPE_CHECKING, final
 
 import torch
 
 from anny.torch_compat import make_buffer
 from anny.models.rigged_model import PoseParameterization, RiggedModelWithLinearBlendShapes
+
 if TYPE_CHECKING:
-    from anny.typing import LocalChanges, SkinningMethod
+    from anny.models.model_data import ModelData
+    from anny.typing import LocalChanges, SkinningMethod, BoneOrientation
 from anny.models.model_data import AnnyModelConfig, PHENOTYPE_LABELS, PHENOTYPE_VARIATIONS, RigConfig, TopologyConfig, resolve_phenotypes
 import anny.utils.interpolation
 import anny.utils.relu
@@ -64,18 +67,51 @@ class Anny(RiggedModelWithLinearBlendShapes):
             pose_parameterization=pose_parameterization,
             skinning_method=skinning_method,
         )
+
         data = build_model_data(
             rig=rig_config,
             topology=topology_config,
             local_changes=local_changes,
             facial_actions=facial_actions,
         )
+        self._init_from_model_data(data, pose_parameterization=self.config.pose_parameterization,
+                                    skinning_method=skinning_method,
+                                    bone_orientation=rig_config.bone_orientation,
+                                    root_identity_orientation=rig_config.root_identity_orientation,
+                                    all_phenotypes=all_phenotypes,
+                                    extrapolate_phenotypes=extrapolate_phenotypes)
 
+    @staticmethod
+    def from_model_data(data: ModelData,
+        skinning_method: SkinningMethod | None = None,
+        pose_parameterization: PoseParameterization = "local-bone",
+        bone_orientation: BoneOrientation = "blender",
+        root_identity_orientation: bool = True,
+         all_phenotypes: bool = False,
+        extrapolate_phenotypes: bool = False):
+        """Construct an Anny model from a ModelData object."""
+        model = Anny.__new__(Anny)
+        model.config = None
+        model._init_from_model_data(data, pose_parameterization=pose_parameterization,
+                                    skinning_method=skinning_method,
+                                    bone_orientation=bone_orientation,
+                                    root_identity_orientation=root_identity_orientation,
+                                    all_phenotypes=all_phenotypes,
+                                    extrapolate_phenotypes=extrapolate_phenotypes)
+        return model
+
+    def _init_from_model_data(self, data: ModelData,
+        skinning_method: SkinningMethod | None = None,
+        pose_parameterization: PoseParameterization = "local-bone",
+        bone_orientation: BoneOrientation = "blender",
+        root_identity_orientation: bool = True,
+        all_phenotypes: bool = False,
+        extrapolate_phenotypes: bool = False):
         super().__init__(data,
-            pose_parameterization=self.config.pose_parameterization,
+            pose_parameterization=pose_parameterization,
             skinning_method=skinning_method,
-            bone_orientation=rig_config.bone_orientation,
-            root_identity_orientation=rig_config.root_identity_orientation)
+            bone_orientation=bone_orientation,
+            root_identity_orientation=root_identity_orientation)
         if data.stacked_phenotype_blend_shapes_mask is None:
             raise ValueError("Model data does not contain stacked_phenotype_blend_shapes_mask, cannot initialize Anny model.")
         self._init_phenotype_parameters(
@@ -85,7 +121,7 @@ class Anny(RiggedModelWithLinearBlendShapes):
             base_mesh_vertex_indices=data.base_mesh_vertex_indices,
             extrapolate_phenotypes=extrapolate_phenotypes,
             phenotype_labels=resolve_phenotypes(
-                all_phenotypes=self.config.all_phenotypes),
+                all_phenotypes=all_phenotypes),
         )
 
     def _init_phenotype_parameters(self,
@@ -302,3 +338,7 @@ class Anny(RiggedModelWithLinearBlendShapes):
             facial_action_parameters,
         )
         return super().forward(pose_parameters, blendshape_coeffs, pose_parameterization=pose_parameterization, return_bone_ends=return_bone_ends)
+
+    def to_model_data(self) -> "ModelData":
+        model_data = super().to_model_data()
+        return dataclasses.replace(model_data, stacked_phenotype_blend_shapes_mask=self.stacked_phenotype_blend_shapes_mask)
