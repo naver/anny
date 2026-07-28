@@ -6,7 +6,6 @@ import unittest
 import torch
 import anny
 import roma
-from anny.models.model_data import PHENOTYPE_LABELS
 
 class TestVarious(unittest.TestCase):
     device = torch.device('cpu')
@@ -35,7 +34,7 @@ class TestVarious(unittest.TestCase):
         epsilon = 1e-8
         skinning_methods = ['lbs', 'dqs']
         try:
-            import warp
+            import warp  # noqa: F401
             skinning_methods.append('warp_lbs')
         except ImportError:
             pass

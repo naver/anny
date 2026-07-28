@@ -19,7 +19,7 @@ class MorphologicalAgeMapping(torch.nn.Module):
         self.register_buffer("morphological_age_anchors", _none_or_to_tensor(morphological_age_anchors, dtype=dtype))
 
     def load_state_dict(self, state_dict, *args, **kwargs):
-        self.anny_age_anchors = torch.empty_like(state_dict["anny_age_anchors"])            
+        self.anny_age_anchors = torch.empty_like(state_dict["anny_age_anchors"])
         self.morphological_age_anchors = torch.empty_like(state_dict["morphological_age_anchors"])
         return super().load_state_dict(state_dict, *args, **kwargs)
 
@@ -27,7 +27,7 @@ class MorphologicalAgeMapping(torch.nn.Module):
         coeffs = anny.utils.interpolation.linear_interpolation_coefficients(morphological_age, self.morphological_age_anchors, extrapolate=True)
         anny_age = torch.einsum("bk, k -> b", coeffs, self.anny_age_anchors)
         return anny_age
-    
+
     def anny_to_morphological_age(self, anny_age):
         coeffs = anny.utils.interpolation.linear_interpolation_coefficients(anny_age, self.anny_age_anchors, extrapolate=True)
         morphological_age = torch.einsum("bk, k -> b", coeffs, self.morphological_age_anchors)
@@ -55,11 +55,11 @@ class ConditionalBetaDistribution(torch.nn.Module):
         beta = anny.utils.interpolation.linear_interpolation_coefficients(age, anchors=self.age_anchors, extrapolate=False)
         beta = torch.einsum("bk, k -> b", coefs, self.beta_anchors)
         return alpha, beta
-    
+
     def get_torch_distribution(self, age):
         """
         Get a Beta distribution parameterized by the given age.
-        
+
         :param age: The age for which to get the distribution parameters.
         :return: A torch.distributions.Beta distribution.
         """
@@ -133,7 +133,7 @@ class SimpleShapeDistribution(torch.nn.Module):
         self.girls_conditional_muscle_distribution = ConditionalMuscleDistribution()
         self.girls_conditional_muscle_distribution.load_state_dict(girls_state_dict["conditional_muscle_distribution"])
         self.girls_conditional_muscle_distribution.to(device=model.device, dtype=model.dtype)
-        
+
         self.girls_conditional_proportions_distribution = ConditionalProportionsDistribution()
         self.girls_conditional_proportions_distribution.load_state_dict(girls_state_dict["conditional_proportions_distribution"])
         self.girls_conditional_proportions_distribution.to(device=model.device, dtype=model.dtype)
@@ -150,7 +150,7 @@ class SimpleShapeDistribution(torch.nn.Module):
     def sample(self, batch_size):
         """
         Sample a batch of phenotype parameters for the input body model.
-        
+
         :param batch_size: The number of samples to generate.
         :return: A dictionary containing sampled phenotype parameters.
         """
@@ -158,7 +158,7 @@ class SimpleShapeDistribution(torch.nn.Module):
         age = self.morphological_age_mapping.morphological_to_anny_age(morphological_age)
 
         gender = self.gender_distribution.sample((batch_size,))
-        
+
         boys_height = self.boys_conditional_height_distribution.get_torch_distribution(age).sample()
         girls_height = self.girls_conditional_height_distribution.get_torch_distribution(age).sample()
         height = torch.where(gender <= 0.5, boys_height, girls_height)

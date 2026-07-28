@@ -1,10 +1,8 @@
 # Anny
 # Copyright (C) 2025 NAVER Corp.
 # Apache License, Version 2.0
-import numpy as np
 import torch
 import warp as wp
-import math
 import sys
 
 # Initialize Warp (if not already initialized) without printing to stdout
@@ -12,7 +10,7 @@ sys.stdout = sys.stderr
 wp.init()
 sys.stdout = sys.__stdout__
 
-    
+
 def to_torch_or_none(array):
     return wp.to_torch(array) if array is not None else None
 
@@ -92,9 +90,8 @@ def get_point_to_mesh_distance_kernel(safe_length: bool = True):
     try:
         return _point_to_mesh_distance_kernel_cache[safe_length]
     except KeyError:
-        length_func = get_length_func(safe_length)
         point_triangle_distance = get_point_triangle_distance_func(safe_length)
-        
+
         @wp.kernel
         def point_to_mesh_distance_kernel(mesh_id: wp.uint64,
                                     points: wp.array(dtype=wp.vec3f),
@@ -124,7 +121,6 @@ def get_point_to_mesh_distance_and_face_kernel(safe_length: bool = False):
     try:
         return _point_to_mesh_distance_and_face_kernel_cache[safe_length]
     except KeyError:
-        length_func = get_length_func(safe_length)
         point_triangle_distance = get_point_triangle_distance_func(safe_length)
 
         @wp.kernel
@@ -230,7 +226,7 @@ class PointToMeshDistance(torch.autograd.Function):
                   adjoint=True,
                   device=ctx.warp_device)
         return (to_torch_or_none(ctx.points.grad), to_torch_or_none(ctx.vertices.grad), None, None, None)
-    
+
 def point_to_mesh_distance(points, vertices, faces, max_dist, safe_length: bool = False):
     return PointToMeshDistance.apply(points.contiguous(), vertices.contiguous(), faces, max_dist, safe_length)
 
@@ -277,7 +273,7 @@ class PointToMeshDistanceAndFace(torch.autograd.Function):
                 device=ctx.warp_device)
         # Note: one could use a kernel specific to compute gradients only for the closest face.
         return (to_torch_or_none(ctx.points.grad), to_torch_or_none(ctx.vertices.grad), None, None, None)
-    
+
 def point_to_mesh_distance_and_face(points, vertices, faces, max_dist, safe_length: bool = False):
     return PointToMeshDistanceAndFace.apply(points.contiguous(), vertices.contiguous(), faces, max_dist, safe_length)
 
@@ -326,6 +322,6 @@ class PointToMeshDistanceAndFaceUVs(torch.autograd.Function):
                     adjoint=True,
                     device=ctx.warp_device)
         return (to_torch_or_none(ctx.points.grad), to_torch_or_none(ctx.vertices.grad), None, None)
-    
+
 def point_to_mesh_distance_and_face_uvs(points, vertices, faces, max_dist) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     return PointToMeshDistanceAndFaceUVs.apply(points.contiguous(), vertices.contiguous(), faces, max_dist)

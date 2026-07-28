@@ -28,7 +28,6 @@
 
 # %%
 import torch
-import numpy as np
 import roma # A PyTorch library useful to deal with space transformations.
 import anny # The main library for the Anny model.
 import trimesh # For 3D mesh visualization.

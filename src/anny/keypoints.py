@@ -4,7 +4,6 @@
 import torch
 from anny.paths import get_anny_root_dir
 from anny.torch_compat import make_buffer
-from pathlib import Path
 
 class KeypointsRegressor(torch.nn.Module):
     """Regresses named anatomical keypoints from model output vertices via a linear blend.

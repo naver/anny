@@ -11,7 +11,7 @@ def get_kinematic_propagation_fronts(parent_indices):
     Args:
         - parent_indices: A list in which each element is the index of the parent joint in the kinematic tree.
                          Absence of parent (i.e. root joints) is encoded using -1.
-    
+
     Returns:
         A tuple of two lists:
         - The first list contains lists of joint indices that can be processed in parallel.
@@ -20,28 +20,28 @@ def get_kinematic_propagation_fronts(parent_indices):
     num_joints = len(parent_indices)
     grouped_joints_indices = []
     grouped_joints_parents = []
-    
+
     # Create a list to keep track of whether each joint has been assigned to a group.
     assigned = [False] * num_joints
-    
+
     # Start with the first level: joints with parent -1 (root joints)
     current_level = [i for i in range(num_joints) if parent_indices[i] < 0]
-    
+
     while current_level:
         # Add the current level of independent joints and their parents to the result
         grouped_joints_indices.append(current_level)
         grouped_joints_parents.append([parent_indices[i] for i in current_level])
-        
+
         # Mark joints in the current level as assigned
         for joint in current_level:
             assigned[joint] = True
-        
+
         # Find the next level: joints whose parent is in the current level and not yet assigned
         next_level = []
         for i in range(num_joints):
             if not assigned[i] and parent_indices[i] in current_level:
                 next_level.append(i)
-        
+
         # Move to the next level
         current_level = next_level
 
@@ -75,7 +75,7 @@ def forward_kinematic(bone_parents, rest_bone_poses, delta_transforms):
         rest_pose = rest_bone_poses[:,bone_id]
         parent_id = bone_parents[bone_id]
         T = rest_pose  @ delta
-        
+
         if parent_id >= 0:
             pose = transforms[:,parent_id] @ T
         else:
@@ -106,7 +106,7 @@ def forward_kinematic_absolute_orientations(bone_parents, rest_bone_poses, absol
     for bone_id in range(len(bone_parents)):
         absolute_orientation = absolute_orientations[bone_id]
         rest_pose = rest_bone_poses[:,bone_id]
-        parent_id = bone_parents[bone_id]        
+        parent_id = bone_parents[bone_id]
         if parent_id >= 0:
             pose = transforms[:,parent_id] @ rest_pose
         else:
@@ -256,7 +256,7 @@ def get_bone_poses(bone_heads, bone_tails, bone_rolls_rotmat, y_axis, degenerate
         """
         Return pose of bones specified by head and tail coordinates, as well as some 'roll' parameter around the bone axis.
         Orient bones consistently with Blender: the y axis is aligned with the head-tail direction by the rotation of smallest angle possible.
-        
+
         Args:
             - bone_heads: torch.Tensor (B,V,3)
             - bone_tails: torch.Tensor (B,V,3)

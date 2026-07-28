@@ -5,9 +5,7 @@
 import unittest
 import torch
 import anny
-import copy
 import numpy as np
-import roma
 
 class TestDegenerateConfiguration(unittest.TestCase):
     def test_degenerate_tongue02(self):
@@ -16,16 +14,16 @@ class TestDegenerateConfiguration(unittest.TestCase):
         # This test ensure that we keep orientation continuity around this edge case.
         naughty_shape = {
                 'gender': 0.4645,
-                'age': 0.6078, 
-                'muscle': 0.2637, 
-                'weight': 0.7545, 
-                'height': 0.5872, 
-                'proportions': 0.7788, 
-                'cupsize': 0.4095, 
-                'firmness': 0.8335, 
-                'african': 0.3333, 
-                'asian': 0.3333, 
-                'caucasian': 0.3333, 
+                'age': 0.6078,
+                'muscle': 0.2637,
+                'weight': 0.7545,
+                'height': 0.5872,
+                'proportions': 0.7788,
+                'cupsize': 0.4095,
+                'firmness': 0.8335,
+                'african': 0.3333,
+                'asian': 0.3333,
+                'caucasian': 0.3333,
             }
         model = anny.Anny(rig="makehuman").to(dtype=torch.float32)
 

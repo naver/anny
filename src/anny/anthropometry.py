@@ -16,10 +16,10 @@ class Anthropometry:
             self.waist_vertex_indices = [base_mesh_vertex_indices.index(i) for i in BASE_MESH_WAIST_VERTICES]
         except ValueError:
             raise ValueError("Base mesh vertex indices do not contain all waist vertices.")
-        
+
     def height(self, rest_vertices):
         return torch.max(rest_vertices[...,2], dim=1)[0] - torch.min(rest_vertices[...,2], dim=1)[0]
-    
+
     def waist_circumference(self, rest_vertices):
         waist_vertices  = rest_vertices[:,self.waist_vertex_indices]
         waist_vertices_rolled = torch.roll(waist_vertices, shifts=1, dims=1)
@@ -50,7 +50,7 @@ class Anthropometry:
         mass = self.mass(rest_vertices)
         bmi = mass / (height ** 2)
         return bmi
-    
+
     def __call__(self, rest_vertices):
         return dict(height=self.height(rest_vertices),
                     waist_circumference=self.waist_circumference(rest_vertices),

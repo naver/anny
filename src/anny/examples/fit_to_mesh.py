@@ -28,7 +28,7 @@ def fit_to_mesh(seed: int = 3993, N: int = 1, max_n_iters: int = 5, verbose: boo
     age, phenotype_kwargs = shape_dist.sample(batch_size)
 
     output = model(pose_parameters=pose_parameters, phenotype_kwargs=phenotype_kwargs)
-    
+
     # instantate fitter and find the best pose/shape
     _model = anny.Anny(rig=rig, topology=topology).to(dtype=dtype, device=device)
     fitter = anny.ParametersRegressor(_model, verbose=verbose, max_n_iters=max_n_iters, eps=eps, n_points=n_points)
@@ -57,7 +57,7 @@ def fit_to_mesh(seed: int = 3993, N: int = 1, max_n_iters: int = 5, verbose: boo
     i = pve.argmax().item()
     trimesh.Trimesh(vertices=output['vertices'][i].cpu().numpy(), faces=model.faces.cpu().numpy()).export('y.ply')
     trimesh.Trimesh(vertices=v_hat[i].cpu().numpy(), faces=model.faces.cpu().numpy()).export('y_hat.ply')
-    print(f"Meshes saved into y.ply and y_hat.ply")
+    print("Meshes saved into y.ply and y_hat.ply")
 
 
 if __name__ == "__main__":

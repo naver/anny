@@ -5,7 +5,6 @@
 Interactive demo for Anny models using Gradio.
 It allows users to manipulate the pose and shape of the model.
 """
-from typing import Literal
 import anny
 import roma
 import torch
@@ -23,7 +22,7 @@ def main(server_name : str = None, server_port : int = None):
           tempfile.NamedTemporaryFile(suffix=".json") as temp_params_file):
 
         mesh_filename = temp_file.name
-        
+
         model = None
         measurements_class = None
         bones_rotvec = None
@@ -142,7 +141,7 @@ def main(server_name : str = None, server_port : int = None):
             else:
                 measurements_summary = gr.Markdown("No measurements available.")
             return mesh_filename, temp_params_file.name, measurements_summary
-        
+
         def initialize_model(topology, rig):
             """
             Initialize the model and return a dropdown with bone labels.
@@ -263,11 +262,11 @@ def main(server_name : str = None, server_port : int = None):
 
             def update_phenotype_label(macrodetail_label):
                 """
-                Called when the selected macrodetail changes.   
+                Called when the selected macrodetail changes.
                 """
                 return phenotype_kwargs[macrodetail_label]
             phenotype_dropdown.change(update_phenotype_label, inputs=phenotype_dropdown, outputs=macrodetail_slider)
-            
+
             def update_phenotype_slider(macrodetail_label, value):
                 """
                 Called when the macrodetail slider is changed.
@@ -329,7 +328,7 @@ def main(server_name : str = None, server_port : int = None):
                 facial_action_output = facial_actions_kwargs.get(facial_action_label, 0.) if facial_actions_kwargs is not None else 0.
                 return *export_mesh(), phenotype_kwargs[macrodetail_label], local_change_output, facial_action_output
             reset_shape_button.click(reset_shape, inputs=[phenotype_dropdown, local_change_dropdown, facial_action_dropdown], outputs=[model3d, download_params_button, measurements_summary, macrodetail_slider, local_changes_slider, facial_actions_slider])
-            
+
             def update_bone_label(bone_index):
                 """
                 Called when the selected bone changes.
@@ -353,7 +352,7 @@ def main(server_name : str = None, server_port : int = None):
 
             def reset_bone_rotvec(bone_index):
                 """
-                Called when the reset all button is clicked.""" 
+                Called when the reset all button is clicked."""
                 bones_rotvec.zero_()
                 return *export_mesh(), bones_rotvec[bone_index, 0].item(), bones_rotvec[bone_index, 1].item(), bones_rotvec[bone_index, 2].item()
             reset_pose_button.click(reset_bone_rotvec, inputs=[bone_dropdown], outputs=[model3d, download_params_button, measurements_summary, x_slider, y_slider, z_slider])

@@ -286,7 +286,7 @@ def main_anny(output_path="src/anny/data/cached/anny.pth",
         ).sum()
         assert root_skinning_weight == 0, \
             "root bone has skinning weights; its origin cannot be safely realigned with the pelvis."
-        
+
         template_bone_heads[root_id] = source_model.template_bone_heads[pelvis_left_id]
         bone_heads_blendshapes[:, root_id] = source_model.bone_heads_blendshapes[:, pelvis_left_id]
 

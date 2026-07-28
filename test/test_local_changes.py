@@ -4,7 +4,6 @@
 
 import torch
 import anny
-import roma
 import unittest
 import anny.models.rigged_model
 
@@ -29,7 +28,7 @@ class TestLocalChanges(unittest.TestCase):
         for label in ["rest_vertices", "vertices", "bone_poses"]:
             self.assertTrue(torch.all(torch.abs(output_withoutlocal[label] - output_withlocal[label]) < 1e-8), f"Outputs differ for label {label} between with and without local changes")
             self.assertTrue(torch.all(torch.abs(output_withoutlocal[label] - output_withsomelocal[label]) < 1e-8), f"Outputs differ for label {label} between with and with some local changes")
-        
+
 
         # Set some local changes parameters to non-zero values
         local_changes_kwargs = {k: torch.randn(batch_size, dtype=dtype) for k in local_change_labels}
@@ -39,8 +38,3 @@ class TestLocalChanges(unittest.TestCase):
         # Check that outputs are identical
         for label in ["rest_vertices", "vertices", "bone_poses"]:
             self.assertTrue(torch.all(torch.abs(output_withlocal[label] - output_withsomelocal[label]) < 1e-8), f"Outputs differ for label {label} between with and with some local changes")
-
-
-
-
-        

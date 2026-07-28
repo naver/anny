@@ -128,8 +128,7 @@ def build_alternative_topology_model_data(
         source_topology = replace(source_topology, remove_unattached_vertices=True, eyes=True, tongue=True)
     if reference_topology == "legacy_default":
         source_topology = replace(source_topology, remove_unattached_vertices=False, eyes=False, tongue=False)
-    
-    
+
     ref_data = build_anny_model_data(rig=source_rig,
                                 topology=source_topology, local_changes=local_changes,
                                 facial_actions=facial_actions)

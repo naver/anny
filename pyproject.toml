@@ -57,6 +57,9 @@ smpl = [
     "smplx",
     "chumpy"
 ]
+dev = [
+    "ruff==0.14.5"
+]
 cu126 = ["torch"]
 
 [tool.uv.extra-build-dependencies]
@@ -69,3 +72,19 @@ torch = { index = "torch-cu126", extra = "cu126" }
 name = "torch-cu126"
 url = "https://download.pytorch.org/whl/cu126"
 explicit = true
+
+[tool.ruff]
+line-length = 88
+
+[tool.ruff.lint]
+# "E" and "W" are pycodestyle (PEP8, incl. W291/W293 trailing whitespace),
+# "F" is pyflakes (ruff's default set).
+select = ["E", "W", "F"]
+# Line length is not enforced for now
+ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Public API surface: names are re-exported, not used locally.
+"src/anny/__init__.py" = ["F401", "F403"]
+# jupytext py:percent tutorials: imports belong to the cell that introduces them.
+"tutorials/*.py" = ["E402"]

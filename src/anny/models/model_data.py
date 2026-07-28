@@ -245,7 +245,7 @@ class TopologyConfig:
         return _parse_topology_spec(spec)
 
 @dataclasses.dataclass(frozen=True)
-class AnnyModelConfig: 
+class AnnyModelConfig:
     all_phenotypes: bool
     local_changes: LocalChanges
     extrapolate_phenotypes: bool
@@ -274,7 +274,7 @@ class ModelData:
     """
     # Always present
     metadata: ModelMetadata
-    
+
     template_vertices: torch.Tensor
     faces: torch.Tensor
     blendshapes: torch.Tensor
@@ -470,7 +470,7 @@ def _parse_rig_spec(spec: str) -> RigConfig:
         )
     if base_rig not in _RIG_PRESET_FILES:
         raise ValueError(f"Invalid rig spec: {spec}. Unknown base rig: {base_rig}")
- 
+
     rig_spec = RigConfig(
         base_rig=base_rig,
         bone_orientation="cached" if base_rig=="anny" else "blender",
@@ -545,7 +545,7 @@ def _parse_topology_spec(spec: str) -> TopologyConfig:
             if modifier == "sfw":
                 obj = dataclasses.replace(obj, nudity_edits=True)
                 continue
-        
+
         raise ValueError(f"Unknown topology specifier: {modifier} for {spec_base}")
 
     return obj

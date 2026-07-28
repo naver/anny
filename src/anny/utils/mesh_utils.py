@@ -11,7 +11,7 @@ def _split_quad1(data):
 def _split_quad2(data):
     a, b, c, d = data
     return ([a, b, d], [d, b, c])
-    
+
 
 def _split_quad(vertices, face_vertex_indices, face_texture_coordinate_indices=None):
     """
@@ -33,7 +33,7 @@ def _split_quad(vertices, face_vertex_indices, face_texture_coordinate_indices=N
             return _split_quad2(face_vertex_indices)
         else:
             return _split_quad2(face_vertex_indices), _split_quad2(face_texture_coordinate_indices)
-        
+
 def triangulate_faces(vertices, faces):
     triangulated_faces = []
     for face in faces:

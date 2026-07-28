@@ -29,7 +29,10 @@ with warnings.catch_warnings():
         patch.object(np, "unicode", np.str_, create=True),
         patch.object(inspect, "getargspec", inspect.getfullargspec, create=True),
     ): # Patching because smplx uses deprecated numpy types and inspect.getargspec which are removed in newer versions of numpy and Python
-        import smplx, chumpy
+        import smplx
+        # Unused here, but importing chumpy under the patches above is what lets smplx
+        # unpickle legacy SMPL .pkl files.
+        import chumpy  # noqa: F401
 
 
 def _synthetic_tail_identity_rolls(reference: torch.Tensor, bone_count: int) -> torch.Tensor:
@@ -148,7 +151,7 @@ class SMPLX(RiggedModelWithLinearBlendShapes):
             assert topology == "smplx"
 
         bone_labels = [f"bone_{i}" for i in range(bone_count)]
-        
+
         metadata = dataclasses.replace(data.metadata, bone_labels=bone_labels, bone_parents=model.parents.tolist())
         data = dataclasses.replace(data, metadata=metadata)
         data = _add_bone_tail_blendshapes(data)
@@ -193,7 +196,7 @@ class SMPLX(RiggedModelWithLinearBlendShapes):
 
 
         return super().forward(pose_parameters=pose_parameters, blendshape_coeffs=full_blendshape_coeffs)
-    
+
 class SMPL(RiggedModelWithLinearBlendShapes):
     def __init__(self, *smpl_args, pose_corrective=True, topology="smpl", **smpl_kwargs):
         # Original model

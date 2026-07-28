@@ -42,7 +42,7 @@ class ParametersRegressor:
         old_to_new_indices = torch.full((len(self.model.template_vertices),), fill_value=-1, dtype=torch.int64)
         old_to_new_indices[base_mesh_vertex_indices] = torch.arange(len(base_mesh_vertex_indices))
         self.unique_ids = old_to_new_indices[old_to_new_indices >= 0]
-        
+
         self.partitioning = self._partition()
         self.indices_identity = self._get_identity_indices()
 
@@ -76,12 +76,12 @@ class ParametersRegressor:
                 'vertex_joint_weights': List[Tensor]  # normalized skinning weights per joint
             }
         """
-        W, I = self.model.vertex_bone_weights[self.unique_ids], self.model.vertex_bone_indices[self.unique_ids]
-        V, J = W.shape[0], len(self.model.bone_labels)
+        weights, idx = self.model.vertex_bone_weights[self.unique_ids], self.model.vertex_bone_indices[self.unique_ids]
+        V, J = weights.shape[0], len(self.model.bone_labels)
         jvs, vjw = [[] for _ in range(J)], [[] for _ in range(J)]
 
         for i in range(V):
-            for w, j in zip(W[i], I[i]):
+            for w, j in zip(weights[i], idx[i]):
                 if w >= 0.01:
                     jvs[j.item()].append(i)
                     vjw[j.item()].append(w.item())
@@ -116,7 +116,7 @@ class ParametersRegressor:
         }
         face_joints = {}
         return [k for k, name in enumerate(self.bone_labels) if name in face_joints]
-    
+
     def _init_pose_macro_local(
         self,
         batch_size: int,
@@ -150,7 +150,7 @@ class ParametersRegressor:
         local_changes_kwargs = {k: torch.zeros(batch_size, dtype=self.dtype, device=self.device) for k in self.model.local_change_labels}
 
         return pose_parameters, phenotype_kwargs, local_changes_kwargs
-    
+
     def _compute_macro_jacobian(
         self,
         pose_parameters: torch.Tensor,
@@ -171,7 +171,7 @@ class ParametersRegressor:
         Returns:
             - Tensor: [batch_size, V'*3, D] Jacobian matrix.
         """
-        
+
         batch_size = pose_parameters.shape[0]
 
         # repeating input params
@@ -189,9 +189,9 @@ class ParametersRegressor:
             phenotype_kwargs_all[k][indices] += self.eps
 
         # forward
-        vertices = self.model(pose_parameters=pose_parameters_all, 
-                    phenotype_kwargs=phenotype_kwargs_all, 
-                    local_changes_kwargs=local_changes_kwargs_all, 
+        vertices = self.model(pose_parameters=pose_parameters_all,
+                    phenotype_kwargs=phenotype_kwargs_all,
+                    local_changes_kwargs=local_changes_kwargs_all,
                     pose_parameterization='local-bone')['vertices'][:,self.unique_ids]
         vertices_rearranged = vertices.reshape(batch_size, -1, vertices.shape[1], 3)
         err = (vertices_rearranged[:,1:] - vertices_rearranged[:,[0]])
@@ -207,16 +207,16 @@ class ParametersRegressor:
         to prevent numerical explosion (scaling/shearing drift) during iterative updates.
         """
         # pose_parameters: [B, J, 4, 4]
-        
+
         # 1. Extract the 3x3 rotation part
         R = pose_parameters[..., :3, :3]
-        
+
         # 2. Use SVD to orthogonalize: R_clean = U @ V.T
         U, S, Vh = torch.linalg.svd(R)
-        
+
         # Check determinant to prevent reflection (det should be +1, not -1)
         det = torch.det(U @ Vh)
-        
+
         # If det is -1, flip the last column of U to correct reflection
         with torch.no_grad():
             corr = torch.ones_like(S)
@@ -224,13 +224,13 @@ class ParametersRegressor:
             U = U * corr[..., None, :]
 
         R_clean = U @ Vh
-        
+
         # 3. Put it back
         pose_parameters_clean = pose_parameters.clone()
         pose_parameters_clean[..., :3, :3] = R_clean
-        
+
         return pose_parameters_clean
-    
+
     def _jointwise_registration_to_pose(
         self,
         v_ref: torch.Tensor,
@@ -373,7 +373,7 @@ class ParametersRegressor:
         excluded_phenotypes = excluded_phenotypes or []
         optim_keys = [k for k in self.model.phenotype_labels if k not in excluded_phenotypes]
 
-        vertices_target = vertices_target.to(self.device)        
+        vertices_target = vertices_target.to(self.device)
         batch_size = vertices_target.shape[0]
         initial_phenotype_kwargs = initial_phenotype_kwargs or {}
         pose_parameters, phenotype_kwargs, local_changes_kwargs = self._init_pose_macro_local(batch_size, initial_phenotype_kwargs, initial_pose_parameters)
@@ -390,11 +390,11 @@ class ParametersRegressor:
         output = self.model(pose_parameters=pose_parameters, phenotype_kwargs=phenotype_kwargs, local_changes_kwargs=local_changes_kwargs, pose_parameterization='local-bone')
         v_ref = output['vertices'][:, self.unique_ids]
         b_ref = output['bone_poses']
-    
+
         for iter in range(max_n_iters):
             # 1. Estimate Pose (Rigid Registration) - TODO use pose_parameters (R0+t0) inside _jointwise_registration_to_pose ??
             pose_parameters, v_hat = self._jointwise_registration_to_pose(v_ref, vertices_target, b_ref, phenotype_kwargs, local_changes_kwargs)
-            
+
             # 2. Optimize Phenotypes (Optional)
             if optimize_phenotypes:
                 A = self._compute_macro_jacobian(pose_parameters, local_changes_kwargs, self.idx, phenotype_kwargs)
@@ -403,7 +403,7 @@ class ParametersRegressor:
                 reg = torch.diag(
                     self.reg_weights[[self.model.phenotype_labels.index(k) for k in optim_keys]]
                 ).to(self.device)[None]
-                
+
                 delta = torch.linalg.solve(A.transpose(2, 1) @ A + reg, (A.transpose(2, 1) @ b[:, :, None])[:, :, 0])
                 # delta = torch.linalg.lstsq(A, b).solution
 
@@ -424,9 +424,9 @@ class ParametersRegressor:
 
                 if iter == max_n_iters - 1:
                     pose_parameters, _ = self._jointwise_registration_to_pose(v_ref, vertices_target, b_ref, phenotype_kwargs, local_changes_kwargs)
-            
+
             # --- Always update b_ref for the next iteration ---
-            # We must refresh the model output to get the bone poses that correspond 
+            # We must refresh the model output to get the bone poses that correspond
             # to the new pose_parameters calculated in this step.
             output = self.model(pose_parameters=pose_parameters, phenotype_kwargs=phenotype_kwargs,
                                 local_changes_kwargs=local_changes_kwargs,
@@ -445,9 +445,9 @@ class ParametersRegressor:
 
         # returning pose parameters to the required parametrization
         pose_parameters = self.model.get_pose_parameterization(output, pose_parameterization=self.model.pose_parameterization)
-            
+
         return pose_parameters, phenotype_kwargs, v_hat
-    
+
     @torch.no_grad()
     def fit_with_age_anchor_search(
         self,

@@ -259,7 +259,7 @@ def symmetrize_skinning_weights(data: ModelData) -> ModelData:
     template_vertices = data.template_vertices
     vertex_bone_indices = data.vertex_bone_indices
     vertex_bone_weights = data.vertex_bone_weights
- 
+
     N = template_vertices.shape[0]
     B = len(bone_labels)
 

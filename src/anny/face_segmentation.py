@@ -15,7 +15,7 @@ def get_face_segmentation_mask(anny_model, labels,
 
     if metadata_path is None:
         metadata_path = get_anny_root_dir() / "data/segmentation/body_parts_segmentation.yaml"
-    
+
     body_parts_segmentation_image = PIL.Image.open(image_path).convert("RGB")
 
     with open(metadata_path, "r") as f:
@@ -28,7 +28,7 @@ def get_face_segmentation_mask(anny_model, labels,
     u = torch.round(face_center_texture_coordinates[:, 0] * body_parts_segmentation_array.shape[1]).to(dtype=torch.int64).clamp_max(body_parts_segmentation_array.shape[0] - 1).detach().cpu().numpy()
     v = torch.round((1-face_center_texture_coordinates[:, 1]) * body_parts_segmentation_array.shape[0]).to(dtype=torch.int64).clamp_max(body_parts_segmentation_array.shape[1] - 1).detach().cpu().numpy()
     face_colors = body_parts_segmentation_array[v,u]
-        
+
     face_mask = np.zeros(len(anny_model.faces), dtype=bool)
 
     for label in labels:

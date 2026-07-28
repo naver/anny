@@ -65,7 +65,7 @@ def load_obj_file(mesh_filename,
                     else:
                         face_vertex_indices = []
                         face_texture_coordinate_indices = []
-                    
+
                 elif split[0] == "f":
                     vids = []
                     vtids = []
@@ -83,7 +83,7 @@ def load_obj_file(mesh_filename,
             face_vertex_indices=_pack_face_list(face_vertex_indices, pack_as_tensor),
             face_texture_coordinate_indices=_pack_face_list(face_texture_coordinate_indices, pack_as_tensor),
         )
-    
+
     vertices = as_tensor(vertices, dtype=dtype)
     if len(texture_coordinates) > 0:
         texture_coordinates = as_tensor(texture_coordinates, dtype=dtype)
@@ -94,6 +94,6 @@ def save_obj_file(mesh_filename, vertices, faces):
     with open(mesh_filename, "w") as f:
         for vertex in vertices:
             f.write(f"v {' '.join([str(vertex[i]) for i in range(3)])}\n")
-            
+
         for face in faces:
             f.write(f"f {' '.join([str(i+1) for i in face])}\n")

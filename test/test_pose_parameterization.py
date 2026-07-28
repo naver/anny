@@ -14,8 +14,8 @@ class TestPoseParametrization(unittest.TestCase):
         model = anny.Anny().to(dtype=dtype)
 
         batch_size = 32
-        
-        
+
+
 
         parametrization_list = ["world", "local-bone-world", "local-ref", "local-bone", "world-orient"]
 

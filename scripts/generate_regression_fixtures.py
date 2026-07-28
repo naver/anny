@@ -113,7 +113,7 @@ def generate_configs(output_dir: str = "test/data") -> None:
     configs = []
     for cfg in CONFIGS:
         print(f"Generating config for: {cfg}")
-        cfg_full = generate_config(cfg, seed)
+        cfg_full = generate_config(cfg, SEED)
         configs.append(cfg_full)
     with open("test/data/regression_configs.json", "w") as f:
         json.dump(configs, f, indent=4)

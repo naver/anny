@@ -158,11 +158,11 @@ def benchmark_method(
 
         allocated_eager, reserved_eager = benchmark_gpu_peak(eager_run, iters=10)
         allocated_compiled, reserved_compiled = benchmark_gpu_peak(compiled_run, iters=10)
-        
+
         backward_allocated_eager, backward_reserved_eager = benchmark_gpu_peak(eager_backward_run, iters=10)
         backward_allocated_compiled, backward_reserved_compiled = benchmark_gpu_peak(compiled_backward_run, iters=10)
-        
-        
+
+
         result = {
             "skinning_method": skinning_method,
             "batch_size": batch_size,
@@ -192,7 +192,7 @@ def benchmark_method(
             f"speedup={result['speedup']:>6.2f}x "
             f"eager mem={allocated_eager / 1024 ** 2:>7.2f}MB ({reserved_eager / 1024 ** 2:>7.2f}MB) "
             f"compiled mem={allocated_compiled / 1024 ** 2:>7.2f}MB ({reserved_compiled / 1024 ** 2:>7.2f}MB)"
-        
+
         )
         print(
             f"{skinning_method:>8} backward batch={batch_size:>4} "

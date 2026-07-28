@@ -33,7 +33,7 @@ def get_intersection_kernel(mask_uint32_length):
         return not (max_a < min_b or max_b < min_a)
 
     @wp.func
-    def separable_axis(a0: wp.vec3, a1: wp.vec3, a2: wp.vec3, 
+    def separable_axis(a0: wp.vec3, a1: wp.vec3, a2: wp.vec3,
                         b0: wp.vec3, b1: wp.vec3, b2: wp.vec3,
                         axis: wp.vec3):
         """Test if the projection of two triangles are separated along a given axis."""
@@ -43,7 +43,7 @@ def get_intersection_kernel(mask_uint32_length):
         return not overlap(min_a, max_a, min_b, max_b)
 
     @wp.func
-    def separable_axis_edge_edge(a0: wp.vec3, a1: wp.vec3, a2: wp.vec3, 
+    def separable_axis_edge_edge(a0: wp.vec3, a1: wp.vec3, a2: wp.vec3,
                         b0: wp.vec3, b1: wp.vec3, b2: wp.vec3,
                         e0: wp.vec3, e1: wp.vec3):
         """Test if the projection of two triangles are separated along an axis corresponding to the cross product of two edges."""
@@ -54,17 +54,17 @@ def get_intersection_kernel(mask_uint32_length):
         return False
 
     @wp.func
-    def triangle_intersects_SAT(a0: wp.vec3, a1: wp.vec3, a2: wp.vec3, 
+    def triangle_intersects_SAT(a0: wp.vec3, a1: wp.vec3, a2: wp.vec3,
                                 b0: wp.vec3, b1: wp.vec3, b2: wp.vec3) -> wp.bool:
         """Test if two triangles intersect, based on the SAT theorem."""
-        # Note: WARP provides an off-the-shelf "wp.intersect_tri_tri" function, but it returns many false positives.    
+        # Note: WARP provides an off-the-shelf "wp.intersect_tri_tri" function, but it returns many false positives.
         # Triangle edges
         e1_a = a1 - a0
         e2_a = a2 - a0
-        
+
         e1_b = b1 - b0
         e2_b = b2 - b0
-        
+
         # Face normals
         normal_a = wp.normalize(wp.cross(e1_a, e2_a))
         normal_b = wp.normalize(wp.cross(e1_b, e2_b))
@@ -168,7 +168,7 @@ class SelfInterpenetrationModule:
                 else:
                     label = bone_label
                 bone_collision_groups.append(label)
-        
+
             collision_group_labels = set(bone_collision_groups)
             collision_group_ids_map = {label: i for i, label in enumerate(collision_group_labels)}
             bone_id_to_mask_id = [collision_group_ids_map[label] for label in bone_collision_groups]
@@ -225,7 +225,7 @@ class SelfInterpenetrationModule:
                   device=wp_vertices.device)
         colliding_face = wp.to_torch(wp_colliding_face)
         return colliding_face
-    
+
 if __name__ == "__main__":
     import anny
     anny_model = anny.Anny()

@@ -28,8 +28,8 @@ class TestSkinning(unittest.TestCase):
         bone_rotations = roma.random_rotmat((batch_size, bone_count), dtype=dtype).requires_grad_(True)
         bone_translations = torch.randn((batch_size, bone_count, 3), dtype=dtype, requires_grad=True)
 
-        
-        
+
+
         def my_func(vertices, bone_weights, bone_rotations, bone_translations):
             bone_transforms = roma.Rigid(bone_rotations, bone_translations).to_homogeneous()
             return anny.skinning.skinning.linear_blend_skinning(vertices=vertices,
@@ -64,7 +64,7 @@ class TestSkinning(unittest.TestCase):
                                                                         bone_indices=bone_indices,
                                                                         bone_transforms=bone_transforms)
         input = (vertices, bone_weights, bone_rotations, bone_translations)
-        
+
         torch.autograd.gradcheck(my_func,
                                 input,
                                 eps=1e-6,
@@ -87,8 +87,8 @@ class TestSkinning(unittest.TestCase):
         bone_indices = torch.randint(0, bone_count, (vertices_count, max_bones_per_vertex), dtype=torch.int64)
         bone_rotations = roma.random_rotmat((batch_size, bone_count), dtype=dtype).requires_grad_(True)
         bone_translations = torch.randn((batch_size, bone_count, 3), dtype=dtype, requires_grad=True)
-        
-        
+
+
         bone_transforms = roma.Rigid(bone_rotations, bone_translations).to_homogeneous()
         warp_result = warp_skinning.linear_blend_skinning(vertices=vertices,
                                                                bone_weights=bone_weights,

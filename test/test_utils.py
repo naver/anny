@@ -21,4 +21,4 @@ class TestUtils(unittest.TestCase):
         self.assertTrue(torch.all(torch.abs(coeffs[1] - torch.as_tensor([0.,0.,1.])) < epsilon))
         self.assertTrue(torch.all(torch.abs(coeffs[2] - torch.as_tensor([0.,0.5,0.5])) < epsilon))
         self.assertTrue(torch.all(torch.abs(coeffs[3] - torch.as_tensor([1.,0.,0.])) < epsilon))
-        
+

@@ -110,7 +110,7 @@ class TestRegressionVsFixtures(unittest.TestCase):
     def test_regression_vs_fixtures(self):
 
         if len(ANNY_FIXTURES_DIR) == 0:
-            self.skipTest(f"Set ANNY_FIXTURES_DIR environment variable.")
+            self.skipTest("Set ANNY_FIXTURES_DIR environment variable.")
         path = Path(ANNY_FIXTURES_DIR) / "regression_configs.json"
         with open(path, "r") as f:
             for cfg in json.load(f):

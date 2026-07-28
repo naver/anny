@@ -3,7 +3,6 @@
 # Apache License, Version 2.0
 import torch
 import roma
-import torch.nn.functional as F
 
 def linear_blend_skinning(vertices, bone_weights, bone_indices, bone_transforms):
     """

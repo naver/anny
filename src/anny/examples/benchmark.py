@@ -56,7 +56,7 @@ def main(skinning_method : SkinningMethod = "warp_lbs",
     print(f"- {len(model.template_vertices)=}")
     print(f"- {len(model.phenotype_labels)=}")
     print(f"- {len(model.local_change_labels)=}")
-    
+
     # Forward pass only
     for batch_size in forward_batch_sizes:
         pose_parameters = roma.Rigid.identity(dim=3, batch_shape=(batch_size, model.bone_count), dtype=dtype, device=device).to_homogeneous()
@@ -77,7 +77,7 @@ def main(skinning_method : SkinningMethod = "warp_lbs",
         )
         print(f"{model_label} -- Forward pass -- batch_size: {batch_size:>4} -- time: {(result.median * time_scale):>8.3f} ± {(result.iqr * time_scale):>8.3f} {time_unit} "
                 f"-- GPU peak alloc: {gpu_peak_alloc/1024**2:>6.1f} MB")
-        
+
     # Vertices backward pass
     for batch_size in backward_batch_sizes:
         pose_parameters = roma.Rigid.identity(dim=3, batch_shape=(batch_size, model.bone_count), dtype=dtype, device=device).to_homogeneous().requires_grad_(True)

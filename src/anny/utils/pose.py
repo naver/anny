@@ -2,7 +2,6 @@
 # Copyright (C) 2025 NAVER Corp.
 # Apache License, Version 2.0
 """Utilities operating on pose parameters."""
-import torch
 import roma
 
 def transfer_pose_parameters(src_model, src_pose_parameters, phenotype_kwargs, local_changes_kwargs, target_model):
