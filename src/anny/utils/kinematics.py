@@ -304,7 +304,8 @@ def get_bone_poses(
 ):
     """
     Return pose of bones specified by head and tail coordinates, as well as some 'roll' parameter around the bone axis.
-    Orient bones consistently with Blender: the y axis is aligned with the head-tail direction by the rotation of smallest angle possible.
+    Orient bones consistently with Blender: the y axis is aligned with the head-tail
+    direction by the rotation of smallest angle possible.
 
     Args:
         - bone_heads: torch.Tensor (B,V,3)

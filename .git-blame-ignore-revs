@@ -1,0 +1,6 @@
+# Commits listed here are pure reformatting and are skipped by `git blame`.
+# Enable locally with:
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# style: apply ruff format at 88 columns
+6d103c516c503310ae4c03fc29054aeb15becc57

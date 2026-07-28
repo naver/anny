@@ -112,7 +112,8 @@ class ParametersRegressor:
     def _get_identity_indices(self) -> List[int]:
         """
         Returns:
-            - List[int]: Indices of facial bones that should retain identity rotation (used to preserve neutral expressions mainly for the Anny rig).
+            - List[int]: Indices of facial bones that should retain identity rotation
+              (used to preserve neutral expressions mainly for the Anny rig).
         """
         face_joints = {
             "risorius03.L",
@@ -209,7 +210,8 @@ class ParametersRegressor:
             - initial_phenotype_kwargs (dict): Optional override values for phenotype_kwargs parameters.
 
         Returns:
-            - Tuple[Tensor, Dict[str, Tensor], Dict[str, Tensor]]: pose_parameters, phenotype_kwargs, local_changes_kwargs.
+            - Tuple[Tensor, Dict[str, Tensor], Dict[str, Tensor]]:
+              pose_parameters, phenotype_kwargs, local_changes_kwargs.
         """
         if initial_pose_parameters is not None:
             pose_parameters = initial_pose_parameters  # [bs,k,4,4]
@@ -477,7 +479,8 @@ class ParametersRegressor:
             - target_vertices (Tensor): [B, V, 3] target mesh vertices to align to.
 
         Returns:
-            - pose_parameters (Tensor): [B, J, 4, 4] updated pose_parameters with global transform applied to root joint.
+            - pose_parameters (Tensor): [B, J, 4, 4] updated pose_parameters with global
+              transform applied to root joint.
         """
         R_adj, t_adj = roma.rigid_points_registration(
             source_vertices, target_vertices, compute_scaling=False
@@ -559,7 +562,8 @@ class ParametersRegressor:
         b_ref = output["bone_poses"]
 
         for iter in range(max_n_iters):
-            # 1. Estimate Pose (Rigid Registration) - TODO use pose_parameters (R0+t0) inside _jointwise_registration_to_pose ??
+            # 1. Estimate Pose (Rigid Registration)
+            # TODO use pose_parameters (R0+t0) inside _jointwise_registration_to_pose ??
             pose_parameters, v_hat = self._jointwise_registration_to_pose(
                 v_ref, vertices_target, b_ref, phenotype_kwargs, local_changes_kwargs
             )

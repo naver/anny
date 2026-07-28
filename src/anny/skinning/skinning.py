@@ -11,9 +11,12 @@ def linear_blend_skinning(vertices, bone_weights, bone_indices, bone_transforms)
 
     Args:
     vertices (torch.Tensor): Tensor of shape (batch_size, num_vertices, 3) containing the vertex positions.
-    bone_weights (torch.Tensor): Tensor of shape (batch_size, num_vertices, max_bones_per_vertex) containing the bone weights for each vertex.
-    bone_indices (torch.Tensor): Tensor of shape (batch_size, num_vertices, max_bones_per_vertex) containing the bone indices for each vertex.
-    bone_transforms (torch.Tensor): Tensor of shape (batch_size, num_bones, 4, 4) containing the bone transformation matrices.
+    bone_weights (torch.Tensor): Tensor of shape (batch_size, num_vertices, max_bones_per_vertex),
+        containing the bone weights for each vertex.
+    bone_indices (torch.Tensor): Tensor of shape (batch_size, num_vertices, max_bones_per_vertex),
+        containing the bone indices for each vertex.
+    bone_transforms (torch.Tensor): Tensor of shape (batch_size, num_bones, 4, 4),
+        containing the bone transformation matrices.
 
     Returns:
     torch.Tensor: Transformed vertices of shape (batch_size, num_vertices, 3).
@@ -68,9 +71,12 @@ def dual_quaternion_skinning(vertices, bone_weights, bone_indices, bone_transfor
 
     Args:
     vertices (torch.Tensor): Tensor of shape (batch_size, num_vertices, 3) containing the vertex positions.
-    bone_weights (torch.Tensor): Tensor of shape (batch_size, num_vertices, max_bones_per_vertex) containing the bone weights for each vertex.
-    bone_indices (torch.Tensor): Tensor of shape (batch_size, num_vertices, max_bones_per_vertex) containing the bone indices for each vertex.
-    bone_transforms (torch.Tensor): Tensor of shape (batch_size, num_bones, 4, 4) containing the bone transformation matrices.
+    bone_weights (torch.Tensor): Tensor of shape (batch_size, num_vertices, max_bones_per_vertex),
+        containing the bone weights for each vertex.
+    bone_indices (torch.Tensor): Tensor of shape (batch_size, num_vertices, max_bones_per_vertex),
+        containing the bone indices for each vertex.
+    bone_transforms (torch.Tensor): Tensor of shape (batch_size, num_bones, 4, 4),
+        containing the bone transformation matrices.
 
     Returns:
     torch.Tensor: Transformed vertices of shape (batch_size, num_vertices, 3).

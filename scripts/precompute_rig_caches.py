@@ -174,7 +174,6 @@ def compute_cached_orientation_data(
             x0 = scaling * (template_vertices - template_origin[None])
 
             # Matrix from which to recover template bone orientation
-            # Note: one could give add some strong weight to the bone tail vertex, to provide incentive to keep the head-tail direction consistent.
             template_orientation_matrix = torch.einsum(
                 "i, ik, il -> kl", weights, x0, xref_local
             )  # left side: target, right side; source (to be aligned)
@@ -192,7 +191,8 @@ def compute_cached_orientation_data(
                 M = torch.einsum(
                     "i, ik, il -> kl", weights, x, xref_local
                 )  # left side: target, right side; source (to be aligned)
-                # We express the matrices relative to a base template, so that orientation remains well defined even when blendshape coefficients are zero
+                # We express the matrices relative to a base template, so that orientation
+                # remains well defined even when blendshape coefficients are zero
                 B = M - template_orientation_matrix
                 orientation_blendshapes.append(B)
             orientation_blendshapes = torch.stack(orientation_blendshapes, dim=0)
@@ -291,7 +291,8 @@ def main_anny(
         facial_actions=False,
     )
 
-    # The bone orientations are inconsistent across shapes (which motivates the use of a different orientation strategy).
+    # The bone orientations are inconsistent across shapes (which motivates the use of
+    # a different orientation strategy).
     # We choose a particular body shape as reference (default settings in MPFB2)
     ref_output = source_model(phenotype_kwargs=dict(age=2 / 3))
     reference_bone_orientations = ref_output["rest_bone_poses"].squeeze(dim=0)[

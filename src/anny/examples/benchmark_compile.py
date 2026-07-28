@@ -234,7 +234,8 @@ def benchmark_method(
             f"compiled={backward_compiled_seconds * 1000:>9.3f}ms "
             f"speedup={result['backward_speedup']:>6.2f}x"
             f"eager mem={backward_allocated_eager / 1024**2:>7.2f}MB ({backward_reserved_eager / 1024**2:>7.2f}MB) "
-            f"compiled mem={backward_allocated_compiled / 1024**2:>7.2f}MB ({backward_reserved_compiled / 1024**2:>7.2f}MB)"
+            f"compiled mem={backward_allocated_compiled / 1024**2:>7.2f}MB "
+            f"({backward_reserved_compiled / 1024**2:>7.2f}MB)"
         )
 
     return results

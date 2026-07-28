@@ -19,6 +19,8 @@ from anny.paths import get_anny2smpl_data_path, get_anny2smplx_data_path
 
 with warnings.catch_warnings():
     warnings.simplefilter("ignore", FutureWarning)
+    # Patching because smplx uses deprecated numpy types and inspect.getargspec, which
+    # are removed in newer versions of numpy and Python.
     with (
         patch.object(np, "int", np.int_, create=True),
         patch.object(np, "float", np.float64, create=True),
@@ -28,7 +30,7 @@ with warnings.catch_warnings():
         patch.object(np, "str", np.str_, create=True),
         patch.object(np, "unicode", np.str_, create=True),
         patch.object(inspect, "getargspec", inspect.getfullargspec, create=True),
-    ):  # Patching because smplx uses deprecated numpy types and inspect.getargspec which are removed in newer versions of numpy and Python
+    ):
         import smplx
 
         # Unused here, but importing chumpy under the patches above is what lets smplx

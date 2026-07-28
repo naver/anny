@@ -61,7 +61,9 @@ trimesh_scene_transform = (
 # %%
 display(
     Markdown(
-        f"{anny_model.template_vertices.shape[0]} vertices -- {anny_model.faces.shape[0]} faces composed of {anny_model.faces.shape[1]} vertices each."
+        f"{anny_model.template_vertices.shape[0]} vertices -- "
+        f"{anny_model.faces.shape[0]} faces composed of "
+        f"{anny_model.faces.shape[1]} vertices each."
     )
 )
 trimesh.Trimesh(
@@ -73,12 +75,16 @@ trimesh.Trimesh(
 # ## Shape parameterization
 #
 # Anny can model a diversity of morphologies.
-# We follow MakeHuman terminology, and parameterize diversity of body shapes using a set of *phenotype* parameters, typically between 0 and 1.
+# We follow MakeHuman terminology, and parameterize diversity of body shapes using a set
+# of *phenotype* parameters, typically between 0 and 1.
 #
 # *Note:* the values *african*, *caucasian* and *asian* parameters are normalized so that they sum to 1.
 #
 # **Word of caution regarding phenotypes:**
-# *Phenotypes are based on preconceptions of artists regarding particular human traits. As a result, they encode by design stereotypes of MakeHuman artists, and one should not expect phenotype parameters to faithfully encode identity-related characteristics, such as gender, age or ethnicity.*
+# *Phenotypes are based on preconceptions of artists regarding particular human traits.
+# As a result, they encode by design stereotypes of MakeHuman artists, and one should not
+# expect phenotype parameters to faithfully encode identity-related characteristics, such
+# as gender, age or ethnicity.*
 
 # %%
 # List phenotype parameters
@@ -130,7 +136,8 @@ scene.show()  # This will open a window to visualize the scene with all the bodi
 # %% [markdown]
 # ## Local changes
 # Additionnally one specify some more local morphological changes.
-# Local change parameters values are typically expected to be chosen between -1 and 1, but one can use values outside this range to extrapolate changes even further.
+# Local change parameters values are typically expected to be chosen between -1 and 1,
+# but one can use values outside this range to extrapolate changes even further.
 #
 # *Note: it is easy to produce unrealistic meshes when using significant local changes.*
 
@@ -288,7 +295,8 @@ scene.show()  # This will open a window to visualize the scene with all the face
 # %% [markdown]
 # ### Body measures
 #
-# We additionnally provide a class to estimate some anthropometric measurements, assuming a body buoyancy of .98 in water.
+# We additionally provide a class to estimate some anthropometric measurements, assuming
+# a body buoyancy of .98 in water.
 
 # %%
 real_age, phenotype_kwargs = phenotype_distribution.sample(batch_size=1000)

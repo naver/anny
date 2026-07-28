@@ -40,7 +40,8 @@ def transfer_pose_parameters(
     assert (
         base_output["rest_vertices"] - src_output["rest_vertices"]
     ).abs().max() < 1e-6, (
-        "src_model and target_model have different rest meshes; they must represent the same body at rest to transfer the pose."
+        "src_model and target_model have different rest meshes; they must represent "
+        "the same body at rest to transfer the pose."
     )
 
     # Preserve the LBS skinning delta (bone_pose @ rest_bone_pose^-1) across the two rigs' differing rest orientations.

@@ -463,7 +463,8 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
 
         else:
             raise NameError(
-                f"delta_transforms_dict should be a dict, a namedtuple or a tensor, but got {type(delta_transforms_dict)}"
+                "delta_transforms_dict should be a dict, a namedtuple or a tensor, "
+                f"but got {type(delta_transforms_dict)}"
             )
 
     def get_bone_ends(
@@ -516,7 +517,8 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
             return bone_transforms, rest_bone_poses
         if blendshape_batch_size > 1 and bone_batch_size > 1:
             raise ValueError(
-                f"Batch size of pose_parameters ({bone_batch_size}) and blendshape_coeffs ({blendshape_batch_size}) must match, one if the two must have batch size 1."
+                f"Batch size of pose_parameters ({bone_batch_size}) and blendshape_coeffs "
+                f"({blendshape_batch_size}) must match, one if the two must have batch size 1."
             )
 
         new_batch_size = max(bone_batch_size, blendshape_batch_size)
@@ -577,7 +579,8 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
                     base_transform=base_transform,
                 )
             elif pose_parameterization == "local-ref":
-                # Pose is parameterized as local transforms relative to the reference pose, expressed in the reference pose space.
+                # Pose is parameterized as local transforms relative to the reference pose,
+                # expressed in the reference pose space.
                 # The reference bone is the origin
                 base_transform = (
                     roma.Rigid.from_homogeneous(ref_bone_poses[:, 0])

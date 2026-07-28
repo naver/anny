@@ -56,7 +56,8 @@ def check_legacy_pose_parameterization(
         )
         if bone_orientation not in ["blender", "blender-rootidentity"]:
             raise ValueError(
-                "pose_parameterization='root_relative_world' requires 'blender' or 'blender-rootidentity' bone orientation."
+                "pose_parameterization='root_relative_world' requires 'blender' or "
+                "'blender-rootidentity' bone orientation."
             )
         return "local-bone", bone_orientation
     return pose_parameterization, bone_orientation

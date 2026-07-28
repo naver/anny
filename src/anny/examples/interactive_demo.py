@@ -208,7 +208,8 @@ def main(server_name: str = None, server_port: int = None):
                         node_name=f"pose_{model.bone_labels[i]}",
                     )
 
-            # The gradio Model3D component does not use a Z-up camera orientation by default. We apply a scene rotation to compensate.
+            # The gradio Model3D component does not use a Z-up camera orientation by
+            # default. We apply a scene rotation to compensate.
             view_transform = (
                 roma.Rigid(
                     roma.euler_to_rotmat("x", [-90.0], degrees=True), torch.zeros(3)

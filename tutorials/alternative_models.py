@@ -120,15 +120,21 @@ def add_skeleton_to_scene(scene, model, output):
 # ## Rigs and topology
 #
 # Anny supports various skeletal rigs, including:
-# - "makehuman", the default rig provided by MPFB2 (https://github.com/makehumancommunity/mpfb2) with minor vertex weights fixes.
-# - "anny" (the default), an adaptation of the "makehuman" rig with more stable bone orientations when the shape changes.
+# - "makehuman", the default rig provided by MPFB2
+#   (https://github.com/makehumancommunity/mpfb2) with minor vertex weights fixes.
+# - "anny" (the default), an adaptation of the "makehuman" rig with more stable bone
+#   orientations when the shape changes.
 # - "mixamo", inspired by characters from https://www.mixamo.com/.
 # - "soma", for compatibility with https://www.github.com/NVlabs/SOMA-X/.
 #
-# Bones that are not useful for your application can be removed from the Anny rig. Using "anny-notoes" will ignore bones animating individual toes, for example.
+# Bones that are not useful for your application can be removed from the Anny rig.
+# Using "anny-notoes" will ignore bones animating individual toes, for example.
 #
-# Anny also supports various mesh topologies. A topology such as "notoes_collapse5pc" provides coarser mesh output for example, allowing to speed up inference and reduce memory consumption.
-# We provide a "smplx" topology for interoperability with the SMPL-X model (https://smpl-x.is.tue.mpg.de/), **for non-commercial use only**.
+# Anny also supports various mesh topologies. A topology such as "notoes_collapse5pc"
+# provides coarser mesh output for example, allowing to speed up inference and reduce
+# memory consumption.
+# We provide a "smplx" topology for interoperability with the SMPL-X model
+# (https://smpl-x.is.tue.mpg.de/), **for non-commercial use only**.
 #
 # We show below a few combinations of meshes and topologies supported by the model:
 
@@ -167,7 +173,8 @@ for rig, topology in [
     # Convert to a notebook widget/HTML
     viewers.append(
         Markdown(
-            f"#### '{rig}' rig ({model.bone_count} bones) / '{topology}' topology ({len(output['vertices'].squeeze(0))} vertices, {len(model.faces)} faces)"
+            f"#### '{rig}' rig ({model.bone_count} bones) / '{topology}' topology "
+            f"({len(output['vertices'].squeeze(0))} vertices, {len(model.faces)} faces)"
         )
     )
     viewers.append(Markdown("  - " + ", ".join([label for label in model.bone_labels])))

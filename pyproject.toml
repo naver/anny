@@ -74,14 +74,19 @@ url = "https://download.pytorch.org/whl/cu126"
 explicit = true
 
 [tool.ruff]
+# Formatter target: `ruff format` wraps code to 88 columns.
 line-length = 88
 
 [tool.ruff.lint]
 # "E" and "W" are pycodestyle (PEP8, incl. W291/W293 trailing whitespace),
 # "F" is pyflakes (ruff's default set).
 select = ["E", "W", "F"]
-# Line length is not enforced for now
-ignore = ["E501"]
+
+[tool.ruff.lint.pycodestyle]
+# E501 only fires past 120, above the formatter's 88. The formatter already keeps code
+# within 88; what it cannot wrap is prose and long string literals, so linting at 88
+# would just flag those. 120 catches the genuinely unreadable ones instead.
+max-line-length = 120
 
 [tool.ruff.lint.per-file-ignores]
 # Public API surface: names are re-exported, not used locally.

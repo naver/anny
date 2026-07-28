@@ -94,7 +94,10 @@ def main(
 
         timer = torch.utils.benchmark.Timer(
             stmt="forward_pass(model, pose_parameters, phenotype_kwargs, local_changes_kwargs)",
-            setup="from __main__ import forward_pass; forward_pass(model, pose_parameters, phenotype_kwargs, local_changes_kwargs)",
+            setup=(
+                "from __main__ import forward_pass; "
+                "forward_pass(model, pose_parameters, phenotype_kwargs, local_changes_kwargs)"
+            ),
             globals=dict(
                 model=model,
                 pose_parameters=pose_parameters,
@@ -113,7 +116,9 @@ def main(
             device=device,
         )
         print(
-            f"{model_label} -- Forward pass -- batch_size: {batch_size:>4} -- time: {(result.median * time_scale):>8.3f} ± {(result.iqr * time_scale):>8.3f} {time_unit} "
+            f"{model_label} -- Forward pass -- batch_size: {batch_size:>4} -- time: "
+            f"{(result.median * time_scale):>8.3f} ± "
+            f"{(result.iqr * time_scale):>8.3f} {time_unit} "
             f"-- GPU peak alloc: {gpu_peak_alloc / 1024**2:>6.1f} MB"
         )
 
@@ -145,7 +150,10 @@ def main(
 
         timer = torch.utils.benchmark.Timer(
             stmt="vertices_backward_pass(model, pose_parameters, phenotype_kwargs, local_changes_kwargs)",
-            setup="from __main__ import vertices_backward_pass; vertices_backward_pass(model, pose_parameters, phenotype_kwargs, local_changes_kwargs)",
+            setup=(
+                "from __main__ import vertices_backward_pass; "
+                "vertices_backward_pass(model, pose_parameters, phenotype_kwargs, local_changes_kwargs)"
+            ),
             globals=dict(
                 model=model,
                 pose_parameters=pose_parameters,
@@ -164,7 +172,9 @@ def main(
             device=device,
         )
         print(
-            f"{model_label} -- vertices_backward_pass -- batch_size: {batch_size:>4} -- time: {(result.median * time_scale):>8.3f} ± {(result.iqr * time_scale):>8.3f} {time_unit} "
+            f"{model_label} -- vertices_backward_pass -- batch_size: {batch_size:>4} -- time: "
+            f"{(result.median * time_scale):>8.3f} ± "
+            f"{(result.iqr * time_scale):>8.3f} {time_unit} "
             f"-- GPU peak alloc: {gpu_peak_alloc / 1024**2:>6.1f} MB"
         )
 

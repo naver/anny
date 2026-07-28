@@ -43,7 +43,8 @@ class TestPoseParametrization(unittest.TestCase):
 
                 if target_pose_parameterization == "world-orient":
                     if source_pose_parameterization == "world":
-                        # the 'world' parametterization allow some non-articulated transformations, which cannot be parameterized by 'world-orient'.
+                        # the 'world' parameterization allows some non-articulated
+                        # transformations, which cannot be parameterized by 'world-orient'.
                         continue
 
                 source_output = model(
@@ -64,5 +65,6 @@ class TestPoseParametrization(unittest.TestCase):
                     torch.allclose(
                         source_output["vertices"], target_output["vertices"], atol=1e-4
                     ),
-                    f"Pose parametrization conversion error from {source_pose_parameterization} to {target_pose_parameterization}",
+                    f"Pose parametrization conversion error from "
+                    f"{source_pose_parameterization} to {target_pose_parameterization}",
                 )

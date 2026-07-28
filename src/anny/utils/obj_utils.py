@@ -34,7 +34,8 @@ def load_obj_file(mesh_filename, dtype=torch.float32, pack_as_tensor=True):
             if len(line) > 0 and not line.startswith("#") or line.startswith("mtllib"):
                 split = line.split(" ")
                 if split[0] == "o":
-                    # New object. We consider only one object in this simple file parser and stop if vertices where already loaded.
+                    # New object. We consider only one object in this simple file parser
+                    # and stop if vertices where already loaded.
                     if len(vertices) > 0:
                         break
                 elif split[0] == "v":

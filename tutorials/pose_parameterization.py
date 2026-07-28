@@ -56,9 +56,11 @@ axis = trimesh.creation.axis(axis_length=0.1)
 # %% [markdown]
 # ### Pose parameterization
 #
-# A pose is described by a set of 4x4 rigid transformation matrices, one per bone. Here we set all bone transformations to be the identity, which corresponds to the rest pose:
+# A pose is described by a set of 4x4 rigid transformation matrices, one per bone. Here
+# we set all bone transformations to be the identity, which corresponds to the rest pose:
 #
-# *Remark: we use direct transforms and column vectors conventions, so that coordinates $X_i$ of a vector are transformed by a matrix $M_{i,j}$ into $Y_i = \sum_k M_{ik} X_k$.*
+# *Remark: we use direct transforms and column vectors conventions, so that coordinates
+# $X_i$ of a vector are transformed by a matrix $M_{i,j}$ into $Y_i = \sum_k M_{ik} X_k$.*
 
 # %%
 # The code supports batched inputs. Here we use a batch size of 1.
@@ -80,7 +82,9 @@ scene.apply_transform(trimesh_scene_transform)
 scene.show()
 
 # %% [markdown]
-# Alternatively, pose parameters can be specified by a single tensor stacking all bone transformations. The ordering of the bones is consistent with the one of `anny_model.bone_labels`.
+# Alternatively, pose parameters can be specified by a single tensor stacking all bone
+# transformations. The ordering of the bones is consistent with the one of
+# `anny_model.bone_labels`.
 
 # %%
 pose_parameters = torch.eye(4, dtype=torch.float32)[None, None].repeat(
@@ -105,14 +109,20 @@ scene.show()
 # The *root* bone is the first bone of the kinematic chain of the model.
 #
 # Anny supports different pose parameterizations that behave differently.
-# The choice of parameterization can be changed at instantiation through the `pose_parameterization` argument, or at each call of Anny using the `pose_parameterization` argument.
+# The choice of parameterization can be changed at instantiation through the
+# `pose_parameterization` argument, or at each call of Anny using the
+# `pose_parameterization` argument.
 #
 # ### pose_parameterization="local-bone"
 #
-# In *local-bone* mode, the transformation associated with the root bone describes the pose of the root bone, with respect to the world coordinate system. When using the identity tranformation for the root bone, its coordinate system is therefore aligned with the world coordinate system.
+# In *local-bone* mode, the transformation associated with the root bone describes the
+# pose of the root bone, with respect to the world coordinate system. When using the
+# identity transformation for the root bone, its coordinate system is therefore aligned
+# with the world coordinate system.
 #
 # The transformation associated to a bone affects this bone and its children along the kinematic chain of the model.
-# It describes the transformation applied to the bone with respect to its parent bone, and is expressed with respect to the rest coordinates system of this bone.
+# It describes the transformation applied to the bone with respect to its parent bone,
+# and is expressed with respect to the rest coordinates system of this bone.
 #
 # Let us consider a particular bone, the left shoulder for example. We show below its default pose:
 
@@ -136,7 +146,8 @@ scene.apply_transform(trimesh_scene_transform)
 scene.show()
 
 # %% [markdown]
-# Let us apply a rotation around the Z axis (in blue) to rotate this bone with respect to its parent. Note how it affects the whole arm.
+# Let us apply a rotation around the Z axis (in blue) to rotate this bone with respect
+# to its parent. Note how it affects the whole arm.
 
 # %%
 
@@ -160,7 +171,10 @@ scene.show()
 
 # %% [markdown]
 # #### ```pose_parameterization="world"```
-# In *world* mode, the pose parameterization consists of rigid transformations that describe the pose of each bone individually in the the world coordinate system. It allows to specify per-bone transformations easily, regardless of the kinematic skeleton.
+# In *world* mode, the pose parameterization consists of rigid transformations that
+# describe the pose of each bone individually in the world coordinate system. It
+# allows to specify per-bone transformations easily, regardless of the kinematic
+# skeleton.
 
 # %%
 # Retrieve an absolute parameterization of the previous output mesh.
@@ -191,7 +205,10 @@ scene.show()
 
 # %% [markdown]
 # #### ```pose_parameterization="world-orient"```
-# In *world-orient* mode, the parameterization of the root bone does not change, but parameterization of the other bones consist in 3D rotations describing their orientation in the world coordinate system. The bone location is automatically resolved through forward kinematics.
+# In *world-orient* mode, the parameterization of the root bone does not change, but
+# parameterization of the other bones consists of 3D rotations describing their
+# orientation in the world coordinate system. The bone location is automatically
+# resolved through forward kinematics.
 
 # %%
 output = anny_model(pose_parameterization="local-bone")  # rest pose

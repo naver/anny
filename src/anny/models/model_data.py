@@ -359,7 +359,8 @@ class ModelData:
             data_version = f.metadata().get("data_version", 1)
             if int(data_version) != CURRENT_DATA_VERSION:
                 raise ValueError(
-                    f"Data version mismatch: file {path} has data_version={data_version}, but current code expects data_version={CURRENT_DATA_VERSION}"
+                    f"Data version mismatch: file {path} has data_version={data_version}, "
+                    f"but current code expects data_version={CURRENT_DATA_VERSION}"
                 )
 
             meta_str = f.metadata().get("metadata", "{}")
@@ -629,7 +630,8 @@ def _parse_topology_spec(spec: str) -> TopologyConfig:
         )
     elif spec_base == "default":
         raise ValueError(
-            "Topology specifier 'default' is only valid in legacy create_fullbody_model, use 'anny' or 'makehuman' instead."
+            "Topology specifier 'default' is only valid in legacy create_fullbody_model, "
+            "use 'anny' or 'makehuman' instead."
         )
     else:
         raise ValueError(f"Unknown Anny topology: {spec_base}")

@@ -75,7 +75,8 @@ def get_point_triangle_distance_func(safe_length: bool = False):
             # The planar projection is inside the triangle
             return length_func(point - inplane_projection)
         else:
-            # The planar projection is outside the triangle: consider point/segment and point/vertices distances to get proper gradients
+            # The planar projection is outside the triangle: consider point/segment and
+            # point/vertices distances to get proper gradients
             proj_01 = point_segment_projection(point, v0, v1)
             proj_02 = point_segment_projection(point, v0, v2)
             proj_12 = point_segment_projection(point, v1, v2)
@@ -156,7 +157,9 @@ def get_point_to_mesh_distance_and_face_kernel(safe_length: bool = False):
                 v0 = mesh.points[mesh.indices[i]]
                 v1 = mesh.points[mesh.indices[i + 1]]
                 v2 = mesh.points[mesh.indices[i + 2]]
-                # This should produce the same result as the above, but with better gradients? (point to plane distance or point to segment distance when the projection is not on the boundary)
+                # This should produce the same result as the above, but with better
+                # gradients? (point to plane distance or point to segment distance when
+                # the projection is not on the boundary)
                 dist = point_triangle_distance(point, v0, v1, v2)
                 distances[tid] = wp.min(dist, max_dist)
                 faces[tid] = face_id

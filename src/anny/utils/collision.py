@@ -64,7 +64,8 @@ def get_intersection_kernel(mask_uint32_length):
         e0: wp.vec3,
         e1: wp.vec3,
     ):
-        """Test if the projection of two triangles are separated along an axis corresponding to the cross product of two edges."""
+        """Test if the projection of two triangles are separated along an axis
+        corresponding to the cross product of two edges."""
         axis = wp.cross(e0, e1)
         if wp.dot(axis, axis) > 1e-6:  # Ensure valid axis (avoid degenerate cases)
             axis = wp.normalize(axis)  # Normalize to avoid precision issues
