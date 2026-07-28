@@ -118,8 +118,8 @@ def get_intersection_kernel(mask_uint32_length):
 
     @wp.func
     def test_mask(
-        a: IntersectionMask, # type: ignore
-        b: IntersectionMask, # type: ignore
+        a: IntersectionMask,  # type: ignore
+        b: IntersectionMask,  # type: ignore
     ) -> wp.bool:  # type: ignore
         for k in range(mask_uint32_length):
             # Static loop unrolling
@@ -131,8 +131,8 @@ def get_intersection_kernel(mask_uint32_length):
     @wp.kernel
     def test_self_intersection(
         query_mesh_id: wp.uint64,
-        intersection_mask: wp.array(dtype=IntersectionMask), # type: ignore
-        colliding_face: wp.array(dtype=wp.int32), # type: ignore
+        intersection_mask: wp.array(dtype=IntersectionMask),  # type: ignore
+        colliding_face: wp.array(dtype=wp.int32),  # type: ignore
     ):  # type: ignore
         tid = wp.tid()
 
