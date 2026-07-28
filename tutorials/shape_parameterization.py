@@ -12,6 +12,7 @@
 #     name: python3
 # ---
 
+# %%
 # Anny
 # Copyright (C) 2025 NAVER Corp.
 # Apache License, Version 2.0
@@ -30,6 +31,10 @@ import torch
 import roma # A PyTorch library useful to deal with space transformations.
 import anny # The main library for the Anny model.
 import trimesh # For 3D mesh visualization.
+import matplotlib.pyplot as plt
+import anny.shape_distribution
+import anny.anthropometry
+
 
 # Instantiate the model, with all shape parameters available.
 # Remark: the first instantiation may take a while. Latter calls will be faster thanks to caching.
@@ -129,7 +134,7 @@ scene.show()  # This will open a window to visualize the scene with all the face
 # The dictionary form is convenient for sparse edits, while tensor input is convenient for batched optimization.
 
 # %%
-face_model = anny.create_head_model(facial_actions=True).to(device=device, dtype=dtype)
+face_model = anny.Anny(rig="anny", topology="head", facial_actions=True).to(device=device, dtype=dtype)
 
 # Using with dict unit -> tensor input
 facial_actions = {
@@ -153,7 +158,7 @@ scene = trimesh.Scene()
 for i in range(batch_size):
     # Create a mesh for each face in the batch.
     mesh = trimesh.Trimesh(vertices=output['vertices'][i].squeeze().cpu().numpy(), faces=face_model.faces.cpu().numpy())
-    transform = roma.Rigid(linear=None, translation=torch.tensor([i * 0.2, 0., 0.])).to_homogeneous().cpu().numpy()
+    transform = roma.Rigid(linear=roma.euler_to_rotmat("x", [90.], degrees=True), translation=torch.tensor([i * 0.2, 0., 0.])).to_homogeneous().cpu().numpy()
     scene.add_geometry(mesh, transform=transform)
 scene.apply_transform(trimesh_scene_transform)  # Rotate the scene to have a better view.
 scene.show()  # This will open a window to visualize the scene with all the faces in
@@ -162,10 +167,6 @@ scene.show()  # This will open a window to visualize the scene with all the face
 # ## Phenotype distribution
 
 # %%
-import anny.shape_distribution
-import anny.anthropometry
-import matplotlib.pyplot as plt
-
 phenotype_distribution = anny.shape_distribution.SimpleShapeDistribution(anny_model,
             morphological_age_distribution=torch.distributions.Uniform(low=0.0, high=60.0))
 
