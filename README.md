@@ -33,7 +33,7 @@ pip install anny[warp,examples]@git+https://github.com/naver/anny.git # latest s
 ### Quickstart example
 ```python
 import torch, anny, trimesh
-model = anny.Anny(local_changes=True, facial_actions=True).to(dtype=torch.float32)
+model = anny.Anny(local_changes="default", facial_actions=True).to(dtype=torch.float32)
 # The model accept both dictionnary and stacked tensor inputs.
 # Skeletal rig pose parameters (see model.bone_labels).
 pose_parameters = torch.eye(4)[None, None].repeat(1, model.bone_count, 1, 1)

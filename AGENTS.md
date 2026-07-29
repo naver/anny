@@ -66,7 +66,7 @@ Phenotypes are blended linearly between discrete anchor states defined in `src/a
 
 ### Pose Parameterization
 
-Five built-in variants: `local-bone` (default), `local-bone-world`, `world`, `world-orient`, `local-ref`. Selected via `pose_parameterization` argument to `Anny()`.
+Five built-in variants: `local-ref` (the `Anny()` default), `local-bone`, `local-bone-world`, `world`, `world-orient`. Selected via the `pose_parameterization` argument to `Anny()`. The deprecated `create_fullbody_model(...)` preserves the old `local-bone` default.
 
 ### Optional Dependencies
 
