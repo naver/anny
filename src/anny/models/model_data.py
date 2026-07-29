@@ -623,8 +623,8 @@ def _parse_topology_spec(spec: str) -> TopologyConfig:
             base_mesh="makehuman",
             submodel="body",
             nudity_edits=False,
-            eyes=False,
-            tongue=False,
+            eyes=True,
+            tongue=True,
             remove_unattached_vertices=False,
             triangulate_faces=False,
         )
