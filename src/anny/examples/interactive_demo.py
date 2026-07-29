@@ -434,6 +434,7 @@ def main(server_name: str = None, server_port: int = None):
                             "smplx",
                             "smpl",
                             "soma",
+                            "makehuman",
                         ],
                         value=default_model_value,
                     )
