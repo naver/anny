@@ -2,9 +2,9 @@
 # Copyright (C) 2025 NAVER Corp.
 # Apache License, Version 2.0
 from __future__ import annotations
-from typing import Literal, Sequence, TypeAlias
-from pathlib import Path
 
+from pathlib import Path
+from typing import Literal, Sequence, TypeAlias
 
 PathLike: TypeAlias = Path | str
 
@@ -30,3 +30,5 @@ PoseParameterization: TypeAlias = Literal[
 ]
 BoneOrientation: TypeAlias = Literal["blender", "procrustes", "cached"]
 LocalChanges: TypeAlias = Literal["none", "default", "all"] | Sequence[str]
+FacialActions: TypeAlias = Literal["none", "all"] | Sequence[str]
+Phenotypes: TypeAlias = Literal["default", "all"]

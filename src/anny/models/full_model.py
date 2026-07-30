@@ -28,11 +28,11 @@ from anny.models.model_data import (
     cache_builder,
     TopologyConfig,
     RigConfig,
-    resolve_local_change_mask,
+    resolve_blendshape_mask,
 )
 from anny.paths import get_anny_root_dir, PathLike
 import anny.models.model_transforms as model_transforms
-from anny.typing import LocalChanges, Submodel
+from anny.typing import FacialActions, LocalChanges, Submodel
 from anny.face_segmentation import get_face_segmentation_mask
 
 logger = logging.getLogger(__name__)
@@ -814,8 +814,6 @@ def load_data(
         metadata=ModelMetadata(
             bone_labels=rig_data.bone_labels,
             bone_parents=rig_data.bone_parents,
-            local_change_labels=blendshape_data.local_change_labels,
-            facial_action_labels=blendshape_data.facial_action_labels,
             blendshape_labels=blendshape_data.blendshape_labels,
         ),
         template_vertices=mesh_data.template_vertices,
@@ -948,7 +946,7 @@ def build_anny_model_data(
     rig: RigConfig,
     topology: TopologyConfig,
     local_changes: LocalChanges,
-    facial_actions: bool,
+    facial_actions: FacialActions,
 ) -> ModelData:
     if topology.base_mesh != "makehuman":
         raise ValueError(
@@ -967,14 +965,10 @@ def build_anny_model_data(
     )
     data = _filter_rig(data, rig.bones_to_remove, rig.subtree_root)
 
-    local_change_mask = resolve_local_change_mask(
-        local_changes, data.metadata.local_change_labels
+    mask = resolve_blendshape_mask(
+        local_changes, facial_actions, data.metadata.blendshape_labels
     )
-    data = model_transforms.filter_blendshapes(
-        data,
-        local_change_mask,
-        facial_actions,
-    )
+    data = model_transforms.filter_blendshapes(data, mask)
 
     faces_to_keep = _faces_to_keep_from_submodel(data, topology.submodel)
 

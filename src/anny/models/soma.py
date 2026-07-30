@@ -5,7 +5,7 @@
 import dataclasses
 import os
 
-from anny.typing import LocalChanges
+from anny.typing import LocalChanges, FacialActions
 import torch
 
 from anny.models.model_data import RigConfig, TopologyConfig
@@ -46,7 +46,7 @@ def _load_soma_faces():
 
 
 def build_soma_rig_and_topology_model_data(
-    local_changes: LocalChanges, facial_actions: bool
+    local_changes: LocalChanges, facial_actions: FacialActions
 ):
     soma_rig_data = _load_soma_rig()
     procrustes_orientation_data = _load_cached_orientation_data()
@@ -66,7 +66,7 @@ def build_soma_rig_and_topology_model_data(
 
 
 def build_soma_rig_model_data(
-    topology: TopologyConfig, local_changes: LocalChanges, facial_actions: bool
+    topology: TopologyConfig, local_changes: LocalChanges, facial_actions: FacialActions
 ):
     soma_data = build_soma_rig_and_topology_model_data(
         local_changes=local_changes,

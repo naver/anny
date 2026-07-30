@@ -38,7 +38,7 @@ import anny.anthropometry
 
 # Instantiate the model, with all shape parameters available.
 # Remark: the first instantiation may take a while. Latter calls will be faster thanks to caching.
-anny_model = anny.Anny(all_phenotypes=True, local_changes="default")
+anny_model = anny.Anny(phenotypes="all", local_changes="default")
 # Use 32bit floating point precision on the CPU for this demo.
 dtype = torch.float32
 device = torch.device("cpu")
@@ -200,7 +200,7 @@ scene.show()  # This will open a window to visualize the scene with all the face
 # The dictionary form is convenient for sparse edits, while tensor input is convenient for batched optimization.
 
 # %%
-face_model = anny.Anny(rig="anny", topology="head", facial_actions=True).to(
+face_model = anny.Anny(rig="anny", topology="head", facial_actions="all").to(
     device=device, dtype=dtype
 )
 

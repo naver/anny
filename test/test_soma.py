@@ -171,7 +171,7 @@ class TestSomaRigProcrustesOrientation(unittest.TestCase):
         torch.testing.assert_close(selected[1], torch.zeros_like(selected[1]))
 
     def test_orientation_local_changes_slicing(self):
-        for facial_actions in [False, True]:
+        for facial_actions in ["all", "none"]:
             all_model = anny.Anny(
                 rig="soma",
                 topology="soma",
@@ -243,7 +243,7 @@ class TestSomaForwardParity(unittest.TestCase):
             rig="soma",
             topology="soma",
             pose_parameterization="local-ref",
-            all_phenotypes=True,
+            phenotypes="all",
         ).to(device=device, dtype=dtype)
         soma_layer = soma.SOMALayer(
             identity_model_type="anny", mode="warp", device=device

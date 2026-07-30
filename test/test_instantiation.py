@@ -158,7 +158,7 @@ class TestInstantiation(unittest.TestCase):
         import roma
 
         model = anny.Anny(
-            rig="anny", topology="anny", facial_actions=True, skinning_method="lbs"
+            rig="anny", topology="anny", facial_actions="all", skinning_method="lbs"
         )
         facial_rows = [
             i
@@ -191,6 +191,15 @@ class TestInstantiation(unittest.TestCase):
             "rest_bone_poses"
         ]
         self.assertLess(torch.max(torch.abs(poses_anny - poses_makehuman)), 1e-6)
+
+    def test_list_of_facial_actions_is_filtered(self):
+        model = anny.Anny(
+            rig="anny",
+            topology="anny",
+            facial_actions=["jawOpen"],
+            skinning_method="lbs",
+        )
+        assert len(model.facial_action_labels) == 1
 
 
 if __name__ == "__main__":

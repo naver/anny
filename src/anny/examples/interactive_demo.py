@@ -252,7 +252,7 @@ def main(server_name: str = None, server_port: int = None):
                 rig=rig,
                 topology=topology,
                 local_changes="default",
-                facial_actions=True,
+                facial_actions="all",
                 skinning_method="lbs",
             )
 

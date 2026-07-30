@@ -115,8 +115,8 @@ def create_fullbody_model(
         topology=anny_topology,
         local_changes=local_changes,
         extrapolate_phenotypes=extrapolate_phenotypes,
-        all_phenotypes=all_phenotypes,
-        facial_actions=False,
+        phenotypes="all" if all_phenotypes else "default",
+        facial_actions="none",
         skinning_method=skinning_method,
         pose_parameterization=pose_parameterization,
     )
@@ -155,7 +155,7 @@ def create_hand_model(
         local_changes=local_changes,
         pose_parameterization=pose_parameterization,
         extrapolate_phenotypes=extrapolate_phenotypes,
-        all_phenotypes=all_phenotypes,
+        phenotypes="all" if all_phenotypes else "default",
     )
 
 
@@ -202,10 +202,10 @@ def create_head_model(
         rig=rig,
         topology=topology,
         local_changes=local_changes,
-        facial_actions=facial_actions,
+        facial_actions="all" if facial_actions else "none",
         pose_parameterization=pose_parameterization,
         extrapolate_phenotypes=extrapolate_phenotypes,
-        all_phenotypes=all_phenotypes,
+        phenotypes="all" if all_phenotypes else "default",
     )
 
 

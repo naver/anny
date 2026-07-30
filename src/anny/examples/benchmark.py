@@ -63,7 +63,7 @@ def main(
     model = anny.Anny(
         rig=rig,
         topology=topology,
-        all_phenotypes=all_phenotypes,
+        phenotypes="all" if all_phenotypes else "default",
         local_changes=local_changes,
     )
     model = model.to(dtype=dtype, device=device)

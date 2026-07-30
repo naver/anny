@@ -13,9 +13,10 @@ class TestLocalChanges(unittest.TestCase):
         dtype = torch.float64
         withoutlocal = anny.Anny(rig="makehuman", local_changes="none").to(dtype=dtype)
         withlocal = anny.Anny(rig="makehuman", local_changes="default").to(dtype=dtype)
+
         local_change_labels = ["measure-upperarm-length-incr", "head-angle-out"]
         withsomelocal = anny.Anny(
-            rig="makehuman", local_changes=local_change_labels, all_phenotypes=False
+            rig="makehuman", local_changes=local_change_labels, phenotypes="default"
         ).to(dtype=dtype)
 
         # Generate random shape parameters

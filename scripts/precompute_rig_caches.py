@@ -288,7 +288,7 @@ def main_anny(
         rig="makehuman-notongue-nobreasts-nofacialexpression-pruned",
         topology="anny",
         local_changes="all",
-        facial_actions=False,
+        facial_actions="none",
     )
 
     # The bone orientations are inconsistent across shapes (which motivates the use of
@@ -405,7 +405,7 @@ def main_soma(
         rig=RigConfig.from_string("anny"),
         topology=TopologyConfig.from_string("soma"),
         local_changes="all",
-        facial_actions=False,
+        facial_actions="none",
         reference_topology="anny_from_soma",
     )
     dtype = data.template_vertices.dtype

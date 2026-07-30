@@ -3,6 +3,7 @@
 # Apache License, Version 2.0
 from __future__ import annotations
 
+from copy import copy
 import dataclasses
 import functools
 import hashlib
@@ -18,10 +19,12 @@ import torch
 
 from anny.paths import get_anny_cache_path, get_anny_root_dir
 from anny.typing import (
-    AlternativeTopology,
-    BoneOrientation,
+    FacialActions,
     LocalChanges,
     PathLike,
+    AlternativeTopology,
+    BoneOrientation,
+    Phenotypes,
     PoseParameterization,
     Rig,
     SkinningMethod,
@@ -30,7 +33,7 @@ from anny.typing import (
 
 ANNY_VERSION = importlib.metadata.version("anny")
 # Increase this if there are any non-backwards-compatible changes to the data/metadata format
-CURRENT_DATA_VERSION = 10
+CURRENT_DATA_VERSION = 11
 
 logger = logging.getLogger(__name__)
 
@@ -268,16 +271,16 @@ class TopologyConfig:
 
 @dataclasses.dataclass(frozen=True)
 class AnnyModelConfig:
-    all_phenotypes: bool
+    phenotypes: Phenotypes
     local_changes: LocalChanges
     extrapolate_phenotypes: bool
-    facial_actions: bool
+    facial_actions: FacialActions
 
     pose_parameterization: PoseParameterization
     skinning_method: SkinningMethod | None
 
-    rig: RigConfig
-    topology: TopologyConfig
+    rig: RigConfig | str
+    topology: TopologyConfig | str
 
 
 @dataclasses.dataclass(frozen=True)
@@ -285,10 +288,26 @@ class ModelMetadata:
     bone_labels: list[str]
     bone_parents: list[int]
 
-    local_change_labels: list[str] = dataclasses.field(default_factory=list)
-    facial_action_labels: list[str] = dataclasses.field(default_factory=list)
     # Unique label per blend shape, identifying corresponding rows across configurations
     blendshape_labels: list[str] = dataclasses.field(default_factory=list)
+
+    @property
+    def local_change_labels(self) -> list[str]:
+        res = []
+        for x in self.blendshape_labels[::2]:
+            block_name, label = x.split(":")
+            if block_name == "local_change":
+                res.append(label)
+        return res
+
+    @property
+    def facial_action_labels(self) -> list[str]:
+        res = []
+        for x in self.blendshape_labels:
+            block_name, label = x.split(":")
+            if block_name == "facial_action":
+                res.append(label)
+        return res
 
 
 @dataclasses.dataclass(frozen=True)
@@ -709,32 +728,62 @@ def with_bone_orientation(
     return dataclasses.replace(rig, bone_orientation=bone_orientation)
 
 
-def resolve_local_change_mask(
-    local_changes: LocalChanges, local_changes_labels: list[str]
+def resolve_blendshape_mask(
+    local_changes: LocalChanges,
+    facial_actions: FacialActions,
+    blendshape_labels: list[str],
 ) -> list[bool]:
-    if local_changes == "none":
-        local_changes_mask = [False] * len(local_changes_labels)
-    elif local_changes == "default":
-        local_changes_mask = [
-            "nipple" not in label.lower() for label in local_changes_labels
-        ]
-    elif local_changes == "all":
-        local_changes_mask = [True] * len(local_changes_labels)
-    elif isinstance(local_changes, str):
-        raise ValueError(
-            f"Unknown local_changes preset {local_changes!r}. "
-            "Expected 'none', 'default', 'all', or a sequence of label strings."
-        )
-    else:
-        label_to_idx = {label: i for i, label in enumerate(local_changes_labels)}
-        local_changes_mask = [False] * len(local_changes_labels)
-        for label in local_changes:
-            local_changes_mask[label_to_idx[label]] = True
-    return local_changes_mask
+    local_changes = copy(local_changes)
+    facial_actions = copy(facial_actions)
+
+    def _filter(i: int) -> bool:
+        x = blendshape_labels[i]
+        block_name, label = x.split(":")
+        if block_name == "local_change":
+            if local_changes == "none":
+                return False
+            if local_changes == "all":
+                return True
+            if local_changes == "default":
+                return "nipple" not in label.lower()
+            if isinstance(local_changes, list):
+                x_pos = blendshape_labels[2 * (i // 2)]
+                _, label_pos = x_pos.split(":")
+                if label_pos in local_changes:
+                    if i % 2 == 1:
+                        local_changes.remove(label_pos)
+                    return True
+                return False
+            raise ValueError(
+                f"Unknown local_changes preset {local_changes!r}. "
+                "Expected 'none', 'default', 'all', or a sequence of label strings."
+            )
+        if block_name == "facial_action":
+            if facial_actions == "all":
+                return True
+            if facial_actions == "none":
+                return False
+            if isinstance(facial_actions, list):
+                if label in facial_actions:
+                    facial_actions.remove(label)
+                    return True
+                return False
+            raise ValueError(
+                f"Unknown facial_actions preset {facial_actions!r}. "
+                "Expected 'none', 'all', or a sequence of label strings."
+            )
+        return True
+
+    res = list(map(_filter, range(len(blendshape_labels))))
+    if isinstance(local_changes, list) and len(local_changes) > 0:
+        raise ValueError(f"Uknown local change labels: {local_changes=}")
+    if isinstance(facial_actions, list) and len(facial_actions) > 0:
+        raise ValueError(f"Uknown facial actions: {facial_actions=}")
+    return res
 
 
-def resolve_phenotypes(all_phenotypes: bool) -> list[str]:
-    if all_phenotypes:
+def resolve_phenotypes(phenotypes: Phenotypes) -> list[str]:
+    if phenotypes == "all":
         return PHENOTYPE_LABELS
     else:
         return [x for x in PHENOTYPE_LABELS if x not in EXCLUDED_PHENOTYPES]

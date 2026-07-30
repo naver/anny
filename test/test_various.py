@@ -130,7 +130,7 @@ class TestVarious(unittest.TestCase):
         self.assertEqual(results["bone_poses"].shape[0], batch_size)
 
     def test_forward_dict_and_tensor_parameters_match(self):
-        model = anny.Anny(all_phenotypes=True, local_changes="default").to(
+        model = anny.Anny(phenotypes="all", local_changes="default").to(
             dtype=self.dtype,
             device=self.device,
         )
@@ -162,11 +162,11 @@ class TestVarious(unittest.TestCase):
         Ensure that default local changes params have no impact on
         """
         batch_size = 32
-        model = anny.Anny(rig="anny", all_phenotypes=True).to(
+        model = anny.Anny(rig="anny", phenotypes="all").to(
             dtype=self.dtype, device=self.device
         )
         model_local_changes = anny.Anny(
-            rig="anny", local_changes="default", all_phenotypes=True
+            rig="anny", local_changes="default", phenotypes="all"
         ).to(dtype=self.dtype, device=self.device)
         torch.use_deterministic_algorithms(True)
 

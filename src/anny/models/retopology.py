@@ -4,7 +4,7 @@
 from dataclasses import replace
 import torch
 from typing import Literal
-from anny.typing import AlternativeTopology, LocalChanges
+from anny.typing import AlternativeTopology, LocalChanges, FacialActions
 from anny.utils import obj_utils
 from anny.models.full_model import build_anny_model_data
 from anny.models.model_data import with_bone_orientation, RigConfig, TopologyConfig
@@ -49,7 +49,7 @@ def _load_target_topology_mesh(target_topology: AlternativeTopology):
 
 
 def build_smplx_topology_model_data(
-    rig: RigConfig, local_changes: LocalChanges, facial_actions: bool
+    rig: RigConfig, local_changes: LocalChanges, facial_actions: FacialActions
 ):
     source_rig = with_bone_orientation(rig, "blender")
     source_topology = TopologyConfig(
@@ -97,7 +97,7 @@ def build_smplx_topology_model_data(
 
 
 def build_smpl_topology_model_data(
-    rig: RigConfig, local_changes: LocalChanges, facial_actions: bool
+    rig: RigConfig, local_changes: LocalChanges, facial_actions: FacialActions
 ):
     source_rig = with_bone_orientation(rig, "blender")
     source_topology = TopologyConfig(
@@ -148,7 +148,7 @@ def build_alternative_topology_model_data(
     rig: RigConfig,
     topology: TopologyConfig,
     local_changes: LocalChanges,
-    facial_actions: bool,
+    facial_actions: FacialActions,
     reference_topology: Literal["legacy_default", "anny_from_soma", "anny"] = "anny",
 ):
     # For soma, the template mesh has only attached vertices and eyes+tongue

@@ -33,7 +33,7 @@ pip install anny[warp,examples]@git+https://github.com/naver/anny.git # latest s
 ### Quickstart example
 ```python
 import torch, anny, trimesh
-model = anny.Anny(local_changes="default", facial_actions=True).to(dtype=torch.float32)
+model = anny.Anny(local_changes="default", facial_actions="all").to(dtype=torch.float32)
 # The model accept both dictionnary and stacked tensor inputs.
 # Skeletal rig pose parameters (see model.bone_labels).
 pose_parameters = torch.eye(4)[None, None].repeat(1, model.bone_count, 1, 1)
@@ -55,7 +55,7 @@ trimesh.Trimesh(vertices = output["vertices"].squeeze(dim=0).numpy(), faces=mode
 
 ### Default `anny` rig
 
-By default, `anny.Anny()` uses the compact `anny` rig with 104 bones and Procrustes bone orientations. This is the recommended default for most full-body use cases: it keeps the main body, hand, and head articulation while removing facial expression, eye, tongue, and other zero-weight/pruned bones that are present in the full MakeHuman rig. For comparison, `Anny(rig="makehuman")` exposes the full 163-bone MakeHuman rig with the old blender/root-identity orientation. Choose `rig="anny"` for a smaller, stable default skeleton; choose `rig="makehuman"` if you need exact compatibility with old models or direct access to the removed face/tongue/eye bones. Facial action blendshapes remain available separately with `facial_actions=True`.
+By default, `anny.Anny()` uses the compact `anny` rig with 104 bones and Procrustes bone orientations. This is the recommended default for most full-body use cases: it keeps the main body, hand, and head articulation while removing facial expression, eye, tongue, and other zero-weight/pruned bones that are present in the full MakeHuman rig. For comparison, `Anny(rig="makehuman")` exposes the full 163-bone MakeHuman rig with the old blender/root-identity orientation. Choose `rig="anny"` for a smaller, stable default skeleton; choose `rig="makehuman"` if you need exact compatibility with old models or direct access to the removed face/tongue/eye bones. Facial action blendshapes remain available separately with `facial_actions="all"`.
 
 ### Default `anny` topology
 

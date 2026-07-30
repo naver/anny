@@ -16,7 +16,7 @@ class TestFacialActions(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.model = anny.Anny(facial_actions=True, topology="anny").to(
+        cls.model = anny.Anny(facial_actions="all", topology="anny").to(
             dtype=cls.dtype, device=cls.device
         )
 
@@ -98,7 +98,7 @@ class TestFacialActions(unittest.TestCase):
         self.assertEqual(output["vertices"].shape[0], 1)
 
     def test_disabled_facial_actions_are_filtered(self):
-        model = anny.Anny(facial_actions=False)
+        model = anny.Anny(facial_actions="none")
 
         self.assertEqual(model.facial_action_labels, [])
         self.assertFalse(
@@ -147,7 +147,7 @@ class TestFacialActions(unittest.TestCase):
         self.assertEqual(output["vertices"].shape[1], model.template_vertices.shape[0])
 
     def test_builtin_retopology_preserves_labels_and_accepts_input(self):
-        model = anny.Anny(topology="notoes", facial_actions=True).to(
+        model = anny.Anny(topology="notoes", facial_actions="all").to(
             dtype=self.dtype,
             device=self.device,
         )

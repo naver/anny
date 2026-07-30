@@ -66,7 +66,7 @@ def benchmark_method(
     model = (
         anny.Anny(
             local_changes="default",
-            facial_actions=True,
+            facial_actions="all",
             skinning_method=skinning_method,
         )
         .to(device=device, dtype=torch.float32)

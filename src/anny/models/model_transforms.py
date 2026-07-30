@@ -133,58 +133,26 @@ def _get_symmetric_bone_name(bone_name: str) -> str:
 # ---------------------------------------------------------------------------
 
 
-def filter_blendshapes(
-    data: ModelData,
-    local_changes_mask: list[bool],
-    facial_actions: bool,
-) -> ModelData:
-    if len(local_changes_mask) != len(data.metadata.local_change_labels):
+def filter_blendshapes(data: ModelData, mask: list[bool]) -> ModelData:
+    if len(mask) != len(data.metadata.blendshape_labels):
         raise ValueError(
-            f"local_changes_mask length {len(local_changes_mask)} does not match "
-            f"the number of local change labels {len(data.metadata.local_change_labels)}"
+            f"mask length {len(mask)} does not match "
+            f"the number of blendshape labels {len(data.metadata.blendshape_labels)}"
         )
-    facial_count = len(data.metadata.facial_action_labels)
-    non_local_count = len(data.blendshapes) - facial_count - 2 * len(local_changes_mask)
-    blend_shapes_mask = torch.cat(
-        (
-            data.blendshapes.new_ones((non_local_count,), dtype=torch.bool),
-            data.blendshapes.new_full(
-                (facial_count,), facial_actions, dtype=torch.bool
-            ),
-            torch.tensor(
-                local_changes_mask,
-                dtype=torch.bool,
-                device=data.blendshapes.device,
-            ).repeat_interleave(2),
-        )
-    )
+    blendshape_mask = torch.tensor(mask, dtype=torch.bool)
     extra = {}
     if data.bone_tails_blendshapes is not None:
-        extra["bone_tails_blendshapes"] = data.bone_tails_blendshapes[blend_shapes_mask]
-    local_change_labels = [
-        data.metadata.local_change_labels[i]
-        for i in range(len(data.metadata.local_change_labels))
-        if local_changes_mask[i]
-    ]
-    blendshape_labels = [
-        label
-        for label, keep in zip(
-            data.metadata.blendshape_labels, blend_shapes_mask.tolist()
-        )
-        if keep
-    ]
+        extra["bone_tails_blendshapes"] = data.bone_tails_blendshapes[blendshape_mask]
     return dataclasses.replace(
         data,
         metadata=dataclasses.replace(
             data.metadata,
-            local_change_labels=local_change_labels,
-            facial_action_labels=data.metadata.facial_action_labels
-            if facial_actions
-            else [],
-            blendshape_labels=blendshape_labels,
+            blendshape_labels=[
+                data.metadata.blendshape_labels[i] for i in range(len(mask)) if mask[i]
+            ],
         ),
-        blendshapes=data.blendshapes[blend_shapes_mask],
-        bone_heads_blendshapes=data.bone_heads_blendshapes[blend_shapes_mask],
+        blendshapes=data.blendshapes[blendshape_mask],
+        bone_heads_blendshapes=data.bone_heads_blendshapes[blendshape_mask],
         **extra,
     )
 

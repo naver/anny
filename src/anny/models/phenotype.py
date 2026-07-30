@@ -15,7 +15,13 @@ from anny.models.rigged_model import (
 
 if TYPE_CHECKING:
     from anny.models.model_data import ModelData
-    from anny.typing import LocalChanges, SkinningMethod, BoneOrientation
+    from anny.typing import (
+        LocalChanges,
+        SkinningMethod,
+        BoneOrientation,
+        FacialActions,
+        Phenotypes,
+    )
 from anny.models.model_data import (
     AnnyModelConfig,
     PHENOTYPE_LABELS,
@@ -60,10 +66,10 @@ class Anny(RiggedModelWithLinearBlendShapes):
         self,
         rig: str | RigConfig = "anny",
         topology: str | TopologyConfig = "anny",
-        local_changes: "LocalChanges" = "none",
-        facial_actions: bool = False,
+        local_changes: LocalChanges = "none",
+        facial_actions: FacialActions = "none",
+        phenotypes: Phenotypes = "default",
         extrapolate_phenotypes: bool = False,
-        all_phenotypes: bool = False,
         pose_parameterization: PoseParameterization = "local-ref",
         skinning_method: SkinningMethod | None = None,
     ) -> None:
@@ -76,12 +82,12 @@ class Anny(RiggedModelWithLinearBlendShapes):
             else topology
         )
         self.config = AnnyModelConfig(
-            rig=rig_config,
-            topology=topology_config,
+            rig=rig,
+            topology=topology,
             local_changes=local_changes,
             facial_actions=facial_actions,
             extrapolate_phenotypes=extrapolate_phenotypes,
-            all_phenotypes=all_phenotypes,
+            phenotypes=phenotypes,
             pose_parameterization=pose_parameterization,
             skinning_method=skinning_method,
         )
@@ -98,7 +104,7 @@ class Anny(RiggedModelWithLinearBlendShapes):
             skinning_method=skinning_method,
             bone_orientation=rig_config.bone_orientation,
             root_identity_orientation=rig_config.root_identity_orientation,
-            all_phenotypes=all_phenotypes,
+            phenotypes=phenotypes,
             extrapolate_phenotypes=extrapolate_phenotypes,
         )
 
@@ -109,7 +115,7 @@ class Anny(RiggedModelWithLinearBlendShapes):
         pose_parameterization: PoseParameterization = "local-bone",
         bone_orientation: BoneOrientation = "blender",
         root_identity_orientation: bool = True,
-        all_phenotypes: bool = False,
+        phenotypes: Phenotypes = "default",
         extrapolate_phenotypes: bool = False,
     ):
         """Construct an Anny model from a ModelData object."""
@@ -121,7 +127,7 @@ class Anny(RiggedModelWithLinearBlendShapes):
             skinning_method=skinning_method,
             bone_orientation=bone_orientation,
             root_identity_orientation=root_identity_orientation,
-            all_phenotypes=all_phenotypes,
+            phenotypes=phenotypes,
             extrapolate_phenotypes=extrapolate_phenotypes,
         )
         return model
@@ -133,7 +139,7 @@ class Anny(RiggedModelWithLinearBlendShapes):
         pose_parameterization: PoseParameterization = "local-bone",
         bone_orientation: BoneOrientation = "blender",
         root_identity_orientation: bool = True,
-        all_phenotypes: bool = False,
+        phenotypes: Phenotypes = "default",
         extrapolate_phenotypes: bool = False,
     ):
         super().__init__(
@@ -147,13 +153,14 @@ class Anny(RiggedModelWithLinearBlendShapes):
             raise ValueError(
                 "Model data does not contain stacked_phenotype_blend_shapes_mask, cannot initialize Anny model."
             )
+
         self._init_phenotype_parameters(
             stacked_phenotype_blend_shapes_mask=data.stacked_phenotype_blend_shapes_mask,
             local_change_labels=data.metadata.local_change_labels,
             facial_action_labels=data.metadata.facial_action_labels,
             base_mesh_vertex_indices=data.base_mesh_vertex_indices,
             extrapolate_phenotypes=extrapolate_phenotypes,
-            phenotype_labels=resolve_phenotypes(all_phenotypes=all_phenotypes),
+            phenotype_labels=resolve_phenotypes(phenotypes=phenotypes),
         )
 
     def _init_phenotype_parameters(

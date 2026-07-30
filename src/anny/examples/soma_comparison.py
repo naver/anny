@@ -13,7 +13,7 @@ dtype = torch.float64
 
 
 anny_soma = anny.Anny(
-    rig="soma", topology="soma", pose_parameterization="local-ref", all_phenotypes=True
+    rig="soma", topology="soma", pose_parameterization="local-ref", phenotypes="all"
 ).to(device=device, dtype=dtype)
 soma_layer = soma.SOMALayer(identity_model_type="anny", mode="warp", device=device).to(
     dtype=dtype
