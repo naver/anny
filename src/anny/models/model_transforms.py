@@ -22,7 +22,6 @@ from anny.utils.mesh_utils import (
     triangulate_faces,
     triangulate_faces_with_texture_coordinates,
 )
-from anny.utils.warp_mesh_utils import point_to_mesh_distance_and_face_uvs
 
 logger = logging.getLogger(__name__)
 
@@ -588,6 +587,13 @@ def apply_retopology_from_mesh(
     must share the same ordering as data. source_faces may be pre-triangulated (shape (N, 3)) or not.
     The new topology's template vertices are derived by bary-interpolating data.template_vertices.
     """
+    try:
+        from anny.utils.warp_mesh_utils import point_to_mesh_distance_and_face_uvs
+    except ModuleNotFoundError:
+        raise ModuleNotFoundError(
+            "Warp not found. Install warp extra to use retopology."
+        )
+
     assert data.template_vertices.shape[0] == len(source_vertices), (
         "source_vertices must have the same number of vertices as data.template_vertices"
     )
