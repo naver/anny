@@ -4,9 +4,8 @@
 import json
 import logging
 import os
-import warnings
 import gzip
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import cast
 
 import roma
@@ -27,9 +26,6 @@ from anny.models.model_data import (
     ModelData,
     ModelMetadata,
     cache_builder,
-    _eye_bone_labels,
-    _tongue_bone_labels,
-    _hand_bone_labels,
     TopologyConfig,
     RigConfig,
     resolve_local_change_mask,
@@ -69,25 +65,6 @@ def _faces_to_keep_from_submodel(
         return get_face_segmentation_mask(
             model_transforms.edit_mesh(base_data), [f"hand.{side}"]
         )
-    raise ValueError(f"Unknown body part: {submodel}")
-
-
-def _bones_to_keep_from_topology(topology: TopologyConfig) -> set[str] | None:
-    if topology.base_mesh != "makehuman" or topology.submodel == "body":
-        return None
-    submodel = topology.submodel
-    if submodel == "head":
-        face_bones = {"neck01", "neck02", "neck03", "head"}
-        if topology.eyes:
-            face_bones.update(_eye_bone_labels)
-        if topology.tongue:
-            face_bones.update(_tongue_bone_labels)
-        return face_bones
-    submodel_split, side = submodel.split(".")
-    if side not in ["L", "R"]:
-        raise ValueError(f"Unknown side: {side}")
-    if submodel_split == "hand":
-        return set({b for b in _hand_bone_labels if b.endswith(side)})
     raise ValueError(f"Unknown body part: {submodel}")
 
 
@@ -505,13 +482,9 @@ def load_rig(
     template_vertices: torch.Tensor,
     blendshapes: torch.Tensor,
     dtype: torch.dtype,
-    remove_zero_weights_bones: bool = False,
-    bones_to_remove: set[str] | None = None,
-    bones_to_keep: set[str] | None = None,
 ) -> RigData:
     assert rig_filename is not None
     assert weights_filename is not None
-    bones_to_remove = set() if bones_to_remove is None else set(bones_to_remove)
 
     with open(rig_filename, "r") as f:
         rig_data = json.load(f)
@@ -546,36 +519,6 @@ def load_rig(
     parse_recursively(root_joint, parent_id=-1)
     assert len(bone_labels) == len(rig_data)
 
-    if remove_zero_weights_bones:
-        for bone_label in bone_labels:
-            if len(weights_data["weights"][bone_label]) == 0:
-                bones_to_remove.add(bone_label)
-
-    if bones_to_keep is not None:
-        for bone_label in bone_labels:
-            if bone_label not in bones_to_keep:
-                bones_to_remove.add(bone_label)
-
-    if len(bones_to_remove) == len(bone_labels):
-        raise ValueError(
-            "All bones are removed, please check the bones_to_remove and bones_to_keep parameters."
-        )
-
-    for bone_label in bones_to_remove:
-        idx = bone_labels.index(bone_label)
-        parent_idx = bone_parents[idx]
-        weights_data["weights"][bone_labels[parent_idx]].extend(
-            weights_data["weights"][bone_label]
-        )
-        weights_data["weights"].pop(bone_label)
-        for i in range(len(bone_parents)):
-            if bone_parents[i] == idx:
-                bone_parents[i] = parent_idx
-            elif bone_parents[i] > idx:
-                bone_parents[i] -= 1
-        bone_labels.pop(idx)
-        bone_parents.pop(idx)
-
     bone_head_regressor_indices = []
     bone_tail_regressor_indices = []
     bone_rolls = []
@@ -599,16 +542,10 @@ def load_rig(
     vertex_bone_indices = [[] for _ in range(vertices_count)]
     vertex_bone_weights = [[] for _ in range(vertices_count)]
     for bone_id, bone_label in enumerate(bone_labels):
-        if bone_label not in weights_data["weights"]:
-            warnings.warn("Remove joints without associated weights")
-            continue
-        joint_weight_data = weights_data["weights"][bone_label]
-        if len(joint_weight_data) == 0:
-            warnings.warn("Remove joints without associated weights")
-        else:
-            for vertex_idx, vertex_weight in joint_weight_data:
-                vertex_bone_indices[vertex_idx].append(bone_id)
-                vertex_bone_weights[vertex_idx].append(vertex_weight)
+        joint_weight_data = sorted(weights_data["weights"].get(bone_label, []))
+        for vertex_idx, vertex_weight in joint_weight_data:
+            vertex_bone_indices[vertex_idx].append(bone_id)
+            vertex_bone_weights[vertex_idx].append(vertex_weight)
 
     max_bones_per_vertex = max([len(indices) for indices in vertex_bone_indices])
     logger.info(f"{max_bones_per_vertex=}")
@@ -660,6 +597,181 @@ def load_rig(
     )
 
 
+def _filter_rig(
+    data: ModelData,
+    bones_to_remove: set[str] | frozenset[str],
+    subtree_root: str | None,
+) -> ModelData:
+    """
+    Edits rigs to remove bones and/or keep only a selected subtree.
+
+    Every original bone is reparented to its nearest retained ancestor, or made a root if no such bone exists.
+    All skinning weight from an original bone are assigned to its nearest retained ancestor. Weights
+    that converge on the same target and vertex are aggregated.
+
+    When subtree_root is not None, only descendants of subtree_root are kept, and
+    this function produces a new root bone named `root`. The new root has the same rest
+    transform as the selected `subtree_root`, and vertices influenced by deleted
+    or out-of-subtree bones fall back to it.
+    """
+    if not bones_to_remove and subtree_root is None:
+        return data
+
+    source_labels = data.metadata.bone_labels
+    source_parents = data.metadata.bone_parents
+
+    candidate_indices = set(range(len(source_labels)))
+    if subtree_root is not None:
+        if subtree_root not in source_labels:
+            raise ValueError(
+                f"Selected subtree root {subtree_root!r} is not in the rig."
+            )
+        subtree_root_index = source_labels.index(subtree_root)
+        candidate_indices = set()
+        for bone_index, parent_index in enumerate(source_parents):
+            if bone_index == subtree_root_index or parent_index in candidate_indices:
+                candidate_indices.add(bone_index)
+        if not any(
+            source_labels[index] not in bones_to_remove for index in candidate_indices
+        ):
+            raise ValueError(
+                f"Rig filtering removed every bone from selected subtree {subtree_root!r}."
+            )
+
+    retained_indices = [
+        bone_index
+        for bone_index, bone_label in enumerate(source_labels)
+        if bone_index in candidate_indices and bone_label not in bones_to_remove
+    ]
+    if not retained_indices:
+        selected = f" from selected subtree {subtree_root!r}" if subtree_root else ""
+        raise ValueError(f"Rig filtering removed every bone{selected}.")
+
+    retained_set = set(retained_indices)
+    index_offset = int(subtree_root is not None)
+    output_bone_count = len(retained_indices) + index_offset
+    old_to_new = {
+        old_index: new_index
+        for new_index, old_index in enumerate(retained_indices, start=index_offset)
+    }
+
+    def nearest_retained_ancestor(old_index: int) -> int | None:
+        parent_index = source_parents[old_index]
+        while parent_index >= 0:
+            if parent_index in retained_set:
+                return parent_index
+            parent_index = source_parents[parent_index]
+        return None
+
+    if subtree_root is None:
+        root_indices = [
+            old_index
+            for old_index in retained_indices
+            if nearest_retained_ancestor(old_index) is None
+        ]
+        if len(root_indices) != 1:
+            root_labels = [source_labels[index] for index in root_indices]
+            raise ValueError(f"Rig filtering must produce one root, got {root_labels}.")
+        fallback_root_index = old_to_new[root_indices[0]]
+    else:
+        fallback_root_index = 0
+
+    def retained_target(old_index: int) -> int:
+        current_index = old_index
+        while current_index >= 0:
+            if current_index in retained_set:
+                return old_to_new[current_index]
+            current_index = source_parents[current_index]
+        return fallback_root_index
+
+    target_indices = torch.as_tensor(
+        [retained_target(index) for index in range(len(source_labels))],
+        dtype=torch.int64,
+        device=data.vertex_bone_indices.device,
+    )
+    remapped_indices = target_indices[data.vertex_bone_indices]
+    dense_weights = torch.zeros(
+        (len(data.template_vertices), output_bone_count),
+        dtype=data.vertex_bone_weights.dtype,
+        device=data.vertex_bone_weights.device,
+    )
+    dense_weights.scatter_add_(1, remapped_indices, data.vertex_bone_weights)
+
+    positive = dense_weights > 0
+    max_bones_per_vertex = int(positive.sum(dim=-1).max().item())
+    bone_indices = torch.arange(
+        output_bone_count, device=data.vertex_bone_indices.device
+    ).expand_as(dense_weights)
+    packed_indices = (
+        torch.where(positive, bone_indices, output_bone_count)
+        .sort(dim=-1)
+        .values[:, :max_bones_per_vertex]
+    )
+    valid = packed_indices < output_bone_count
+    packed_indices = torch.where(valid, packed_indices, 0)
+    packed_weights = torch.where(
+        valid,
+        dense_weights.gather(1, packed_indices),
+        0,
+    )
+
+    transform_indices = (
+        [subtree_root_index, *retained_indices]
+        if subtree_root is not None
+        else retained_indices
+    )
+    retained = torch.as_tensor(transform_indices, dtype=torch.int64)
+    template_bone_tails = (
+        None if data.template_bone_tails is None else data.template_bone_tails[retained]
+    )
+    bone_tails_blendshapes = (
+        None
+        if data.bone_tails_blendshapes is None
+        else data.bone_tails_blendshapes[:, retained]
+    )
+    bone_rolls_rotmat = (
+        None if data.bone_rolls_rotmat is None else data.bone_rolls_rotmat[:, retained]
+    )
+    bone_labels = [source_labels[index] for index in retained_indices]
+    bone_parents = []
+    for old_index in retained_indices:
+        parent = nearest_retained_ancestor(old_index)
+        bone_parents.append(
+            (
+                -1
+                if parent is None and subtree_root is None
+                else fallback_root_index
+                if parent is None
+                else old_to_new[parent]
+            )
+        )
+    if subtree_root is not None:
+        bone_labels.insert(0, "root")
+        bone_parents.insert(0, -1)
+
+    if (
+        data.bone_template_orientation_matrices is not None
+        or data.bone_orientation_blendshapes is not None
+    ):
+        raise ValueError("Use _filter_rig only before loading rig cache.")
+
+    return replace(
+        data,
+        metadata=replace(
+            data.metadata,
+            bone_labels=bone_labels,
+            bone_parents=bone_parents,
+        ),
+        template_bone_heads=data.template_bone_heads[retained],
+        bone_heads_blendshapes=data.bone_heads_blendshapes[:, retained],
+        template_bone_tails=template_bone_tails,
+        bone_tails_blendshapes=bone_tails_blendshapes,
+        bone_rolls_rotmat=bone_rolls_rotmat,
+        vertex_bone_indices=packed_indices,
+        vertex_bone_weights=packed_weights,
+    )
+
+
 @cache_builder
 def load_data(
     weights_filename: PathLike,
@@ -667,8 +779,6 @@ def load_data(
     eyes: bool = False,
     tongue: bool = False,
     remove_zero_weights_bones: bool = False,
-    bones_to_remove: set[str] = set(),
-    bones_to_keep: set[str] | None = None,
 ) -> ModelData:
     logger.info(
         "Cache not found, loading data from source files and caching it for future use..."
@@ -698,12 +808,9 @@ def load_data(
         template_vertices=mesh_data.template_vertices,
         blendshapes=blendshape_data.blendshapes,
         dtype=mesh_data.template_vertices.dtype,
-        remove_zero_weights_bones=remove_zero_weights_bones,
-        bones_to_remove=bones_to_remove,
-        bones_to_keep=bones_to_keep,
     )
 
-    return ModelData(
+    data = ModelData(
         metadata=ModelMetadata(
             bone_labels=rig_data.bone_labels,
             bone_parents=rig_data.bone_parents,
@@ -728,6 +835,17 @@ def load_data(
         bone_tails_blendshapes=rig_data.bone_tails_blendshapes,
         bone_rolls_rotmat=rig_data.bone_rolls_rotmat,
     )
+    if remove_zero_weights_bones:
+        weighted_bones = set(
+            data.vertex_bone_indices[data.vertex_bone_weights > 0].tolist()
+        )
+        zero_weight_bones = {
+            label
+            for index, label in enumerate(data.metadata.bone_labels)
+            if index not in weighted_bones
+        }
+        data = _filter_rig(data, zero_weight_bones, subtree_root=None)
+    return data
 
 
 def get_edited_mesh_faces(
@@ -841,16 +959,13 @@ def build_anny_model_data(
         raise ValueError(
             "build_model_data requires a resolved MPFB rig with rig and weights filenames."
         )
-    bones_to_remove = set(rig.bones_to_remove)
-    bones_to_keep = _bones_to_keep_from_topology(topology)
     data = load_data(
         rig_filename=rig_filename,
         weights_filename=weights_filename,
         eyes=topology.eyes,
         tongue=topology.tongue,
-        bones_to_remove=bones_to_remove,
-        bones_to_keep=bones_to_keep,
     )
+    data = _filter_rig(data, rig.bones_to_remove, rig.subtree_root)
 
     local_change_mask = resolve_local_change_mask(
         local_changes, data.metadata.local_change_labels
@@ -882,6 +997,8 @@ def build_anny_model_data(
     if rig.bone_orientation == "procrustes":
         data = apply_procrustes_orientation(data)
     elif rig.bone_orientation == "cached":
-        data = apply_anny_cached_orientation(data)
+        data = apply_anny_cached_orientation(
+            data, root_bone_source_label=rig.subtree_root
+        )
 
     return data

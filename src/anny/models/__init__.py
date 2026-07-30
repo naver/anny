@@ -1,21 +1,8 @@
 # Anny
 # Copyright (C) 2025 NAVER Corp.
 # Apache License, Version 2.0
-from typing import Literal
 import warnings
-
-
-from anny.models.model_data import (
-    ModelData,
-    ModelMetadata,
-    AnnyModelConfig,
-    RigConfig,
-    TopologyConfig,
-    cache_builder,
-)
-
-
-from anny.models.phenotype import Anny
+from typing import Literal
 
 from anny.models.legacy import (
     LegacyBoneOrientation,
@@ -24,7 +11,17 @@ from anny.models.legacy import (
     legacy_rig_to_anny,
     legacy_topology_to_anny,
 )
-
+from anny.models.model_data import (
+    AnnyModelConfig,
+    ModelData,
+    ModelMetadata,
+    RigConfig,
+    TopologyConfig,
+    _eye_bone_labels,
+    _tongue_bone_labels,
+    cache_builder,
+)
+from anny.models.phenotype import Anny
 from anny.typing import LocalChanges, PoseParameterization, SkinningMethod
 
 
@@ -135,7 +132,8 @@ def create_hand_model(
     all_phenotypes: bool = False,
 ):
     warnings.warn(
-        "create_hand_model() is deprecated. Use Anny(...) with 'hand.R' or 'hand.L' topology",
+        "create_hand_model() is deprecated. Use Anny(...) with "
+        f"rig='anny-hand.{side}' and topology='hand.{side}'",
         DeprecationWarning,
         stacklevel=2,
     )
@@ -145,10 +143,11 @@ def create_hand_model(
         remove_unattached_vertices=remove_unattached_vertices,
         triangulate_faces=triangulate_faces,
     )
-    # Keep the full rig: head/hand part models need the expression/eye/tongue
-    # bones that the default "anny" pruning would otherwise strip.
     rig = RigConfig(
-        base_rig="anny", root_identity_orientation=True, bones_to_remove=frozenset()
+        base_rig="anny",
+        root_identity_orientation=False,
+        bones_to_remove=frozenset(),
+        subtree_root=f"wrist.{side}",
     )
     return Anny(
         rig=rig,
@@ -172,7 +171,8 @@ def create_head_model(
     triangulate_faces: bool = False,
 ):
     warnings.warn(
-        "create_head_model() is deprecated. Use Anny(...) with 'head' topology",
+        "create_head_model() is deprecated. Use Anny(...) with "
+        "rig='makehuman-head' and topology='head'",
         DeprecationWarning,
         stacklevel=2,
     )
@@ -186,14 +186,17 @@ def create_head_model(
         remove_unattached_vertices=remove_unattached_vertices,
         triangulate_faces=triangulate_faces,
     )
-    # The head part model keeps the full (unpruned) rig with its expression/eye/tongue bones and uses
-    # the legacy blender (tail-based) orientation. Those facial bones are absent from the precomputed
-    # procrustes covariance (built on the pruned full-body anny rig), so the head model does not use it.
+    bones_to_remove: set[str] = set()
+    if not eyes:
+        bones_to_remove.update(_eye_bone_labels)
+    if not tongue:
+        bones_to_remove.update(_tongue_bone_labels)
     rig = RigConfig(
-        base_rig="anny",
+        base_rig="makehuman",
         bone_orientation="blender",
-        root_identity_orientation=True,
-        bones_to_remove=frozenset(),
+        root_identity_orientation=False,
+        bones_to_remove=frozenset(bones_to_remove),
+        subtree_root="neck01",
     )
     return Anny(
         rig=rig,

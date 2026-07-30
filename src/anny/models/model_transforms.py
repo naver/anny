@@ -456,7 +456,9 @@ def apply_procrustes_orientation(data: ModelData) -> ModelData:
     )
 
 
-def apply_anny_cached_orientation(data: ModelData) -> ModelData:
+def apply_anny_cached_orientation(
+    data: ModelData, root_bone_source_label: str | None = None
+) -> ModelData:
     """Apply the precomputed tail-aimed procrustes covariance (``data/cached/anny.pth``) to an
     anny-family rig, replacing the legacy runtime registration.
 
@@ -473,12 +475,16 @@ def apply_anny_cached_orientation(data: ModelData) -> ModelData:
     source_bone_labels = [str(label) for label in orientation_data["bone_labels"]]
     source_index = {label: i for i, label in enumerate(source_bone_labels)}
     target_bone_labels = list(data.metadata.bone_labels)
-    missing = [label for label in target_bone_labels if label not in source_index]
+    source_labels_for_target = target_bone_labels.copy()
+    if root_bone_source_label is not None:
+        assert target_bone_labels[0] == "root"
+        source_labels_for_target[0] = root_bone_source_label
+    missing = [label for label in source_labels_for_target if label not in source_index]
     assert not missing, (
         "Precomputed anny orientation data (data/cached/anny.pth) does not cover bones: "
         f"{missing}."
     )
-    bone_selection = [source_index[label] for label in target_bone_labels]
+    bone_selection = [source_index[label] for label in source_labels_for_target]
 
     bone_template_orientation_matrices = orientation_data[
         "bone_template_orientation_matrices"

@@ -238,8 +238,6 @@ class SelfInterpenetrationModule:
             triangular_faces_mask[face_id] = (
                 per_vertex_mask[i] | per_vertex_mask[j] | per_vertex_mask[k]
             )
-        mask_bit_length = int(math.log2(np.max(triangular_faces_mask))) + 1
-        print("mask bit length", mask_bit_length)
         mask_uint32_length = int(math.log2(np.max(triangular_faces_mask)) / 32 + 1)
 
         np_triangular_faces_mask = np.zeros(

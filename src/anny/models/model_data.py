@@ -5,11 +5,11 @@ from __future__ import annotations
 
 import dataclasses
 import functools
-import importlib.metadata
-import logging
 import hashlib
-import json
+import importlib.metadata
 import inspect
+import json
+import logging
 import os
 from pathlib import Path
 from typing import Callable, Literal
@@ -18,19 +18,19 @@ import torch
 
 from anny.paths import get_anny_cache_path, get_anny_root_dir
 from anny.typing import (
-    PathLike,
     AlternativeTopology,
     BoneOrientation,
+    LocalChanges,
+    PathLike,
     PoseParameterization,
+    Rig,
     SkinningMethod,
     Submodel,
-    Rig,
-    LocalChanges,
 )
 
 ANNY_VERSION = importlib.metadata.version("anny")
 # Increase this if there are any non-backwards-compatible changes to the data/metadata format
-CURRENT_DATA_VERSION = 9
+CURRENT_DATA_VERSION = 10
 
 logger = logging.getLogger(__name__)
 
@@ -227,6 +227,12 @@ _RIG_PRESET_FILES: dict[str, tuple[str, str]] = {
     "mixamo": ("rig.mixamo.json", "weights.mixamo.json"),
 }
 
+_RIG_SUBTREE_ROOTS = {
+    "head": "neck01",
+    "hand.L": "wrist.L",
+    "hand.R": "wrist.R",
+}
+
 
 @dataclasses.dataclass(frozen=True)
 class RigConfig:
@@ -235,6 +241,7 @@ class RigConfig:
     root_identity_orientation: bool = True
     weights_filename: Path | None = None
     bones_to_remove: frozenset[str] = dataclasses.field(default_factory=frozenset)
+    subtree_root: str | None = None
 
     def resolve_filenames(self) -> tuple[str | None, str | None]:
         return _resolve_rig_filenames(self)
@@ -510,6 +517,20 @@ def _validate_files(
 def _parse_rig_spec(spec: str) -> RigConfig:
     base_rig = spec.split("-")[0]
     modifiers = spec.split("-")[1:]
+    subtree_selectors = [
+        modifier for modifier in modifiers if modifier in _RIG_SUBTREE_ROOTS
+    ]
+    if len(subtree_selectors) > 1:
+        raise ValueError(f"Invalid rig spec {spec!r}: multiple subtree selectors.")
+    subtree_root = (
+        _RIG_SUBTREE_ROOTS[subtree_selectors[0]] if subtree_selectors else None
+    )
+    if subtree_selectors:
+        modifiers.remove(subtree_selectors[0])
+    if subtree_root is not None and base_rig not in {"anny", "makehuman"}:
+        raise ValueError(
+            f"Invalid rig spec {spec!r}: {base_rig!r} does not support subtree selectors."
+        )
     if base_rig == "soma":
         if len(modifiers) > 0:
             raise ValueError(
@@ -527,7 +548,8 @@ def _parse_rig_spec(spec: str) -> RigConfig:
     rig_spec = RigConfig(
         base_rig=base_rig,
         bone_orientation="cached" if base_rig == "anny" else "blender",
-        root_identity_orientation=True,
+        root_identity_orientation=base_rig != "anny",
+        subtree_root=subtree_root,
     )
 
     if "procrustes" in modifiers:

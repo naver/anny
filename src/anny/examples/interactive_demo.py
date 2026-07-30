@@ -6,14 +6,15 @@ Interactive demo for Anny models using Gradio.
 It allows users to manipulate the pose and shape of the model.
 """
 
-import anny
+import json
+import tempfile
+
+import gradio as gr
 import roma
 import torch
-import gradio as gr
-import tempfile
-import json
 import trimesh
-import anny.anthropometry
+
+import anny
 import anny.utils.collision
 
 
@@ -248,7 +249,11 @@ def main(server_name: str = None, server_port: int = None):
                 facial_actions_kwargs, \
                 self_intersection_module
             model = anny.Anny(
-                rig=rig, topology=topology, local_changes="default", facial_actions=True
+                rig=rig,
+                topology=topology,
+                local_changes="default",
+                facial_actions=True,
+                skinning_method="lbs",
             )
 
             measurements_class = None
@@ -442,6 +447,9 @@ def main(server_name: str = None, server_port: int = None):
                         label="Rig",
                         choices=[
                             "anny",
+                            "anny-head",
+                            "anny-hand.L",
+                            "anny-hand.R",
                             "makehuman",
                             "mixamo",
                             "anny-notoes",
