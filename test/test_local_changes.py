@@ -67,3 +67,22 @@ class TestLocalChanges(unittest.TestCase):
                 ),
                 f"Outputs differ for label {label} between with and with some local changes",
             )
+
+    def test_local_changes_gradient_at_zero(self):
+        """
+        Local change weights are rectified with a gradient of 1 at zero, so that a
+        local change parameter is not dead at its default value of zero.
+        """
+        label = "head-angle-out"
+        model = anny.Anny(rig="makehuman", local_changes=[label]).to(
+            dtype=torch.float64
+        )
+        value = torch.zeros(1, dtype=torch.float64, requires_grad=True)
+
+        coefficients = model.get_phenotype_blendshape_coefficients(
+            local_changes={label: value}
+        )
+        # last two coefficients are the positive and negative branches of the change
+        for i, expected in [(-2, 1.0), (-1, -1.0)]:
+            (grad,) = torch.autograd.grad(coefficients[0, i], value, retain_graph=True)
+            self.assertAlmostEqual(grad.item(), expected, places=12)

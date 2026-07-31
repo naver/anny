@@ -31,7 +31,6 @@ from anny.models.model_data import (
     resolve_phenotypes,
 )
 import anny.utils.interpolation
-import anny.utils.relu
 
 
 class BufferDict(torch.nn.Module):
@@ -385,12 +384,10 @@ class Anny(RiggedModelWithLinearBlendShapes):
             )
             for i in range(len(self.local_change_labels)):
                 value = local_changes[:, i]
-                local_weights[:, 2 * i] = anny.utils.relu.relu_with_gradient_at_zero(
-                    value
-                )
-                local_weights[:, 2 * i + 1] = (
-                    anny.utils.relu.relu_with_gradient_at_zero(-value)
-                )
+                # ReLU written so that the gradient at zero is 1 rather than 0,
+                # to avoid dead local change parameters.
+                local_weights[:, 2 * i] = value * (value >= 0).to(value.dtype)
+                local_weights[:, 2 * i + 1] = -value * (-value >= 0).to(value.dtype)
             coefficient_groups.append(local_weights)
 
         return torch.cat(coefficient_groups, dim=1)
