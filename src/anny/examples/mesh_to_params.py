@@ -270,7 +270,7 @@ def cross_rig_random_meshes(
     target_rig: str = "soma",
     fitting_rig: str = "anny",
     topology: str = "anny",
-    all_phenotypes: bool = False,
+    phenotypes: str = "none",
     max_n_iters: int = 5,
     eps: float = 0.1,
     max_delta: float = 0.1,
@@ -314,17 +314,17 @@ def cross_rig_random_meshes(
     target_model = anny.Anny(
         rig=target_rig,
         topology=topology,
-        all_phenotypes=all_phenotypes,
+        phenotypes=phenotypes,
         local_changes="default",
-        facial_actions=True,
+        facial_actions="all",
     ).to(dtype=dtype, device=device)
 
     fitting_model = anny.Anny(
         rig=fitting_rig,
         topology=topology,
-        all_phenotypes=all_phenotypes,
+        phenotypes=phenotypes,
         local_changes="default",
-        facial_actions=True,
+        facial_actions="all",
     ).to(dtype=dtype, device=device)
 
     pose_parameters = {}
@@ -496,7 +496,7 @@ def cross_rig_random_meshes(
         "target_rig": target_rig,
         "fitting_rig": fitting_rig,
         "topology": topology,
-        "all_phenotypes": all_phenotypes,
+        "phenotypes": phenotypes,
         "optimize_phenotypes": optimize_phenotypes,
         "max_n_iters": max_n_iters,
         "post_gd": post_gd,
@@ -519,7 +519,7 @@ def phenotype_impact(
     N: int = 2,
     rig: str = "anny",
     topology: str = "anny",
-    all_phenotypes: bool = False,
+    phenotypes: str = "none",
     max_n_iters: int = 5,
     eps: float = 0.1,
     max_delta: float = 0.1,
@@ -547,9 +547,9 @@ def phenotype_impact(
         anny.Anny(
             rig=rig,
             topology=topology,
-            all_phenotypes=all_phenotypes,
+            phenotypes=phenotypes,
             local_changes="default",
-            facial_actions=True,
+            facial_actions="all",
         )
         .to(dtype=dtype, device=device)
         .phenotype_labels
@@ -572,7 +572,7 @@ def phenotype_impact(
             target_rig=rig,
             fitting_rig=rig,
             topology=topology,
-            all_phenotypes=all_phenotypes,
+            phenotypes=phenotypes,
             max_n_iters=max_n_iters,
             eps=eps,
             max_delta=max_delta,
@@ -656,7 +656,7 @@ def ablation(
             target_rig=job["target_rig"],
             fitting_rig=job["fitting_rig"],
             topology=topology,
-            all_phenotypes=False,
+            phenotypes="none",
             max_n_iters=job.get("max_n_iters", max_n_iters),
             eps=eps,
             max_delta=max_delta,
