@@ -4,9 +4,6 @@
 
 import os
 import gc
-import glob
-import gzip
-import pickle
 import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -265,6 +262,7 @@ def _save_meshes(
         print(f"Saved target mesh to {fn_target}")
         print(f"Saved fitted mesh to {fn_fitted}")
 
+
 def cross_rig_random_meshes(
     seed: int = 3993,
     batch_size: int = 16,
@@ -317,29 +315,28 @@ def cross_rig_random_meshes(
         rig=target_rig,
         topology=topology,
         all_phenotypes=all_phenotypes,
-        local_changes='default', facial_actions=True,
+        local_changes="default",
+        facial_actions=True,
     ).to(dtype=dtype, device=device)
 
     fitting_model = anny.Anny(
         rig=fitting_rig,
         topology=topology,
         all_phenotypes=all_phenotypes,
-        local_changes='default', facial_actions=True,
+        local_changes="default",
+        facial_actions=True,
     ).to(dtype=dtype, device=device)
 
     pose_parameters = {}
     for i, bone in enumerate(target_model.bone_labels):
-        
-        if 'toe' in bone.lower() or 'jaw' in bone.lower() or 'eye' in bone.lower():
+        if "toe" in bone.lower() or "jaw" in bone.lower() or "eye" in bone.lower():
             continue
 
         rotvec = 0.2 * torch.randn((batch_size, 3), dtype=dtype, device=device)
         rotmat = roma.rotvec_to_rotmat(rotvec)
 
         translation = (
-            torch.randn((batch_size, 3), dtype=dtype, device=device)
-            if i == 0
-            else None
+            torch.randn((batch_size, 3), dtype=dtype, device=device) if i == 0 else None
         )
 
         pose_parameters[bone] = roma.Rigid(
@@ -350,8 +347,12 @@ def cross_rig_random_meshes(
     shape_dist = SimpleShapeDistribution(
         target_model,
         morphological_age_distribution=torch.distributions.Uniform(
-            low=torch.tensor(20.0, dtype=target_model.dtype, device=target_model.device),
-            high=torch.tensor(90.0, dtype=target_model.dtype, device=target_model.device),
+            low=torch.tensor(
+                20.0, dtype=target_model.dtype, device=target_model.device
+            ),
+            high=torch.tensor(
+                90.0, dtype=target_model.dtype, device=target_model.device
+            ),
         ),
     )
 
@@ -542,16 +543,23 @@ def phenotype_impact(
 
     dtype = torch.float32
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    phenotype_labels = anny.Anny(
-        rig=rig,
-        topology=topology,
-        all_phenotypes=all_phenotypes,
-        local_changes='default', facial_actions=True,
-    ).to(dtype=dtype, device=device).phenotype_labels
+    phenotype_labels = (
+        anny.Anny(
+            rig=rig,
+            topology=topology,
+            all_phenotypes=all_phenotypes,
+            local_changes="default",
+            facial_actions=True,
+        )
+        .to(dtype=dtype, device=device)
+        .phenotype_labels
+    )
 
     results = []
     for phenotype in phenotype_labels:
-        excluded_phenotypes = [label for label in phenotype_labels if label != phenotype]
+        excluded_phenotypes = [
+            label for label in phenotype_labels if label != phenotype
+        ]
         print(
             f"\nRunning phenotype impact for {phenotype}: "
             f"rig={rig} max_n_iters={max_n_iters} post_gd={post_gd} "
@@ -660,8 +668,12 @@ def ablation(
             post_gd_steps=job["post_gd_steps"],
             post_gd_lr=post_gd_lr,
             post_gd_prior_weight=post_gd_prior_weight,
-            post_gd_optimize_local_changes=job.get("post_gd_optimize_local_changes", False),
-            post_gd_optimize_facial_actions=job.get("post_gd_optimize_facial_actions", False),
+            post_gd_optimize_local_changes=job.get(
+                "post_gd_optimize_local_changes", False
+            ),
+            post_gd_optimize_facial_actions=job.get(
+                "post_gd_optimize_facial_actions", False
+            ),
             n_points=n_points,
             verbose=verbose,
             out_dir=out_dir,

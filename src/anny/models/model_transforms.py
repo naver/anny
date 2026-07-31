@@ -655,6 +655,12 @@ def apply_procrustes_retopology(
     runtime-registration variant, the per-bone vertex buffers of *source_model* are instead
     rebuilt on the target topology.
     """
+    try:
+        from anny.utils.warp_mesh_utils import point_to_mesh_distance_and_face_uvs
+    except ModuleNotFoundError:
+        raise ModuleNotFoundError(
+            "Warp not found. Install warp extra to use retopology."
+        )
     if base_mesh_vertex_indices is None:
         base_mesh_vertex_indices = torch.arange(len(vertices), dtype=torch.int64)
     blendshapes = sum(

@@ -1,3 +1,6 @@
+# Anny
+# Copyright (C) 2025 NAVER Corp.
+# Apache License, Version 2.0
 import unittest
 import torch
 import roma
@@ -6,7 +9,6 @@ from anny.shape_distribution import SimpleShapeDistribution
 
 
 class TestParametersRegressor(unittest.TestCase):
-
     def test_fit_synthetic_mesh_roundtrip(self):
         torch.manual_seed(0)
 
@@ -15,13 +17,19 @@ class TestParametersRegressor(unittest.TestCase):
         batch_size = 2
 
         rig = "anny"
-        model = anny.Anny(rig=rig, local_changes='default', facial_actions=True).to(dtype=dtype, device=device)
+        model = anny.Anny(rig=rig, local_changes="default", facial_actions="all").to(
+            dtype=dtype, device=device
+        )
 
         pose_parameters = {}
         for i, bone in enumerate(model.bone_labels):
             rotvec = 0.15 * torch.randn(batch_size, 3, dtype=dtype, device=device)
             rotmat = roma.rotvec_to_rotmat(rotvec)
-            translation = torch.randn(batch_size, 3, dtype=dtype, device=device) if i == 0 else None
+            translation = (
+                torch.randn(batch_size, 3, dtype=dtype, device=device)
+                if i == 0
+                else None
+            )
             pose_parameters[bone] = roma.Rigid(linear=rotmat, translation=translation)
 
         shape_dist = SimpleShapeDistribution(
@@ -40,7 +48,9 @@ class TestParametersRegressor(unittest.TestCase):
             )["vertices"]
 
         initial_phenotype_kwargs = {}
-        initial_phenotype_kwargs["age"] = torch.full((batch_size,), 0.8, dtype=dtype, device=device) # assuming it is always adults
+        initial_phenotype_kwargs["age"] = torch.full(
+            (batch_size,), 0.8, dtype=dtype, device=device
+        )  # assuming it is always adults
 
         fitter = anny.AnnyInverter(
             model=model,

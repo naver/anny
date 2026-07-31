@@ -5,23 +5,17 @@
 import os
 import gc
 import glob
-import gzip
 import pickle
 import sys
 import time
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import numpy as np
 import torch
-import roma
 import trimesh
 import anny
 from tqdm import tqdm
 from torch.utils.data import DataLoader, Dataset
-
-from anny.paths import _ANNY_ROOT_DIR
-from anny.shape_distribution import SimpleShapeDistribution, MorphologicalAgeMapping
 
 import logging
 
@@ -133,26 +127,54 @@ class _AMASSCentralFrameDataset(Dataset):
                 if len(global_orient) == 0:
                     return None
 
-                hand_pose = data["pose_hand"] if "pose_hand" in data else np.zeros((len(global_orient), 90), dtype=np.float32)
-                jaw_pose = data["pose_jaw"] if "pose_jaw" in data else np.zeros((len(global_orient), 3), dtype=np.float32)
-                transl = data["trans"] if "trans" in data else np.zeros((len(global_orient), 3), dtype=np.float32)
+                hand_pose = (
+                    data["pose_hand"]
+                    if "pose_hand" in data
+                    else np.zeros((len(global_orient), 90), dtype=np.float32)
+                )
+                jaw_pose = (
+                    data["pose_jaw"]
+                    if "pose_jaw" in data
+                    else np.zeros((len(global_orient), 3), dtype=np.float32)
+                )
+                transl = (
+                    data["trans"]
+                    if "trans" in data
+                    else np.zeros((len(global_orient), 3), dtype=np.float32)
+                )
 
                 return {
                     "path": fpath,
-                    "betas": torch.from_numpy(np.asarray(data["betas"][:10], dtype=np.float32)),
-                    "global_orient": torch.from_numpy(np.asarray(global_orient[frame_id], dtype=np.float32)),
-                    "body_pose": torch.from_numpy(np.asarray(data["pose_body"][frame_id], dtype=np.float32)),
-                    "left_hand_pose": torch.from_numpy(np.asarray(hand_pose[frame_id, :45], dtype=np.float32)),
-                    "right_hand_pose": torch.from_numpy(np.asarray(hand_pose[frame_id, 45:], dtype=np.float32)),
-                    "jaw_pose": torch.from_numpy(np.asarray(jaw_pose[frame_id], dtype=np.float32)),
-                    "transl": torch.from_numpy(np.asarray(transl[frame_id], dtype=np.float32)),
+                    "betas": torch.from_numpy(
+                        np.asarray(data["betas"][:10], dtype=np.float32)
+                    ),
+                    "global_orient": torch.from_numpy(
+                        np.asarray(global_orient[frame_id], dtype=np.float32)
+                    ),
+                    "body_pose": torch.from_numpy(
+                        np.asarray(data["pose_body"][frame_id], dtype=np.float32)
+                    ),
+                    "left_hand_pose": torch.from_numpy(
+                        np.asarray(hand_pose[frame_id, :45], dtype=np.float32)
+                    ),
+                    "right_hand_pose": torch.from_numpy(
+                        np.asarray(hand_pose[frame_id, 45:], dtype=np.float32)
+                    ),
+                    "jaw_pose": torch.from_numpy(
+                        np.asarray(jaw_pose[frame_id], dtype=np.float32)
+                    ),
+                    "transl": torch.from_numpy(
+                        np.asarray(transl[frame_id], dtype=np.float32)
+                    ),
                 }
         except Exception as exc:
             return {"path": fpath, "error": repr(exc)}
 
 
 def _collate_amass_central_frames(samples: List[Optional[Dict[str, Any]]]):
-    valid_samples = [sample for sample in samples if sample is not None and "error" not in sample]
+    valid_samples = [
+        sample for sample in samples if sample is not None and "error" not in sample
+    ]
     skipped = [sample for sample in samples if sample is not None and "error" in sample]
     if len(valid_samples) == 0:
         return None
@@ -205,23 +227,45 @@ def _load_amass_sequence(fpath: str) -> Dict[str, Any]:
         if len(global_orient) == 0:
             raise ValueError("empty root_orient")
 
-        hand_pose = data["pose_hand"] if "pose_hand" in data else np.zeros((len(global_orient), 90), dtype=np.float32)
-        jaw_pose = data["pose_jaw"] if "pose_jaw" in data else np.zeros((len(global_orient), 3), dtype=np.float32)
-        transl = data["trans"] if "trans" in data else np.zeros((len(global_orient), 3), dtype=np.float32)
+        hand_pose = (
+            data["pose_hand"]
+            if "pose_hand" in data
+            else np.zeros((len(global_orient), 90), dtype=np.float32)
+        )
+        jaw_pose = (
+            data["pose_jaw"]
+            if "pose_jaw" in data
+            else np.zeros((len(global_orient), 3), dtype=np.float32)
+        )
+        transl = (
+            data["trans"]
+            if "trans" in data
+            else np.zeros((len(global_orient), 3), dtype=np.float32)
+        )
 
         return {
             "path": fpath,
             "betas": torch.from_numpy(np.asarray(data["betas"][:10], dtype=np.float32)),
-            "global_orient": torch.from_numpy(np.asarray(global_orient, dtype=np.float32)),
-            "body_pose": torch.from_numpy(np.asarray(data["pose_body"], dtype=np.float32)),
-            "left_hand_pose": torch.from_numpy(np.asarray(hand_pose[:, :45], dtype=np.float32)),
-            "right_hand_pose": torch.from_numpy(np.asarray(hand_pose[:, 45:], dtype=np.float32)),
+            "global_orient": torch.from_numpy(
+                np.asarray(global_orient, dtype=np.float32)
+            ),
+            "body_pose": torch.from_numpy(
+                np.asarray(data["pose_body"], dtype=np.float32)
+            ),
+            "left_hand_pose": torch.from_numpy(
+                np.asarray(hand_pose[:, :45], dtype=np.float32)
+            ),
+            "right_hand_pose": torch.from_numpy(
+                np.asarray(hand_pose[:, 45:], dtype=np.float32)
+            ),
             "jaw_pose": torch.from_numpy(np.asarray(jaw_pose, dtype=np.float32)),
             "transl": torch.from_numpy(np.asarray(transl, dtype=np.float32)),
         }
 
 
-def _select_amass_frames(sequence: Dict[str, Any], frame_ids: List[int]) -> Dict[str, Any]:
+def _select_amass_frames(
+    sequence: Dict[str, Any], frame_ids: List[int]
+) -> Dict[str, Any]:
     return {
         "paths": [sequence["path"]] * len(frame_ids),
         "skipped": [],
@@ -252,17 +296,29 @@ def _make_smplx_vertices(
             "global_orient": zeros_3,
             "body_pose": torch.zeros((batch_size, 63), dtype=dtype, device=device),
             "left_hand_pose": torch.zeros((batch_size, 45), dtype=dtype, device=device),
-            "right_hand_pose": torch.zeros((batch_size, 45), dtype=dtype, device=device),
+            "right_hand_pose": torch.zeros(
+                (batch_size, 45), dtype=dtype, device=device
+            ),
             "jaw_pose": zeros_3,
             "transl": zeros_3,
         }
     else:
         pose_kwargs = {
-            "global_orient": batch["global_orient"].to(device=device, dtype=dtype, non_blocking=True),
-            "body_pose": batch["body_pose"].to(device=device, dtype=dtype, non_blocking=True),
-            "left_hand_pose": batch["left_hand_pose"].to(device=device, dtype=dtype, non_blocking=True),
-            "right_hand_pose": batch["right_hand_pose"].to(device=device, dtype=dtype, non_blocking=True),
-            "jaw_pose": batch["jaw_pose"].to(device=device, dtype=dtype, non_blocking=True),
+            "global_orient": batch["global_orient"].to(
+                device=device, dtype=dtype, non_blocking=True
+            ),
+            "body_pose": batch["body_pose"].to(
+                device=device, dtype=dtype, non_blocking=True
+            ),
+            "left_hand_pose": batch["left_hand_pose"].to(
+                device=device, dtype=dtype, non_blocking=True
+            ),
+            "right_hand_pose": batch["right_hand_pose"].to(
+                device=device, dtype=dtype, non_blocking=True
+            ),
+            "jaw_pose": batch["jaw_pose"].to(
+                device=device, dtype=dtype, non_blocking=True
+            ),
             "transl": batch["transl"].to(device=device, dtype=dtype, non_blocking=True),
         }
 
@@ -316,7 +372,9 @@ def _fit_vertices(
     return pose, shape, vertices_hat, time.perf_counter() - fit_start
 
 
-def _compute_pve(vertices_hat: torch.Tensor, vertices_target: torch.Tensor) -> torch.Tensor:
+def _compute_pve(
+    vertices_hat: torch.Tensor, vertices_target: torch.Tensor
+) -> torch.Tensor:
     return 1000.0 * torch.norm(vertices_hat - vertices_target, dim=-1).mean(dim=1)
 
 
@@ -334,7 +392,9 @@ def _record_fit(
     return pve, fitting_throughput
 
 
-def _write_batch_summary(label: str, batch_idx: int, pve: torch.Tensor, fitting_throughput: float):
+def _write_batch_summary(
+    label: str, batch_idx: int, pve: torch.Tensor, fitting_throughput: float
+):
     batch_summary = _pve_summary(pve.detach().cpu())
     tqdm.write(
         f"{label} batch {batch_idx}: "
@@ -345,7 +405,9 @@ def _write_batch_summary(label: str, batch_idx: int, pve: torch.Tensor, fitting_
     )
 
 
-def _write_sequence_summary(label: str, fpath: str, pves: torch.Tensor, throughput: float):
+def _write_sequence_summary(
+    label: str, fpath: str, pves: torch.Tensor, throughput: float
+):
     sequence_summary = _pve_summary(pves)
     tqdm.write(
         f"{label} {fpath}: "
@@ -434,7 +496,9 @@ def benchmark_amass(
     max_n_iters: int = 10,
     n_points: Optional[int] = None,
     max_delta: float = 0.1,
-    excluded_phenotypes: Optional[List[str]] = None, # defaults to age because we have only adults in AMASS
+    excluded_phenotypes: Optional[
+        List[str]
+    ] = None,  # defaults to age because we have only adults in AMASS
     fit_with_amass_pose: bool = True,
     fit_shape_on_rest_pose_first: bool = False,
     post_gd: bool = True,
@@ -470,7 +534,9 @@ def benchmark_amass(
     smplx_model_path = _require_path(smplx_model_path, SMPLX_MODEL_SKIP_REASON)
     src_root = _require_path(src_root, AMASS_SMPLX_SKIP_REASON)
     if fit_shape_on_rest_pose_first and not fit_with_amass_pose:
-        raise ValueError("fit_shape_on_rest_pose_first requires fit_with_amass_pose=True")
+        raise ValueError(
+            "fit_shape_on_rest_pose_first requires fit_with_amass_pose=True"
+        )
     result_key, result_label = _amass_result_metadata(
         central_frame_only=central_frame_only,
         fit_with_amass_pose=fit_with_amass_pose,
@@ -487,7 +553,9 @@ def benchmark_amass(
         return {result_key: None}
 
     benchmark_target = "central frames" if central_frame_only else "full sequences"
-    print(f"Benchmarking {len(npz_files)} {benchmark_target} from slice [{start_idx}:{end_idx}]")
+    print(
+        f"Benchmarking {len(npz_files)} {benchmark_target} from slice [{start_idx}:{end_idx}]"
+    )
 
     device, dtype = _device_and_dtype()
 
@@ -497,7 +565,9 @@ def benchmark_amass(
         use_pca=False,
         topology=topology,
     ).to(dtype=dtype, device=device)
-    anny_model = anny.Anny(rig=rig, topology=topology, local_changes='default', facial_actions=True).to(dtype=dtype, device=device)
+    anny_model = anny.Anny(
+        rig=rig, topology=topology, local_changes="default", facial_actions=True
+    ).to(dtype=dtype, device=device)
 
     fitter = anny.AnnyInverter(
         anny_model,
@@ -508,13 +578,17 @@ def benchmark_amass(
     excluded_phenotypes = excluded_phenotypes or ["age"]
 
     initial_phenotype_kwargs = dict(_DEFAULT_INITIAL_PHENOTYPES)
-    dataloader = _make_amass_central_frame_dataloader(
-        npz_files=npz_files,
-        batch_size=batch_size,
-        num_workers=num_workers,
-        pin_memory=pin_memory,
-        device=device,
-    ) if central_frame_only else None
+    dataloader = (
+        _make_amass_central_frame_dataloader(
+            npz_files=npz_files,
+            batch_size=batch_size,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+            device=device,
+        )
+        if central_frame_only
+        else None
+    )
 
     pves = []
     fitting_throughputs = []
@@ -524,7 +598,9 @@ def benchmark_amass(
     start = time.perf_counter()
 
     if central_frame_only:
-        iterator = tqdm(dataloader, total=len(dataloader), desc="Benchmarking central frames")
+        iterator = tqdm(
+            dataloader, total=len(dataloader), desc="Benchmarking central frames"
+        )
     else:
         iterator = tqdm(npz_files, desc="Benchmarking full sequences")
 
@@ -551,8 +627,12 @@ def benchmark_amass(
             processed_paths.extend(batch["paths"])
 
             if fit_shape_on_rest_pose_first:
-                rest_vertices_target = _make_smplx_vertices(smplx_model, batch, True, device, dtype)
-                vertices_target = _make_smplx_vertices(smplx_model, batch, False, device, dtype)
+                rest_vertices_target = _make_smplx_vertices(
+                    smplx_model, batch, True, device, dtype
+                )
+                vertices_target = _make_smplx_vertices(
+                    smplx_model, batch, False, device, dtype
+                )
 
                 _, shape, _, shape_elapsed = _fit_vertices(
                     fitter=fitter,
@@ -563,7 +643,9 @@ def benchmark_amass(
                     **fit_options,
                 )
                 shape = _phenotypes_from_fit_parameters(shape)
-                initial_phenotypes = {key: value.detach() for key, value in shape.items()}
+                initial_phenotypes = {
+                    key: value.detach() for key, value in shape.items()
+                }
                 _, _, vertices_hat, pose_elapsed = _fit_vertices(
                     fitter=fitter,
                     vertices_target=vertices_target,
@@ -576,7 +658,9 @@ def benchmark_amass(
                 del rest_vertices_target, shape
             else:
                 initial_phenotypes = initial_phenotype_kwargs
-                vertices_target = _make_smplx_vertices(smplx_model, batch, not fit_with_amass_pose, device, dtype)
+                vertices_target = _make_smplx_vertices(
+                    smplx_model, batch, not fit_with_amass_pose, device, dtype
+                )
 
                 _, _, vertices_hat, fitting_elapsed = _fit_vertices(
                     fitter=fitter,
@@ -600,7 +684,7 @@ def benchmark_amass(
     else:
         for fpath in iterator:
             sys.stdout.flush()
-            
+
             try:
                 sequence = _load_amass_sequence(fpath)
             except Exception as exc:
@@ -616,7 +700,9 @@ def benchmark_amass(
             if fit_shape_on_rest_pose_first:
                 central_frame_id = frame_ids_all[len(frame_ids_all) // 2]
                 rest_batch = _select_amass_frames(sequence, [central_frame_id])
-                rest_vertices_target = _make_smplx_vertices(smplx_model, rest_batch, True, device, dtype)
+                rest_vertices_target = _make_smplx_vertices(
+                    smplx_model, rest_batch, True, device, dtype
+                )
 
                 _, shape, _, fitting_elapsed = _fit_vertices(
                     fitter=fitter,
@@ -627,20 +713,27 @@ def benchmark_amass(
                     **fit_options,
                 )
                 sequence_fit_time = fitting_elapsed
-                phenotype_kwargs = _shape_to_scalars(_phenotypes_from_fit_parameters(shape))
+                phenotype_kwargs = _shape_to_scalars(
+                    _phenotypes_from_fit_parameters(shape)
+                )
                 optimize_phenotypes = False
                 del rest_vertices_target, shape
 
             sequence_pves = []
             initial_pose_parameters = None
+            pose = None
             for chunk_start in range(0, len(frame_ids_all), batch_size):
-                frame_ids = frame_ids_all[chunk_start:chunk_start + batch_size]
+                frame_ids = frame_ids_all[chunk_start : chunk_start + batch_size]
                 batch = _select_amass_frames(sequence, frame_ids)
-                vertices_target = _make_smplx_vertices(smplx_model, batch, not fit_with_amass_pose, device, dtype)
+                vertices_target = _make_smplx_vertices(
+                    smplx_model, batch, not fit_with_amass_pose, device, dtype
+                )
 
                 if chunk_start > 0:
                     # init frame the last pose of the previous chunk
-                    initial_pose_parameters = pose[-1][None].repeat(len(frame_ids), 1, 1, 1)
+                    initial_pose_parameters = pose[-1][None].repeat(
+                        len(frame_ids), 1, 1, 1
+                    )
 
                 pose, shape, vertices_hat, fitting_elapsed = _fit_vertices(
                     fitter=fitter,
@@ -662,7 +755,9 @@ def benchmark_amass(
                 )
                 sequence_pves.append(pve.detach().cpu())
 
-                phenotype_kwargs = _shape_to_scalars(_phenotypes_from_fit_parameters(shape))
+                phenotype_kwargs = _shape_to_scalars(
+                    _phenotypes_from_fit_parameters(shape)
+                )
                 optimize_phenotypes = False
 
                 del vertices_target, vertices_hat, pve, shape
@@ -670,7 +765,9 @@ def benchmark_amass(
 
             sequence_pves = torch.cat(sequence_pves)
             sequence_throughput = len(frame_ids_all) / sequence_fit_time
-            _write_sequence_summary(result_label, fpath, sequence_pves, sequence_throughput)
+            _write_sequence_summary(
+                result_label, fpath, sequence_pves, sequence_throughput
+            )
 
             del sequence, sequence_pves
 
@@ -710,6 +807,8 @@ def benchmark_amass(
 
     return results
 
+
 if __name__ == "__main__":
     from jsonargparse import auto_cli
+
     auto_cli(benchmark_amass)

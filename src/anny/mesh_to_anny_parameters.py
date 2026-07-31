@@ -31,6 +31,7 @@ _DEFAULT_REG_WEIGHT_KWARGS = {
     "caucasian": 100.0,
 }
 
+
 class AnnyInverter:
     """
     Estimate Anny parameters fitting a target mesh.
@@ -69,14 +70,16 @@ class AnnyInverter:
 
         base_mesh_vertex_indices = torch.unique(self.model.faces.flatten(), sorted=True)
         self.unique_ids = base_mesh_vertex_indices.to(self.device)
-        
+
         self.partitioning = self._partition()
         self.indices_identity = self._get_identity_indices()
 
         if self.n_points is None:
             self.idx = self.unique_ids
         else:
-            self.idx = self.unique_ids[torch.linspace(0, len(self.unique_ids) - 1, self.n_points).long()].to(self.device)
+            self.idx = self.unique_ids[
+                torch.linspace(0, len(self.unique_ids) - 1, self.n_points).long()
+            ].to(self.device)
 
         reg_weight_kwargs = reg_weight_kwargs or _DEFAULT_REG_WEIGHT_KWARGS
         self.reg_weights = torch.tensor(
@@ -84,17 +87,21 @@ class AnnyInverter:
             dtype=self.dtype,
             device=self.device,
         )
-        
+
         self.body_part_vertex_ids = {}
         if (
-            self.model.face_texture_coordinate_indices is not None and self.model.texture_coordinates is not None
+            self.model.face_texture_coordinate_indices is not None
+            and self.model.texture_coordinates is not None
         ):
-            self.body_part_vertex_ids = self._load_body_part_vertex_ids(keep_labels=["hand.R", "hand.L", "foot.R", "foot.L", "body", "head"])
-
+            self.body_part_vertex_ids = self._load_body_part_vertex_ids(
+                keep_labels=["hand.R", "hand.L", "foot.R", "foot.L", "body", "head"]
+            )
 
         self.shape_dist = SimpleShapeDistribution(self.model)
 
-    def _load_body_part_vertex_ids(self, keep_labels: Optional[List[str]] = None) -> Dict[str, torch.Tensor]:
+    def _load_body_part_vertex_ids(
+        self, keep_labels: Optional[List[str]] = None
+    ) -> Dict[str, torch.Tensor]:
         anny_root_dir = get_anny_root_dir()
         seg_path = anny_root_dir / "data/segmentation/body_parts_segmentation.png"
         yaml_path = anny_root_dir / "data/segmentation/body_parts_segmentation.yaml"
@@ -133,7 +140,9 @@ class AnnyInverter:
                 continue
 
             vertex_ids = np.unique(faces[face_mask].reshape(-1))
-            vertex_ids = torch.as_tensor(vertex_ids, dtype=torch.long, device=self.device)
+            vertex_ids = torch.as_tensor(
+                vertex_ids, dtype=torch.long, device=self.device
+            )
 
             # Keep only vertices actually optimized / compared by the regressor
             keep = torch.isin(vertex_ids, self.unique_ids)
@@ -191,13 +200,12 @@ class AnnyInverter:
         # show if there is no vertices at all for some joints if self.verbose
         if self.verbose:
             for j, (vs, ws) in enumerate(zip(out_jvs, out_vjw)):
-                if len(vs) == 0:
-                    logger.warning(f"Joint {self.model.bone_labels[j]} has no vertices assigned!")
-                    
-        return {
-            'joint_vertex_sets': out_jvs, 
-            'vertex_joint_weights': out_vjw
-            }
+                if len(vs) == 0 and j != 0:  # root has no weight, it is expected
+                    logger.warning(
+                        f"Joint {self.model.bone_labels[j]} has no vertices assigned!"
+                    )
+
+        return {"joint_vertex_sets": out_jvs, "vertex_joint_weights": out_vjw}
 
     def _get_identity_indices(self) -> List[int]:
         """
@@ -215,16 +223,23 @@ class AnnyInverter:
         batch_size: int,
         initial_phenotype_kwargs: Dict[str, Any],
         initial_pose_parameters,
-    ) -> Tuple[torch.Tensor, Dict[str, torch.Tensor], Dict[str, torch.Tensor], Dict[str, torch.Tensor]]:
+    ) -> Tuple[
+        torch.Tensor,
+        Dict[str, torch.Tensor],
+        Dict[str, torch.Tensor],
+        Dict[str, torch.Tensor],
+    ]:
         """
-        Initialize pose_parameters (identity), phenotype_kwargs shape (0.5), local_changes_kwargs changes (zero), and facial_actions (zero).
+        Initialize pose_parameters (identity), phenotype_kwargs shape (0.5), local_changes_kwargs changes (zero),
+        and facial_actions (zero).
 
         Args:
             - batch_size (int): Batch size.
             - initial_phenotype_kwargs (dict): Optional override values for phenotype_kwargs parameters.
 
         Returns:
-            - Tuple[Tensor, Dict[str, Tensor], Dict[str, Tensor], Dict[str, Tensor]]: pose_parameters, phenotype_kwargs, local_changes_kwargs, facial_actions.
+            - Tuple[Tensor, Dict[str, Tensor], Dict[str, Tensor], Dict[str, Tensor]]: pose_parameters, phenotype_kwargs,
+              local_changes_kwargs, facial_actions.
         """
         if initial_pose_parameters is not None:
             pose_parameters = initial_pose_parameters  # [bs,k,4,4]
@@ -236,8 +251,13 @@ class AnnyInverter:
                 device=self.device,
             ).to_homogeneous()
 
-        phenotype_kwargs = {k: torch.full((batch_size,), 0.5, dtype=self.dtype, device=self.device) for k in self.model.phenotype_labels}
-        phenotype_kwargs['age'] = torch.tensor([0.8], dtype=self.dtype, device=self.device).repeat(batch_size) # starting from an adult average age to help convergence
+        phenotype_kwargs = {
+            k: torch.full((batch_size,), 0.5, dtype=self.dtype, device=self.device)
+            for k in self.model.phenotype_labels
+        }
+        phenotype_kwargs["age"] = torch.tensor(
+            [0.8], dtype=self.dtype, device=self.device
+        ).repeat(batch_size)  # starting from an adult average age to help convergence
         for k, v in initial_phenotype_kwargs.items():
             if isinstance(v, torch.Tensor):
                 assert v.shape[0] == batch_size
@@ -247,11 +267,17 @@ class AnnyInverter:
                     (batch_size,), float(v), dtype=self.dtype, device=self.device
                 )
 
-        local_changes_kwargs = {k: torch.zeros(batch_size, dtype=self.dtype, device=self.device) for k in self.model.local_change_labels}
-        facial_actions = {k: torch.zeros(batch_size, dtype=self.dtype, device=self.device) for k in self.model.facial_action_labels}
+        local_changes_kwargs = {
+            k: torch.zeros(batch_size, dtype=self.dtype, device=self.device)
+            for k in self.model.local_change_labels
+        }
+        facial_actions = {
+            k: torch.zeros(batch_size, dtype=self.dtype, device=self.device)
+            for k in self.model.facial_action_labels
+        }
 
         return pose_parameters, phenotype_kwargs, local_changes_kwargs, facial_actions
-    
+
     def _compute_macro_jacobian(
         self,
         pose_parameters: torch.Tensor,
@@ -276,18 +302,32 @@ class AnnyInverter:
         batch_size = pose_parameters.shape[0]
 
         # repeating input params
-        pose_parameters_all = pose_parameters.unsqueeze(1).repeat(1,2 * len(phenotype_kwargs),1,1,1).flatten(0,1)
-        phenotype_kwargs_all = {k: v.unsqueeze(1).repeat(1,2 * len(phenotype_kwargs)).flatten(0,1) for k, v in phenotype_kwargs.items()}
+        pose_parameters_all = (
+            pose_parameters.unsqueeze(1)
+            .repeat(1, 2 * len(phenotype_kwargs), 1, 1, 1)
+            .flatten(0, 1)
+        )
+        phenotype_kwargs_all = {
+            k: v.unsqueeze(1).repeat(1, 2 * len(phenotype_kwargs)).flatten(0, 1)
+            for k, v in phenotype_kwargs.items()
+        }
         local_changes_kwargs_all = None
         if local_changes_kwargs is not None:
-            local_changes_kwargs_all = {k: v.unsqueeze(1).repeat(1,2 * len(phenotype_kwargs)).flatten(0,1) for k, v in local_changes_kwargs.items()}
+            local_changes_kwargs_all = {
+                k: v.unsqueeze(1).repeat(1, 2 * len(phenotype_kwargs)).flatten(0, 1)
+                for k, v in local_changes_kwargs.items()
+            }
 
         # adding a small bounded central-difference epsilon for each macrodetail
         keys = list(phenotype_kwargs.keys())
         denominators = []
         for i, k in enumerate(keys):
-            plus_indices = [2 * i + j * (2 * len(phenotype_kwargs)) for j in range(batch_size)]
-            minus_indices = [2 * i + 1 + j * (2 * len(phenotype_kwargs)) for j in range(batch_size)]
+            plus_indices = [
+                2 * i + j * (2 * len(phenotype_kwargs)) for j in range(batch_size)
+            ]
+            minus_indices = [
+                2 * i + 1 + j * (2 * len(phenotype_kwargs)) for j in range(batch_size)
+            ]
             values = phenotype_kwargs[k]
             plus_values = torch.clamp(values + self.eps, 0.01, 0.99)
             minus_values = torch.clamp(values - self.eps, 0.01, 0.99)
@@ -296,16 +336,23 @@ class AnnyInverter:
             denominators.append(plus_values - minus_values)
 
         # central differences
-        vertices = self.model(pose_parameters=pose_parameters_all, 
-                    phenotype_kwargs=phenotype_kwargs_all, 
-                    local_changes_kwargs=local_changes_kwargs_all, 
-                    pose_parameterization='local-bone')['vertices'][:,self.unique_ids]
-        vertices_rearranged = vertices.reshape(batch_size, len(phenotype_kwargs), 2, vertices.shape[1], 3)
-        err = vertices_rearranged[:,:,0] - vertices_rearranged[:,:,1]
+        vertices = self.model(
+            pose_parameters=pose_parameters_all,
+            phenotype_kwargs=phenotype_kwargs_all,
+            local_changes_kwargs=local_changes_kwargs_all,
+            pose_parameterization="local-bone",
+        )["vertices"][:, self.unique_ids]
+        vertices_rearranged = vertices.reshape(
+            batch_size, len(phenotype_kwargs), 2, vertices.shape[1], 3
+        )
+        err = vertices_rearranged[:, :, 0] - vertices_rearranged[:, :, 1]
 
         denominator = torch.stack(denominators, dim=1).clamp_min(1e-8)
-        J_all = err[:,:,idx].reshape(batch_size, err.shape[1], -1) / denominator[..., None] # [batch_size,nbetas,V']
-        J_all = J_all.permute(0,2,1)
+        J_all = (
+            err[:, :, idx].reshape(batch_size, err.shape[1], -1)
+            / denominator[..., None]
+        )  # [batch_size,nbetas,V']
+        J_all = J_all.permute(0, 2, 1)
 
         return J_all
 
@@ -572,12 +619,14 @@ class AnnyInverter:
                     group_size = shared_phenotype_group_size or batch_size
                     assert batch_size % group_size == 0
                     n_groups = batch_size // group_size
-                    delta = delta.reshape(
-                        n_groups, group_size, len(optim_keys)
-                    ).mean(dim=1)
-                    delta = delta[:, None].expand(
-                        n_groups, group_size, len(optim_keys)
-                    ).reshape(batch_size, len(optim_keys))
+                    delta = delta.reshape(n_groups, group_size, len(optim_keys)).mean(
+                        dim=1
+                    )
+                    delta = (
+                        delta[:, None]
+                        .expand(n_groups, group_size, len(optim_keys))
+                        .reshape(batch_size, len(optim_keys))
+                    )
 
                 for i, k in enumerate(optim_keys):
                     diff = torch.clamp(delta[:, i], -max_delta, max_delta)
@@ -748,7 +797,8 @@ class AnnyInverter:
                             iterative fit. Defaults to None, which disables multistart.
         Returns:
             - pose (Tensor): Fitted pose parameters in root-relative format.
-            - macro (dict): Optimized macro shape parameters, or (phenotype_kwargs, local_changes_kwargs, facial_actions) when post-GD optimizes local changes or facial actions.
+            - macro (dict): Optimized macro shape parameters, or (phenotype_kwargs, local_changes_kwargs,
+                            facial_actions) when post-GD optimizes local changes or facial actions.
             - v_hat (Tensor): Final predicted vertex positions aligned to target.
         """
         if vertices_target.ndim == 2:
@@ -780,9 +830,11 @@ class AnnyInverter:
                 itertools.product(*[active_multistart_anchors[k] for k in anchor_keys])
             )
             candidate_count = len(anchor_values)
-            vertices_target_fit = vertices_target[None].expand(
-                candidate_count, *vertices_target.shape
-            ).reshape(candidate_count * batch_size, *vertices_target.shape[1:])
+            vertices_target_fit = (
+                vertices_target[None]
+                .expand(candidate_count, *vertices_target.shape)
+                .reshape(candidate_count * batch_size, *vertices_target.shape[1:])
+            )
             initial_pose_parameters_fit = None
             if initial_pose_parameters is not None:
                 initial_pose_parameters_fit = initial_pose_parameters.repeat(
@@ -805,7 +857,7 @@ class AnnyInverter:
                             device=self.device,
                         )
                     initial_phenotype_kwargs_fit[k][candidate_slice] = float(value)
-            
+
             (
                 pose_parameters,
                 phenotype_kwargs,
@@ -867,7 +919,13 @@ class AnnyInverter:
             )
 
         if post_gd:
-            pose_parameters, phenotype_kwargs, local_changes_kwargs, facial_actions, v_hat = self._post_gradient_descent(
+            (
+                pose_parameters,
+                phenotype_kwargs,
+                local_changes_kwargs,
+                facial_actions,
+                v_hat,
+            ) = self._post_gradient_descent(
                 vertices_target,
                 pose_parameters,
                 phenotype_kwargs,
@@ -889,16 +947,20 @@ class AnnyInverter:
                 facial_actions=facial_actions,
                 pose_parameterization="local-bone",
             )
-        
+
         # returning pose parameters to the required parametrization
-        pose_parameters = self.model.get_pose_parameterization(output, pose_parameterization=self.model.pose_parameterization)
+        pose_parameters = self.model.get_pose_parameterization(
+            output, pose_parameterization=self.model.pose_parameterization
+        )
 
         fit_parameters = phenotype_kwargs
-        if post_gd and (post_gd_optimize_local_changes or post_gd_optimize_facial_actions):
+        if post_gd and (
+            post_gd_optimize_local_changes or post_gd_optimize_facial_actions
+        ):
             fit_parameters = (phenotype_kwargs, local_changes_kwargs, facial_actions)
-            
+
         return pose_parameters, fit_parameters, v_hat
-    
+
     @torch.enable_grad()
     def _post_gradient_descent(
         self,
@@ -913,25 +975,32 @@ class AnnyInverter:
         optimize_phenotypes: bool = True,
         optimize_local_changes: bool = False,
         optimize_facial_actions: bool = False,
-        optim_keys: Optional[List[str]] = None
+        optim_keys: Optional[List[str]] = None,
     ):
         with torch.no_grad():
             R0 = pose_parameters[..., :3, :3]
             t0 = pose_parameters[:, 0, :3, 3].clone()
 
         estimated_joint_ids = [
-            joint_id for joint_id, joint_vertices in enumerate(self.partitioning["joint_vertex_sets"])
+            joint_id
+            for joint_id, joint_vertices in enumerate(
+                self.partitioning["joint_vertex_sets"]
+            )
             if len(joint_vertices) > 0 and joint_id not in self.indices_identity
         ]
         if 0 not in estimated_joint_ids:
             estimated_joint_ids.insert(0, 0)
-        estimated_joint_ids = torch.tensor(estimated_joint_ids, dtype=torch.long, device=self.device)
+        estimated_joint_ids = torch.tensor(
+            estimated_joint_ids, dtype=torch.long, device=self.device
+        )
 
         # print names of bones that i am not optimizing
         if self.verbose:
             all_joint_ids = set(range(len(self.model.bone_labels)))
             non_estimated_joint_ids = all_joint_ids - set(estimated_joint_ids.tolist())
-            non_estimated_joint_names = [self.model.bone_labels[j] for j in sorted(non_estimated_joint_ids)]
+            non_estimated_joint_names = [
+                self.model.bone_labels[j] for j in sorted(non_estimated_joint_ids)
+            ]
             logger.info(f"Non-estimated joints (fixed): {non_estimated_joint_names}")
 
         fixed_rotvec = roma.rotmat_to_rotvec(R0).detach().clone()
@@ -978,8 +1047,12 @@ class AnnyInverter:
             for name in ["height", "weight", "muscle", "proportions"]:
                 value = phenos[name].clamp(eps, 1.0 - eps)
 
-                boys_dist = getattr(self.shape_dist, f"boys_conditional_{name}_distribution").get_torch_distribution(age)
-                girls_dist = getattr(self.shape_dist, f"girls_conditional_{name}_distribution").get_torch_distribution(age)
+                boys_dist = getattr(
+                    self.shape_dist, f"boys_conditional_{name}_distribution"
+                ).get_torch_distribution(age)
+                girls_dist = getattr(
+                    self.shape_dist, f"girls_conditional_{name}_distribution"
+                ).get_torch_distribution(age)
 
                 boys_logp = boys_dist.log_prob(value)
                 girls_logp = girls_dist.log_prob(value)
@@ -997,8 +1070,8 @@ class AnnyInverter:
         if optimize_facial_actions:
             parameters += list(facial_actions.values())
 
-        opt = torch.optim.Adam(parameters, lr=lr)   
-        
+        opt = torch.optim.Adam(parameters, lr=lr)
+
         for iter in range(n_steps):
             opt.zero_grad(set_to_none=True)
 
@@ -1008,11 +1081,17 @@ class AnnyInverter:
             pose[:, 0, :3, 3] = root_t
             phenos = build_phenos()
 
-            out = self.model(pose_parameters=pose, phenotype_kwargs=phenos, local_changes_kwargs=local_changes_kwargs, facial_actions=facial_actions, pose_parameterization="local-bone")
+            out = self.model(
+                pose_parameters=pose,
+                phenotype_kwargs=phenos,
+                local_changes_kwargs=local_changes_kwargs,
+                facial_actions=facial_actions,
+                pose_parameterization="local-bone",
+            )
 
             v_hat = out["vertices"][:, self.unique_ids]
             loss = ((v_hat - vertices_target) ** 2).mean()
-            
+
             if prior_weight > 0.0 and optimize_phenotypes:
                 loss = loss + prior_weight * phenotype_prior_loss(phenos)
 
@@ -1029,7 +1108,7 @@ class AnnyInverter:
 
             # compute pve if self.verbose
             if iter % 10 == 0 and self.verbose:
-                pve_all = 1000. * torch.norm(v_hat - vertices_target, dim=-1).mean()
+                pve_all = 1000.0 * torch.norm(v_hat - vertices_target, dim=-1).mean()
                 logger.info(f"Post-GD PVE: {pve_all:.2f} mm")
 
         with torch.no_grad():
