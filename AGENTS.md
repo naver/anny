@@ -57,6 +57,7 @@ bash build_doc.bash  # build HTML docs from the jupytext py:percent tutorials in
 | GPU skinning | `skinning/warp_skinning.py` | `warp-lang` accelerated variant (optional) |
 | Collision | `utils/collision.py` | Self-intersection detection; warp-accelerated when available |
 | Model data | `models/model_data.py` | `ModelData` / `ModelMetadata` dataclasses; bundle template mesh, blend shapes, and rig data; safetensors serialization for caching |
+| Model transforms | `models/model_transforms.py` | `ModelData` → `ModelData` operations: retopology (from a mesh, or from linear combinations of template vertices), bone orientation conversion, mesh/skinning cleanups |
 | Parameter regression | `parameters_regressor.py` | Iterative pose+shape fitting to a target mesh |
 | Anthropometry | `anthropometry.py` | Computes body measurements (height, volume, mass) from mesh |
 

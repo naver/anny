@@ -186,9 +186,11 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
                 vertices=self.template_vertices,
                 faces=self.faces.detach().cpu().numpy().tolist(),
             ),
+            dtype=torch.int64,
             device=self.device,
         )
-        return triangular_faces
+        # Keep the (F, 3) shape when there is no face at all.
+        return triangular_faces.reshape(-1, 3)
 
     def set_skinning_method(self, skinning_method: SkinningMethod | None) -> None:
         self._skinning_method_parameter: SkinningMethod | None = (

@@ -242,7 +242,7 @@ def benchmark_method(
 
 
 def main(
-    batch_sizes: list[int] = [1, 32],
+    batch_sizes: list[int] = [1],
     num_threads: int = 1,
     min_run_time: float = 2.0,
     backend: str | None = None,

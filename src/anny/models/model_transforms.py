@@ -508,52 +508,180 @@ def interpolate_skinning_weights(
     data: ModelData,
     source_model: ModelData,
     reference_vertex_indices: torch.Tensor,
-    barycentric_coordinates,
+    regression_weights,
 ) -> ModelData:
-    """Barycentric-interpolate skinning weights from *source_model* onto the target topology in *data*."""
-    vertex_bone_weights = []
-    vertex_bone_indices = []
-    for vertex_id in range(len(reference_vertex_indices)):
-        new_weights: dict[int, float] = collections.defaultdict(lambda: 0.0)
-        for i in range(3):
-            ref_vid = reference_vertex_indices[vertex_id, i].item()
-            coeff = barycentric_coordinates[i][vertex_id].item()
-            for bone_idx, bone_weight in zip(
-                source_model.vertex_bone_indices[ref_vid],
-                source_model.vertex_bone_weights[ref_vid],
-            ):
-                new_weights[bone_idx.item()] += coeff * bone_weight.item()
-        new_weights = {k: v for k, v in new_weights.items() if v > 0.0}
-        vertex_bone_weights.append(list(new_weights.values()))
-        vertex_bone_indices.append(list(new_weights.keys()))
+    """Linearly interpolate skinning weights from *source_model* onto the target topology in *data*.
 
-    max_bones_per_vertex = max(len(idx) for idx in vertex_bone_indices)
+    K = reference_vertex_indices.shape[1] source vertices are combined per target vertex;
+    interpolation_coordinates is any K-indexable container of (N,) tensors.
+
+    Bones are accumulated densely per target vertex, then repacked keeping only the bones whose
+    total influence is non-negligible, ordered by first appearance in the source packing. Targets
+    are processed in chunks so that the dense (chunk, bone_count) accumulator stays bounded for
+    large target counts.
+
+    The interpolation coordinates need not be barycentric: negative values are supported, and they
+    are used as given, without renormalization (the caller applies the same coordinates verbatim to
+    the template vertices and the blendshapes). Only the skinning weights they produce are
+    renormalized, per target vertex, because linear blend skinning requires them to sum to 1. A
+    target whose accumulated weights cancel out has no meaningful binding and is rejected.
+    """
+    num_targets, num_references = reference_vertex_indices.shape
+    bone_count = int(source_model.vertex_bone_indices.max()) + 1
+    chunk_size = max(1, _SKINNING_CHUNK_ELEMENTS // bone_count)
+
+    chunks = [
+        _interpolate_skinning_weights_chunk(
+            source_model=source_model,
+            reference_vertex_indices=reference_vertex_indices[
+                start : start + chunk_size
+            ],
+            interpolation_coordinates=[
+                regression_weights[i][start : start + chunk_size]
+                for i in range(num_references)
+            ],
+            bone_count=bone_count,
+        )
+        for start in range(0, num_targets, chunk_size)
+    ]
+
+    max_bones_per_vertex = max(indices.shape[1] for indices, _ in chunks)
     logger.info(f"{max_bones_per_vertex=}")
-    for indices, weights in zip(vertex_bone_indices, vertex_bone_weights):
-        while len(indices) < max_bones_per_vertex:
-            indices.append(0)
-            weights.append(0.0)
-    vbi = torch.as_tensor(vertex_bone_indices, dtype=torch.int64)
-    vbw = torch.as_tensor(vertex_bone_weights, dtype=torch.float64)
-    vbw /= torch.sum(vbw, dim=-1, keepdim=True)
-    return dataclasses.replace(data, vertex_bone_weights=vbw, vertex_bone_indices=vbi)
+    vbi = torch.cat(
+        [_pad_columns(indices, max_bones_per_vertex) for indices, _ in chunks]
+    )
+    vbw = torch.cat(
+        [_pad_columns(weights, max_bones_per_vertex) for _, weights in chunks]
+    )
+
+    row_sums = vbw.sum(dim=-1, keepdim=True)
+    degenerate = (row_sums.abs() < _MIN_SKINNING_WEIGHT).squeeze(-1)
+    if degenerate.any():
+        raise ValueError(
+            f"{int(degenerate.sum())} of {num_targets} target vertices have skinning weights "
+            "summing to zero, leaving them unbound. Their interpolation coordinates cancel out "
+            f"the source bindings; first offender is target {int(degenerate.nonzero()[0])}."
+        )
+    return dataclasses.replace(
+        data, vertex_bone_weights=vbw / row_sums, vertex_bone_indices=vbi
+    )
 
 
-def apply_retopology(
-    data: ModelData,
-    vertices: torch.Tensor,
-    faces: torch.Tensor,
+# Element budget of the dense per-chunk bone accumulator (~32 MB in float64).
+_SKINNING_CHUNK_ELEMENTS = 4 * 1024 * 1024
+
+# Below this magnitude an accumulated bone weight is treated as cancellation noise rather than as
+# an influence. Non-barycentric coordinates make such near-cancellations common; keeping them would
+# cost a packed column each.
+_MIN_SKINNING_WEIGHT = 1e-12
+
+
+def _pad_columns(tensor: torch.Tensor, width: int) -> torch.Tensor:
+    """Right-pad a (N, W) tensor with zeros up to *width* columns."""
+    if tensor.shape[1] == width:
+        return tensor
+    padding = torch.zeros(
+        (tensor.shape[0], width - tensor.shape[1]),
+        dtype=tensor.dtype,
+        device=tensor.device,
+    )
+    return torch.cat([tensor, padding], dim=1)
+
+
+def _interpolate_skinning_weights_chunk(
+    *,
+    source_model: ModelData,
     reference_vertex_indices: torch.Tensor,
-    barycentric_coordinates,
-    base_mesh_vertex_indices=None,
+    interpolation_coordinates,
+    bone_count: int,
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Packed (indices, weights) of one chunk of target vertices, trimmed to its own width."""
+    num_targets, num_references = reference_vertex_indices.shape
+    device = source_model.vertex_bone_weights.device
+    slot_count = source_model.vertex_bone_indices.shape[1]
+    unset = num_references * slot_count
+
+    accumulated = torch.zeros(
+        (num_targets, bone_count), dtype=torch.float64, device=device
+    )
+    # Position of each bone's first appearance, so that the packed column order matches the
+    # insertion order of the per-vertex accumulation.
+    first_appearance = torch.full(
+        (num_targets, bone_count), unset, dtype=torch.int64, device=device
+    )
+    for i in range(num_references):
+        references = reference_vertex_indices[:, i]
+        source_indices = source_model.vertex_bone_indices[references]
+        source_weights = source_model.vertex_bone_weights[references].to(torch.float64)
+        coefficients = interpolation_coordinates[i].to(torch.float64)
+        accumulated.scatter_add_(
+            1, source_indices, coefficients[:, None] * source_weights
+        )
+        slots = torch.arange(
+            i * slot_count, (i + 1) * slot_count, device=device
+        ).expand(num_targets, slot_count)
+        first_appearance.scatter_reduce_(1, source_indices, slots, reduce="amin")
+
+    # Pack, per target vertex, the bones that actually influence it, in first-appearance order.
+    # The test is on the magnitude, not on the sign: a negative total is a genuine influence, since
+    # the interpolation coordinates may be negative, while a total that cancelled out to ~0 adds
+    # nothing to the skinning sum. The rig is untouched.
+    ranks = torch.where(
+        accumulated.abs() > _MIN_SKINNING_WEIGHT, first_appearance, unset
+    )
+    ranks, bone_order = torch.sort(ranks, dim=1)
+    width = int((ranks < unset).sum(dim=1).max())
+    ranks, bone_order = ranks[:, :width], bone_order[:, :width]
+
+    kept = ranks < unset
+    gathered = accumulated.gather(1, bone_order)
+    return (
+        torch.where(kept, bone_order, torch.zeros_like(bone_order)),
+        torch.where(kept, gathered, torch.zeros_like(gathered)),
+    )
+
+
+def _apply_interpolate_model_data(
+    data: ModelData,
+    *,
+    reference_vertex_indices: torch.Tensor,
+    regression_weights: torch.Tensor,
+    faces: torch.Tensor,
+    base_mesh_vertex_indices,
+    vertices: torch.Tensor | None,
+    check_barycentric: bool = False,
 ) -> ModelData:
-    """Apply a new mesh topology, interpolating blendshapes and skinning weights barycentrically."""
+    """Shared core of apply_retopology and interpolate_model_data.
+
+    reference_vertex_indices is (N, K); vertices may be None, in which case the target template
+    vertices are interpolated from data.template_vertices.
+    """
+    if check_barycentric:
+        if float(regression_weights.min()) < -1e-6:
+            raise ValueError(
+                f"weights must be non-negative, got a minimum of {float(regression_weights.min())}."
+            )
+        weight_sum_error = float((regression_weights.sum(dim=-1) - 1.0).abs().max())
+        if weight_sum_error > 1e-6:
+            raise ValueError(
+                "weights rows must sum to 1 (convex combination), largest deviation is "
+                f"{weight_sum_error}. Renormalize them explicitly if that is intended."
+            )
+    num_references = reference_vertex_indices.shape[1]
     if base_mesh_vertex_indices is None:
-        base_mesh_vertex_indices = torch.arange(len(vertices), dtype=torch.int64)
+        base_mesh_vertex_indices = torch.arange(
+            reference_vertex_indices.shape[0], dtype=torch.int64
+        )
+    if vertices is None:
+        vertices = sum(
+            data.template_vertices[reference_vertex_indices[:, i]]
+            * regression_weights[i][:, None]
+            for i in range(num_references)
+        )
     blendshapes = sum(
         data.blendshapes[:, reference_vertex_indices[:, i]]
-        * barycentric_coordinates[i][None, :, None]
-        for i in range(3)
+        * regression_weights[i][None, :, None]
+        for i in range(num_references)
     )
     target_data = dataclasses.replace(
         data,
@@ -569,7 +697,147 @@ def apply_retopology(
         target_data,
         source_model=data,
         reference_vertex_indices=reference_vertex_indices,
-        barycentric_coordinates=barycentric_coordinates,
+        regression_weights=regression_weights,
+    )
+
+
+def apply_retopology(
+    data: ModelData,
+    vertices: torch.Tensor,
+    faces: torch.Tensor,
+    reference_vertex_indices: torch.Tensor,
+    barycentric_coordinates: torch.Tensor,
+    base_mesh_vertex_indices=None,
+) -> ModelData:
+    """Apply a new mesh topology, interpolating blendshapes and skinning weights barycentrically.
+
+    Caller-supplied target vertices, typically K=3 triangle barycentrics from a surface projection.
+    """
+    return _apply_interpolate_model_data(
+        data,
+        reference_vertex_indices=reference_vertex_indices,
+        regression_weights=barycentric_coordinates,
+        faces=faces,
+        base_mesh_vertex_indices=base_mesh_vertex_indices,
+        vertices=vertices,
+        check_barycentric=True,
+    )
+
+
+# Vertex-indexed buffers of the legacy runtime-registration procrustes variant.
+_PROCRUSTES_RUNTIME_FIELDS = (
+    "bone_nonzeroweight_mask",
+    "bone_vertex_indices",
+    "bone_vertex_weights",
+    "template_bone_vertices",
+)
+
+
+def _check_linear_interpolation_inputs(
+    data: ModelData, indices: torch.Tensor, weights: torch.Tensor
+) -> None:
+    if indices.ndim != 2:
+        raise ValueError(
+            f"indices must be a 2-D (N, K) tensor, got shape {tuple(indices.shape)}."
+        )
+    if not torch.is_floating_point(weights):
+        raise ValueError(f"weights must have a floating dtype, got {weights.dtype}.")
+    if indices.dtype.is_floating_point or indices.dtype.is_complex:
+        raise ValueError(f"indices must have an integer dtype, got {indices.dtype}.")
+    if weights.shape != indices.shape:
+        raise ValueError(
+            f"weights and indices must have the same shape, got {tuple(weights.shape)} "
+            f"and {tuple(indices.shape)}."
+        )
+    num_targets, num_references = indices.shape
+    if num_references < 1:
+        raise ValueError(
+            "indices must combine at least one source vertex per target (K >= 1)."
+        )
+    if num_targets < 1:
+        raise ValueError(
+            "apply_barycentric_retopology requires at least one output vertex, got indices "
+            f"of shape {tuple(indices.shape)}."
+        )
+    num_source_vertices = data.template_vertices.shape[0]
+    if int(indices.min()) < 0 or int(indices.max()) >= num_source_vertices:
+        raise ValueError(
+            f"indices must be in [0, {num_source_vertices}), got values in "
+            f"[{int(indices.min())}, {int(indices.max())}]."
+        )
+
+
+def interpolate_model_data(
+    data: ModelData,
+    indices: torch.Tensor,
+    weights: torch.Tensor,
+    faces: torch.Tensor | None = None,
+    base_mesh_vertex_indices: torch.Tensor | None = None,
+) -> ModelData:
+    """Resample a model onto points given as convex combinations of its template vertices.
+
+    Output vertex n is ``sum_k weights[n, k] * data.template_vertices[indices[n, k]]``, with indices
+    of shape (N, K) and non-negative weights of shape (N, K) summing to 1 per row. Unlike
+    apply_retopology_from_mesh, no target mesh, surface projection nor warp is needed.
+
+    faces are optional and index the new vertices; without them the result is a point set, which
+    rules out everything needing connectivity (triangulate, remove_unattached_vertices, volume
+    computation, parameter regression, self-interpenetration). base_mesh_vertex_indices defaults to
+    arange(N), meaningless for a resampled mesh; for a plain subsampling (K=1) pass
+    data.base_mesh_vertex_indices[indices[:, 0]].
+
+    Bone- and blendshape-indexed buffers are topology-independent and carried over, so bone poses
+    match the source exactly; data must therefore come from Anny.to_model_data() and use precomputed
+    orientation matrices (the vertex-indexed runtime procrustes buffers cannot be retargeted here).
+    """
+    _check_linear_interpolation_inputs(data, indices, weights)
+
+    if data.bone_template_orientation_matrices is None and any(
+        getattr(data, field) is not None for field in _PROCRUSTES_RUNTIME_FIELDS
+    ):
+        raise ValueError(
+            "apply_barycentric_retopology cannot retarget the legacy runtime-registration "
+            f"procrustes buffers ({', '.join(_PROCRUSTES_RUNTIME_FIELDS)}): they index source "
+            "vertices, and rebuilding them requires projecting onto a target surface (see "
+            "apply_procrustes_retopology), which an arbitrary point set does not have. Use a rig "
+            "with precomputed bone_template_orientation_matrices (e.g. bone_orientation='cached', "
+            "or apply_anny_cached_orientation(data))."
+        )
+
+    dtype, device = data.template_vertices.dtype, data.device
+    indices = indices.to(dtype=torch.int64, device=device)
+    weights = weights.to(dtype=dtype, device=device)
+
+    if faces is None:
+        faces = torch.empty((0, 3), dtype=torch.int64, device=device)
+    else:
+        faces = faces.to(dtype=torch.int64, device=device)
+
+    if base_mesh_vertex_indices is None:
+        base_mesh_vertex_indices = torch.arange(
+            indices.shape[0], dtype=torch.int64, device=device
+        )
+    else:
+        base_mesh_vertex_indices = base_mesh_vertex_indices.to(
+            dtype=torch.int64, device=device
+        )
+
+    result = _apply_interpolate_model_data(
+        data,
+        reference_vertex_indices=indices,
+        # (K, N) view, matching the convention of the shared core.
+        regression_weights=weights.transpose(0, 1),
+        faces=faces,
+        base_mesh_vertex_indices=base_mesh_vertex_indices,
+        vertices=None,
+    )
+    # interpolate_skinning_weights rebuilds its tensors from Python lists, hence always returns
+    # CPU float64; realign them with the source model.
+    return dataclasses.replace(
+        result,
+        vertex_bone_weights=result.vertex_bone_weights.to(dtype=dtype, device=device),
+        vertex_bone_indices=result.vertex_bone_indices.to(device=device),
+        **{field: None for field in _PROCRUSTES_RUNTIME_FIELDS},
     )
 
 
@@ -645,7 +913,7 @@ def apply_procrustes_retopology(
     faces: torch.Tensor,
     source_model: ModelData,
     reference_vertex_indices: torch.Tensor,
-    barycentric_coordinates,
+    barycentric_coordinates: torch.Tensor,
     base_mesh_vertex_indices=None,
 ) -> ModelData:
     """Apply a new topology with procrustes-based bone orientation.
@@ -681,7 +949,7 @@ def apply_procrustes_retopology(
         target_data,
         source_model=source_model,
         reference_vertex_indices=reference_vertex_indices,
-        barycentric_coordinates=barycentric_coordinates,
+        regression_weights=barycentric_coordinates,
     )
 
     if source_model.bone_template_orientation_matrices is not None:
