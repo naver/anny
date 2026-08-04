@@ -8,7 +8,7 @@ import anny
 from anny.shape_distribution import SimpleShapeDistribution
 
 
-class TestParametersRegressor(unittest.TestCase):
+class TestAnnyInverter(unittest.TestCase):
     def test_fit_synthetic_mesh_roundtrip(self):
         torch.manual_seed(0)
 

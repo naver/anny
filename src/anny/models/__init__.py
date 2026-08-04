@@ -12,9 +12,7 @@ from anny.models.legacy import (
     legacy_topology_to_anny,
 )
 from anny.models.model_data import (
-    AnnyModelConfig,
     ModelData,
-    ModelMetadata,
     RigConfig,
     TopologyConfig,
     _eye_bone_labels,
@@ -207,14 +205,3 @@ def create_head_model(
         extrapolate_phenotypes=extrapolate_phenotypes,
         phenotypes="all" if all_phenotypes else "default",
     )
-
-
-__all__ = [
-    "Anny",
-    "create_fullbody_model",
-    "create_hand_model",
-    "create_head_model",
-    "ModelData",
-    "ModelMetadata",
-    "AnnyModelConfig",
-]
