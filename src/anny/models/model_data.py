@@ -610,16 +610,7 @@ def _parse_topology_spec(spec: str) -> TopologyConfig:
             remove_unattached_vertices=True,
             triangulate_faces=True,
         )
-        if len(modifiers) > 0:
-            if len(modifiers) > 1 or modifiers[0] != "quads":
-                raise ValueError(f"Unknown topology specifier: {spec}")
-            if spec_base in ["smplx", "smpl", "soma"]:
-                raise ValueError(
-                    f"Topology specifier '{spec_base}' does not support 'quads' modifier."
-                )
-            obj = dataclasses.replace(obj, triangulate_faces=False)
-        return obj
-    if spec_base == "head":
+    elif spec_base == "head":
         obj = TopologyConfig(
             base_mesh="makehuman",
             submodel="head",
@@ -685,19 +676,15 @@ def _parse_topology_spec(spec: str) -> TopologyConfig:
             elif modifier == "notongue":
                 obj = dataclasses.replace(obj, tongue=False)
                 continue
-            elif modifier == "quads":
-                obj = dataclasses.replace(obj, triangulate_faces=False)
-                continue
-        if spec_base == "anny":
-            if modifier == "full":
-                obj = dataclasses.replace(
-                    obj, remove_unattached_vertices=False, nudity_edits=False
-                )
-                continue
-        if spec_base == "makehuman":
-            if modifier == "sfw":
-                obj = dataclasses.replace(obj, nudity_edits=True)
-                continue
+        if modifier == "quads":
+            obj = dataclasses.replace(obj, triangulate_faces=False)
+            continue
+        if modifier == "tris":
+            obj = dataclasses.replace(obj, triangulate_faces=True)
+            continue
+        if modifier == "full":
+            obj = dataclasses.replace(obj, remove_unattached_vertices=False)
+            continue
 
         raise ValueError(f"Unknown topology specifier: {modifier} for {spec_base}")
 
