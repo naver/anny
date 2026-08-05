@@ -286,7 +286,7 @@ def cross_rig_random_meshes(
     post_gd_optimize_facial_actions: bool = False,
     n_points: Optional[int] = None,
     verbose: bool = True,
-    out_dir: str = "mesh_to_mesh_to_anny_params.py",
+    out_dir: str = "mesh_to_anny_params_output_examples",
     save_meshes: bool = True,
     print_optimized_phenotypes: bool = False,
     multistart_anchors: Optional[Dict[str, List[float]]] = None,
