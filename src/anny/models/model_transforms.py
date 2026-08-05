@@ -651,7 +651,7 @@ def _apply_interpolate_model_data(
     faces: torch.Tensor,
     base_mesh_vertex_indices,
     vertices: torch.Tensor | None,
-    check_weights: bool = False,
+    check_weights: bool = True,
 ) -> ModelData:
     """Shared core of apply_retopology and interpolate_model_data.
 
