@@ -61,6 +61,8 @@ class TestSMPLForward(unittest.TestCase):
         self.assertTrue(
             torch.all(model.base_mesh_vertex_indices < full_anny_vertex_count)
         )
+        # No unbound (zero skinning weight) vertex should survive the pruning
+        self.assertTrue(torch.all(model.vertex_bone_weights.sum(dim=-1) > 0.5))
 
     def test_smpl_with_anny_topology(self):
         model = SMPL(SMPLX_MODEL_PATH, topology="anny")
@@ -77,6 +79,8 @@ class TestSMPLForward(unittest.TestCase):
         self.assertTrue(
             torch.all(model.base_mesh_vertex_indices < full_anny_vertex_count)
         )
+        # No unbound (zero skinning weight) vertex should survive the pruning
+        self.assertTrue(torch.all(model.vertex_bone_weights.sum(dim=-1) > 0.5))
 
     def test_smpl_forward_builds_batched_pose_and_coefficients(self):
         batch_size = 2

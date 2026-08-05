@@ -165,6 +165,7 @@ class SMPLX(RiggedModelWithLinearBlendShapes):
                 faces=faces,
                 reference_vertex_indices=reference_vertex_indices,
                 barycentric_coordinates=barycentric_coordinates,
+                check_weights=False,
             )
         if topology == "anny":
             data = anny.models.model_transforms.remove_unattached_vertices(anny_data)
@@ -358,6 +359,7 @@ class SMPL(RiggedModelWithLinearBlendShapes):
                 faces=faces,
                 reference_vertex_indices=reference_vertex_indices,
                 barycentric_coordinates=barycentric_coordinates,
+                check_weights=False,
             )
 
             if topology == "anny":

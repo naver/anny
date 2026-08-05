@@ -509,6 +509,7 @@ def interpolate_skinning_weights(
     source_model: ModelData,
     reference_vertex_indices: torch.Tensor,
     regression_weights,
+    check_weights: bool = True,
 ) -> ModelData:
     """Linearly interpolate skinning weights from *source_model* onto the target topology in *data*.
 
@@ -524,7 +525,8 @@ def interpolate_skinning_weights(
     are used as given, without renormalization (the caller applies the same coordinates verbatim to
     the template vertices and the blendshapes). Only the skinning weights they produce are
     renormalized, per target vertex, because linear blend skinning requires them to sum to 1. A
-    target whose accumulated weights cancel out has no meaningful binding and is rejected.
+    target whose accumulated weights cancel out has no meaningful binding and is rejected when
+    check_weights is True (the default); with check_weights=False such targets keep zero weights.
     """
     num_targets, num_references = reference_vertex_indices.shape
     bone_count = int(source_model.vertex_bone_indices.max()) + 1
@@ -554,11 +556,14 @@ def interpolate_skinning_weights(
     row_sums = vbw.sum(dim=-1, keepdim=True)
     degenerate = (row_sums.abs() < _MIN_SKINNING_WEIGHT).squeeze(-1)
     if degenerate.any():
-        raise ValueError(
-            f"{int(degenerate.sum())} of {num_targets} target vertices have skinning weights "
-            "summing to zero, leaving them unbound. Their interpolation coordinates cancel out "
-            f"the source bindings; first offender is target {int(degenerate.nonzero()[0])}."
-        )
+        if check_weights:
+            raise ValueError(
+                f"{int(degenerate.sum())} of {num_targets} target vertices have skinning weights "
+                "summing to zero, leaving them unbound. Their interpolation coordinates cancel out "
+                f"the source bindings; first offender is target {int(degenerate.nonzero()[0])}."
+            )
+        row_sums = torch.where(degenerate[:, None], torch.ones_like(row_sums), row_sums)
+        vbw = torch.where(degenerate[:, None], torch.zeros_like(vbw), vbw)
     return dataclasses.replace(
         data, vertex_bone_weights=vbw / row_sums, vertex_bone_indices=vbi
     )
@@ -646,7 +651,7 @@ def _apply_interpolate_model_data(
     faces: torch.Tensor,
     base_mesh_vertex_indices,
     vertices: torch.Tensor | None,
-    check_barycentric: bool = False,
+    check_weights: bool = False,
 ) -> ModelData:
     """Shared core of apply_retopology and interpolate_model_data.
 
@@ -661,7 +666,7 @@ def _apply_interpolate_model_data(
             f"{tuple(regression_weights.shape)}."
         )
 
-    if check_barycentric:
+    if check_weights:
         if float(regression_weights.min()) < -1e-6:
             raise ValueError(
                 f"weights must be non-negative, got a minimum of {float(regression_weights.min())}."
@@ -703,6 +708,7 @@ def _apply_interpolate_model_data(
         source_model=data,
         reference_vertex_indices=reference_vertex_indices,
         regression_weights=regression_weights,
+        check_weights=check_weights,
     )
 
 
@@ -713,6 +719,7 @@ def apply_retopology(
     reference_vertex_indices: torch.Tensor,
     barycentric_coordinates,
     base_mesh_vertex_indices=None,
+    check_weights=True,
 ) -> ModelData:
     """Apply a new mesh topology, interpolating blendshapes and skinning weights barycentrically.
 
@@ -734,7 +741,7 @@ def apply_retopology(
         faces=faces,
         base_mesh_vertex_indices=base_mesh_vertex_indices,
         vertices=vertices,
-        check_barycentric=True,
+        check_weights=check_weights,
     )
 
 
