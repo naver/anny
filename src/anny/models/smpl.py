@@ -13,7 +13,7 @@ import torch
 
 from anny.models.rigged_model import RiggedModelWithLinearBlendShapes
 import anny.models.model_transforms
-from anny.models.model_data import ModelData
+from anny.models.model_data import ModelData, ModelMetadata
 from anny.paths import get_anny2smpl_data_path, get_anny2smplx_data_path
 
 
@@ -118,11 +118,11 @@ class SMPLX(RiggedModelWithLinearBlendShapes):
             self.left_hand_components = model.left_hand_components
             self.right_hand_components = model.right_hand_components
         self.pose_corrective = pose_corrective
-        metadata = anny.ModelMetadata(
+        metadata = ModelMetadata(
             bone_parents=model.parents,
             bone_labels=bone_labels,
         )
-        data = anny.ModelData(
+        data = ModelData(
             metadata=metadata,
             template_vertices=model.v_template,
             faces=model.faces_tensor,
@@ -313,11 +313,11 @@ class SMPL(RiggedModelWithLinearBlendShapes):
         )
         bone_labels = [f"bone_{i}" for i in range(bone_count)]
         self.pose_corrective = pose_corrective
-        metadata = anny.ModelMetadata(
+        metadata = ModelMetadata(
             bone_parents=model.parents,
             bone_labels=bone_labels,
         )
-        data = anny.ModelData(
+        data = ModelData(
             metadata=metadata,
             template_vertices=model.v_template,
             faces=model.faces_tensor,
