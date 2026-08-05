@@ -37,15 +37,11 @@ def check_legacy_pose_parameterization(
 ) -> tuple[PoseParameterization, LegacyBoneOrientation]:
     if pose_parameterization == "root_relative":
         warnings.warn(
-            "pose_parameterization='root_relative' is deprecated, use 'local-bone' instead.",
+            "pose_parameterization='root_relative' is deprecated, "
+            "use 'local-bone' with bone_orientation='blender' instead.",
             DeprecationWarning,
             stacklevel=3,
         )
-        if bone_orientation != "blender":
-            raise ValueError(
-                "pose_parameterization='root_relative' requires "
-                "bone_orientation='blender'."
-            )
         return "local-bone", "blender"
     if pose_parameterization == "root_relative_world":
         warnings.warn(
