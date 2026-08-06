@@ -55,7 +55,7 @@ trimesh.Trimesh(vertices = output["vertices"].squeeze(dim=0).numpy(), faces=mode
 
 ### Default `anny` rig
 
-By default, `anny.Anny()` uses the compact `anny` rig with 104 bones and Procrustes bone orientations. This is the recommended default for most full-body use cases: it keeps the main body, hand, and head articulation while removing facial expression, eye, tongue, and other zero-weight/pruned bones that are present in the full MakeHuman rig. For comparison, `Anny(rig="makehuman")` exposes the full 163-bone MakeHuman rig with the old blender/root-identity orientation. Choose `rig="anny"` for a smaller, stable default skeleton; choose `rig="makehuman"` if you need exact compatibility with old models or direct access to the removed face/tongue/eye bones. Facial action blendshapes remain available separately with `facial_actions="all"`.
+By default, `anny.Anny()` uses the compact `anny` rig with 104 bones. This is the recommended default for most full-body use cases: it keeps the main body, hand, and head articulation while removing facial expression, eye, tongue, and other zero-weight/pruned bones that are present in the full MakeHuman rig. For comparison, `Anny(rig="makehuman")` exposes the full 163-bone MakeHuman rig with the old blender/root-identity orientation. Choose `rig="anny"` for a smaller, stable default skeleton; choose `rig="makehuman"` if you need exact compatibility with old models or direct access to the removed face/tongue/eye bones. Facial action blendshapes remain available separately with `facial_actions="all"`.
 
 ### Default `anny` topology
 
@@ -63,7 +63,21 @@ By default, `anny.Anny()` uses the `anny` topology: a MakeHuman-derived full-bod
 
 ### Migration from legacy defaults
 
-`anny.Anny()` now defaults to the new pruned procrustes Anny model (`rig="anny"`, `topology="anny"`), whereas the legacy full-body defaults were exposed through `create_fullbody_model(rig="default", topology="default", bone_orientation="blender-rootidentity", remove_unattached_vertices=True, triangulate_faces=False)`. For exact legacy behavior, keep using `anny.create_fullbody_model(...)` while migrating; for new `anny.Anny(...)` calls, replace `rig="default"` with `rig="makehuman-symmetric-blender-rootidentity"` when you need the old full MakeHuman rig and orientation, or with `rig="anny"` for the new default. Replace `topology="default"` with `topology="anny"`, and encode the old mesh flags in the topology string: add `-quads` for `triangulate_faces=False` and add `-full` for `remove_unattached_vertices=False` (for example, old `topology="default", triangulate_faces=False` maps to `topology="anny-quads"`).
+`anny.Anny()` defaults to the new Anny model (`rig="anny"`, `topology="anny"`, `pose_parameterization="local-ref"`), while the deprecated `anny.create_fullbody_model(...)` factory preserves the legacy full-body defaults. If you just want the new defaults, call `anny.Anny()` directly. If you need the exact legacy behavior, either keep using `create_fullbody_model(...)` while migrating, or translate its arguments to `Anny(...)` as follows:
+
+| Legacy `create_fullbody_model(...)` argument | Equivalent `anny.Anny(...)` argument |
+|---|---|
+| `rig="default"` (full 163-bone MakeHuman rig) | `rig="makehuman"` |
+| `topology="default"` (with the default `triangulate_faces=False`) | `topology="anny-quads"` |
+| `topology="default", triangulate_faces=True` | `topology="anny"` |
+| `remove_unattached_vertices=False` | append `-full` to the topology string (e.g. `topology="anny-quads-full"`) |
+| `pose_parameterization` (default `"local-bone"`) | `pose_parameterization="local-bone"`, passed explicitly (`Anny()` defaults to `"local-ref"`) |
+| `all_phenotypes=True` | `phenotypes="all"` |
+| `bone_orientation=...` | folded into the rig string via modifiers such as `-blender` or `-rootidentity` |
+
+⚠️ Pose parameters are not interchangeable across pose parameterizations: pose data saved with the legacy `"local-bone"` default will not produce the same pose under the new `"local-ref"` default. Either pass `pose_parameterization="local-bone"` explicitly for compatibility, or convert existing pose data with `anny.utils.pose.transfer_pose_parameters` (see the [pose portability tutorial](https://naver.github.io/anny/build/pose_transfer.html)).
+
+See [CHANGELOG.md](CHANGELOG.md) for the full list of changes.
 
 ## Caching
 
