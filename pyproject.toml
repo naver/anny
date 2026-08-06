@@ -56,7 +56,9 @@ smpl = [
     "chumpy"
 ]
 dev = [
-    "ruff==0.14.5"
+    "ruff==0.14.5",
+    "build",
+    "twine"
 ]
 cu126 = ["torch"]
 
