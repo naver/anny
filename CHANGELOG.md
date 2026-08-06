@@ -2,7 +2,7 @@
 
 All notable changes to this project.
 
-## Unreleased (v0.6)
+## v0.6 - 2026-08-06
 
 Highlights:
 

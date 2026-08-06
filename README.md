@@ -15,12 +15,13 @@ Anny models a large variety of human body shapes, from infants to elders, using 
 - Anny is open-source and free.
 
 ### News
- - **2026-06-03**: v0.5: code refactoring (one can now use "anny.Anny" syntax). Support for ["soma"](https://github.com/NVlabs/SOMA-X) rig and topology. SMPLX wrapper with "anny" topology support.
+ - **2026-08-06**: v0.6: New "anny" rig, facial actions, improved SOMA compatibility, API refactoring, and better torch.compile support. See [CHANGELOG.md](CHANGELOG.md) for more details.
+ - **2026-06-03**: v0.5: code refactoring (one can now use `anny.Anny` syntax). Support for ["soma"](https://github.com/NVlabs/SOMA-X) rig and topology. SMPLX wrapper with "anny" topology support.
  - **2026-02-04**: v0.3: "smplx" topology available for interoperability with [SMPL-X](https://smpl-x.is.tue.mpg.de/) (non-commercial use only). Nipple blend shapes excluded from default settings (use `local_changes="all"` for backward compatibility).
  - **2025-11-21**: v0.2: support for different mesh topologies.
  - **2025-11-05**: v0.1: initial release.
 
-### Installation
+## Installation
 
 ```bash
 pip install anny[smpl,examples] # Full install (non-free dependencies).
@@ -30,7 +31,7 @@ pip install anny # Minimal install.
 pip install anny[examples]@git+https://github.com/naver/anny.git # latest sources.
 ```
 
-### Quickstart example
+## Quickstart example
 ```python
 import torch, anny, trimesh
 model = anny.Anny(local_changes="default", facial_actions="all").to(dtype=torch.float32)
@@ -52,6 +53,26 @@ output = model(
       )
 trimesh.Trimesh(vertices = output["vertices"].squeeze(dim=0).numpy(), faces=model.faces).export("anny_output.ply")
 ```
+
+## Tutorials
+
+To get started with Anny, you can have a look at the different tutorials in the `tutorials` directory:
+- [Shape parameterization](https://naver.github.io/anny/build/shape_parameterization.html)
+- [Pose parameterization](https://naver.github.io/anny/build/pose_parameterization.html)
+- [Portability of pose parameterizations](https://naver.github.io/anny/build/pose_transfer.html)
+- [Texture coordinates](https://naver.github.io/anny/build/texture.html)
+- [Alternative models](https://naver.github.io/anny/build/alternative_models.html)
+
+### Interactive demo
+
+We provide a simple Gradio demo enabling to interact with the model easily:
+```bash
+python -m anny.examples.interactive_demo
+```
+
+<img src="docs/figures/interactive_demo.jpg" alt="Interactive demo" style="display:block;max-width:100%;max-height:24em;margin:auto"/>
+
+## Technical details
 
 ### Default `anny` rig
 
@@ -79,7 +100,7 @@ By default, `anny.Anny()` uses the `anny` topology: a MakeHuman-derived full-bod
 
 See [CHANGELOG.md](CHANGELOG.md) for the full list of changes.
 
-## Caching
+### Caching
 
 Anny parses MakeHuman assets and caches pre-computed blend shape data to avoid recomputation on subsequent runs.
 The first instantiation of a model can take a few minutes. 
@@ -88,23 +109,6 @@ By default the cache is stored in `~/.cache/anny/`. To use a different location,
 ```bash
 export ANNY_CACHE_DIR=/path/to/cache
 ```
-## Tutorials
-
-To get started with Anny, you can have a look at the different tutorials in the `tutorials` directory:
-- [Shape parameterization](https://naver.github.io/anny/build/shape_parameterization.html)
-- [Pose parameterization](https://naver.github.io/anny/build/pose_parameterization.html)
-- [Portability of pose parameterizations](https://naver.github.io/anny/build/pose_transfer.html)
-- [Texture coordinates](https://naver.github.io/anny/build/texture.html)
-- [Alternative models](https://naver.github.io/anny/build/alternative_models.html)
-
-## Interactive demo
-
-We provide a simple Gradio demo enabling to interact with the model easily:
-```bash
-python -m anny.examples.interactive_demo
-```
-
-<img src="docs/figures/interactive_demo.jpg" alt="Interactive demo" style="display:block;max-width:100%;max-height:24em;margin:auto"/>
 
 
 ## License
