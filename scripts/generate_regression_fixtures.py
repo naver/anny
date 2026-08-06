@@ -22,7 +22,7 @@ import anny
 CONFIGS = [
     {},
     {"rig": "anny-notoes", "local_changes": "all"},
-    {"all_phenotypes": True},
+    {"phenotypes": "all"},
     {"pose_parameterization": "world-orient"},
     {"topology": "soma"},
     {"topology": "smplx"},

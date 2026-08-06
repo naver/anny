@@ -48,7 +48,7 @@ class TestRegressionVsFixtures(unittest.TestCase):
             self.skipTest(f"Skipping known broken fixture: {fixture_path}.")
 
         ref = np.load(fixture_path)
-        model = anny.create_fullbody_model(**cfg["config"])
+        model = anny.Anny(**cfg["config"])
 
         pose_parameters = torch.tensor(
             cfg["model_kwargs"]["pose_parameters"], dtype=model.dtype
