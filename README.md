@@ -23,11 +23,11 @@ Anny models a large variety of human body shapes, from infants to elders, using 
 ### Installation
 
 ```bash
-pip install anny[warp,smpl,examples] # Full install (non-free dependencies).
-pip install anny[warp,examples] # Free install.
-pip install anny # Minimal install (use more memory for large batch sizes).
+pip install anny[smpl,examples] # Full install (non-free dependencies).
+pip install anny[examples] # Free install.
+pip install anny # Minimal install.
 # Note that the free install may download non-commercial only assets when needed.
-pip install anny[warp,examples]@git+https://github.com/naver/anny.git # latest sources.
+pip install anny[examples]@git+https://github.com/naver/anny.git # latest sources.
 ```
 
 ### Quickstart example

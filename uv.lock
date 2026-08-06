@@ -45,6 +45,7 @@ dependencies = [
     { name = "safetensors" },
     { name = "torch" },
     { name = "trimesh" },
+    { name = "warp-lang" },
 ]
 
 [package.optional-dependencies]
@@ -69,9 +70,6 @@ smpl = [
     { name = "chumpy" },
     { name = "smplx" },
 ]
-warp = [
-    { name = "warp-lang" },
-]
 
 [package.metadata]
 requires-dist = [
@@ -95,9 +93,9 @@ requires-dist = [
     { name = "torch", specifier = ">=2.0.0" },
     { name = "torch", marker = "extra == 'cu126'", index = "https://download.pytorch.org/whl/cu126", conflict = { package = "anny", extra = "cu126" } },
     { name = "trimesh" },
-    { name = "warp-lang", marker = "extra == 'warp'" },
+    { name = "warp-lang" },
 ]
-provides-extras = ["examples", "warp", "smpl", "dev", "cu126"]
+provides-extras = ["examples", "smpl", "dev", "cu126"]
 
 [[package]]
 name = "anyio"

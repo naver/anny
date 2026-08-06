@@ -29,7 +29,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --no-cache-dir "gradio>=4" && \
     pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.4.1 && \
     pip install --no-cache-dir "scipy" && \
-    pip install --no-cache-dir "anny[warp,examples]@git+https://github.com/naver/anny.git"
+    pip install --no-cache-dir "anny[examples]@git+https://github.com/naver/anny.git"
 
 EXPOSE 7860
 CMD ["python", "-m", "anny.examples.interactive_demo"]
@@ -58,7 +58,7 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     python3 -m pip install --upgrade pip && \
     python3 -m pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cu121 torch==2.4.1 && \
     python3 -m pip install --no-cache-dir "gradio>=4" && \
-    python3 -m pip install --no-cache-dir "anny[warp,examples]@git+https://github.com/naver/anny.git"
+    python3 -m pip install --no-cache-dir "anny[examples]@git+https://github.com/naver/anny.git"
 
 EXPOSE 7860
 CMD ["python3", "-m", "anny.examples.interactive_demo"]

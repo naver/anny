@@ -21,7 +21,7 @@
     "VIRTUAL_ENV": "/root/.venv",
     "PATH": "/root/.venv/bin:${containerEnv:PATH}"
   },
-  "postCreateCommand": "UV_PROJECT_ENVIRONMENT=/root/.venv uv sync --extra warp --extra examples",
+  "postCreateCommand": "UV_PROJECT_ENVIRONMENT=/root/.venv uv sync --extra examples",
   "customizations": {
     "vscode": {
       "extensions": [

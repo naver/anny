@@ -25,7 +25,8 @@ dependencies = [
     "pillow",
     "requests",
     "safetensors",
-    "trimesh"
+    "trimesh",
+    "warp-lang"
 ]
 
 [tool.setuptools_scm]
@@ -49,9 +50,6 @@ examples = [
     "scipy",
     "jupytext",
     "py-soma-x==0.1.0"
-]
-warp = [
-    "warp-lang"
 ]
 smpl = [
     "smplx",

@@ -10,7 +10,7 @@ This file provides guidance to AI Agents when working with code in this reposito
 
 ### Setup
 ```bash
-uv sync --extra warp --extra examples  # full install with GPU acceleration and demo dependencies
+uv sync --extra examples  # full install with demo dependencies
 ```
 
 ### Testing
@@ -71,6 +71,5 @@ Five built-in variants: `local-ref` (the `Anny()` default), `local-bone`, `local
 
 ### Optional Dependencies
 
-- `warp-lang` — enables GPU-accelerated skinning and collision detection; code degrades gracefully without it
 - `smplx` — required for `SMPL` and `SMPLX` model classes; install via `uv sync --extra smpl`
 - `trimesh`, `gradio`, `jsonargparse`, `requests` — needed only for examples and parameter regression tests
