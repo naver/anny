@@ -11,13 +11,13 @@ from anny.torch_compat import make_buffer
 def _load_keypoint_data(
     model: anny.Anny, path: PathLike, labels: list[str] | None = None
 ) -> tuple[torch.Tensor, list[str]]:
-    keypoints_data = torch.load(path, weights_only=True)
+    dtype = model.dtype
+    device = model.device
+    keypoints_data = torch.load(path, weights_only=True, map_location=device)
     if labels is None:
         labels = list(keypoints_data.keys())
     K = len(labels)
     V = len(model.template_vertices)
-    dtype = model.dtype
-    device = model.template_vertices.device
 
     regression_weights = torch.zeros((K, V), dtype=dtype, device=device)
     for k, label in enumerate(labels):
