@@ -2,6 +2,16 @@
 
 All notable changes to this project.
 
+## Unreleased
+
+### Fixed
+
+- The weight, muscle and proportions tables of `SimpleShapeDistribution` were indexed
+  by age in years but looked up with the anny `age` phenotype (in [0, 1]), so they were
+  always read between their newborn and 1-year entries. Their anchors are now expressed
+  in anny age, like the height table. This changes the weight and muscle values sampled
+  by `SimpleShapeDistribution.sample()`, and the phenotype prior of `AnnyInverter`.
+
 ## v0.6.1 - 2026-09-28
 
 ### Fixed
