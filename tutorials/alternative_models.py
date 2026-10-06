@@ -185,28 +185,31 @@ for rig, topology in [
 display(*viewers)
 
 # %% [markdown]
-# ## Interoperability with SMPL-X
+# ## Interoperability with the SMPL family
 #
-# Beyond the SMPL-X *topology* shown above, Anny ships a first-class `SMPLX` model class
-# (`from anny.models.smpl import SMPLX`) that wraps the official
-# [SMPL-X](https://smpl-x.is.tue.mpg.de/) model. It follows the same construction and forward
-# conventions as `anny.Anny`, but is driven by SMPL-X `betas` / `expression` / pose parameters
-# rather than Anny phenotypes, making it a drop-in differentiable SMPL-X implementation.
+# Anny ships differentiable re-implementations of the SMPL body models as first-class
+# model classes (`from anny.models.smpl import SMPL, SMPLH, SMPLX`). They follow the same
+# construction and forward conventions as `anny.Anny`, but are driven by SMPL models
+# parameters, rather than Anny phenotypes:
 #
-# Running it requires the SMPL-X model files, which are distributed separately (for
-# **non-commercial use only**) at https://smpl-x.is.tue.mpg.de/. Download them and point the
-# `SMPLX_MODEL_PATH` environment variable at the directory that contains them. The cell below
-# skips itself automatically when that variable is not set.
+# | Class | Model (bones) | Additional inputs |
+# |---|---|---|
+# | `SMPL` | [SMPL](https://smpl.is.tue.mpg.de/) (24) | – |
+# | `SMPLH` | [SMPL+H](https://mano.is.tue.mpg.de/) (52) | `left_hand_pose`, `right_hand_pose` (MANO, PCA by default) |
+# | `SMPLX` | [SMPL-X](https://smpl-x.is.tue.mpg.de/) (55) | hand poses, `expression`, `jaw_pose`, eye poses |
 #
-# Here we request the `"anny"` output topology (`topology="anny"`) rather than the native SMPL-X
-# mesh. The retopology is folded into the model at construction time, so a single forward pass
-# directly outputs the body in Anny's common mesh — there is no separate conversion step. This is
-# what makes the outputs interoperable: a SMPL-X-driven body and a phenotype-driven `anny.Anny`
-# body live in the same topology, so per-vertex operations (texturing, correspondences, losses)
-# transfer directly between them. Use `topology="smplx"` instead if you need the native SMPL-X mesh.
+# All three accept different output topologies (`"anny"`, `"smpl"`, `"smplx"`), the
+# default being the model's native mesh. With `topology="anny"` the retopology is folded
+# into the model at construction time, so a single forward pass outputs the body directly
+# in Anny's common mesh, and per-vertex operations (texturing, correspondences, losses)
+# transfer between a SMPL-driven body and a phenotype-driven `anny.Anny`. Anny vertices
+# with no counterpart in the source model (e.g. the internal mouth bag) are ignored.
+# Note that the `"smpl"` and `"smplx"` topologies rely on retopology data that Anny
+# provides **for non-commercial use only**.
 #
-# Note that some Anny vertices have no SMPL-X counterpart — for instance the internal mouth bag,
-# which SMPL-X does not model — and are therefore ignored by this operation.
+# The model files are distributed separately, under their own license terms, from the
+# sites linked above. Point `SMPLX_MODEL_PATH` at a directory containing them in `smpl/`,
+# `smplh/` and `smplx/` subfolders; the cell below skips itself otherwise.
 
 # %%
 import os
@@ -215,99 +218,59 @@ smplx_model_path = os.environ.get("SMPLX_MODEL_PATH")
 if not smplx_model_path or not os.path.isdir(smplx_model_path):
     display(
         Markdown(
-            "> **SMPL-X example skipped.** Download the SMPL-X model files from "
-            "[smpl-x.is.tue.mpg.de](https://smpl-x.is.tue.mpg.de/) and set the `SMPLX_MODEL_PATH` "
-            "environment variable to the directory that contains them to run this cell."
+            "> **SMPL family examples skipped.** Download the model files and set the "
+            "`SMPLX_MODEL_PATH` environment variable to the directory that contains them "
+            "to run this cell."
         )
     )
 else:
-    from anny.models.smpl import SMPLX
+    from anny.models.smpl import SMPL, SMPLH, SMPLX
 
     dtype = torch.float32
-    # topology="anny" retopologizes the SMPL-X output onto Anny's common mesh (see above).
-    model = SMPLX(smplx_model_path, gender="neutral", use_pca=True, topology="anny").to(
-        dtype=dtype
-    )
-
-    # Random shape, expression and pose parameters, using SMPL-X's standard parameter
-    # dimensions (10 shape betas, 10 expression coefficients, 21 body joints, 6 PCA hand
-    # components).
     torch.manual_seed(0)
-    pose_kwargs = dict(
+    # Shared shape and root parameters (10 betas).
+    shape_kwargs = dict(
         betas=0.5 * torch.randn((1, 10), dtype=dtype),
-        expression=0.5 * torch.randn((1, 10), dtype=dtype),
         global_orient=0.1 * torch.randn((1, 3), dtype=dtype),
-        body_pose=0.1 * torch.randn((1, 21 * 3), dtype=dtype),
         transl=torch.zeros((1, 3), dtype=dtype),
+    )
+    # SMPL poses 23 body joints, the last two being the hands; SMPL+H and SMPL-X pose the
+    # first 21 only and articulate the hands with MANO (6 PCA components by default).
+    body_pose = 0.1 * torch.randn((1, 23 * 3), dtype=dtype)
+    hand_kwargs = dict(
+        left_hand_pose=torch.randn((1, 6), dtype=dtype),
+        right_hand_pose=torch.randn((1, 6), dtype=dtype),
+    )
+    # SMPL-X adds a face: 10 expression coefficients, jaw and eye rotations.
+    face_kwargs = dict(
+        expression=0.5 * torch.randn((1, 10), dtype=dtype),
         jaw_pose=0.1 * torch.randn((1, 3), dtype=dtype),
         leye_pose=0.1 * torch.randn((1, 3), dtype=dtype),
         reye_pose=0.1 * torch.randn((1, 3), dtype=dtype),
-        left_hand_pose=torch.randn((1, 6), dtype=dtype),
-        right_hand_pose=torch.randn((1, 6), dtype=dtype),
     )
 
-    output = model(**pose_kwargs)
+    for cls, pose_kwargs in [
+        (SMPL, dict(body_pose=body_pose)),
+        (SMPLH, dict(body_pose=body_pose[:, : 21 * 3], **hand_kwargs)),
+        (SMPLX, dict(body_pose=body_pose[:, : 21 * 3], **hand_kwargs, **face_kwargs)),
+    ]:
+        # topology="anny" retopologizes the output onto Anny's common mesh (see above).
+        model = cls(smplx_model_path, gender="neutral", topology="anny").to(dtype=dtype)
+        output = model(**shape_kwargs, **pose_kwargs)
 
-    # Anny's SMPL-X mesh with its skeleton.
-    mesh = trimesh.Trimesh(
-        vertices=output["vertices"].squeeze(0).detach().cpu().numpy(),
-        faces=model.faces.cpu().numpy(),
-    )
-    mesh.visual.material = mesh_material
-    scene = trimesh.Scene([mesh])
-
-    add_skeleton_to_scene(scene, model, output)
-    scene.apply_transform(trimesh_scene_transform)
-
-    display(
-        Markdown(
-            f"#### `anny.SMPLX` model ({model.bone_count} bones, "
-            f"{len(output['vertices'].squeeze(0))} vertices)"
+        mesh = trimesh.Trimesh(
+            vertices=output["vertices"].squeeze(0).detach().cpu().numpy(),
+            faces=model.faces.cpu().numpy(),
         )
-    )
-    display(nb.scene_to_notebook(scene))
+        mesh.visual.material = mesh_material
+        scene = trimesh.Scene([mesh])
+        add_skeleton_to_scene(scene, model, output)
+        scene.apply_transform(trimesh_scene_transform)
 
-# %% [markdown]
-# ## Interoperability with SMPL+H
-#
-# The `SMPLH` model class (`from anny.models.smpl import SMPLH`) implements
-# [SMPL+H](https://mano.is.tue.mpg.de/), the SMPL body with MANO hands (52 bones). It works like
-# `SMPLX` without the face: it takes `betas`, `global_orient`, `transl`, `body_pose`,
-# `left_hand_pose` and `right_hand_pose`, and supports `use_pca=True` for the hands and the
-# `"smpl"`, `"anny"` and `"smplx"` topologies. The cell below reuses `SMPLX_MODEL_PATH` and skips
-# itself when that variable is not set.
-
-# %%
-if not smplx_model_path or not os.path.isdir(smplx_model_path):
-    display(
-        Markdown(
-            "> **SMPL+H example skipped.** Download the SMPL+H model files from "
-            "[mano.is.tue.mpg.de](https://mano.is.tue.mpg.de/) and set the `SMPLX_MODEL_PATH` "
-            "environment variable to the directory that contains them to run this cell."
+        display(
+            Markdown(
+                f"#### `anny.{cls.__name__}` model ({model.bone_count} bones, "
+                f"{len(output['vertices'].squeeze(0))} vertices)"
+            )
         )
-    )
-else:
-    from anny.models.smpl import SMPLH
-
-    dtype = torch.float32
-    model = SMPLH(smplx_model_path, gender="neutral", use_pca=True, topology="anny").to(
-        dtype=dtype
-    )
-
-    # Random shape and pose parameters (10 shape betas, 21 body joints, 6 PCA hand components).
-    torch.manual_seed(0)
-    output = model(
-        betas=0.5 * torch.randn((1, 10), dtype=dtype),
-        global_orient=0.1 * torch.randn((1, 3), dtype=dtype),
-        body_pose=0.1 * torch.randn((1, 21 * 3), dtype=dtype),
-        transl=torch.zeros((1, 3), dtype=dtype),
-        left_hand_pose=torch.randn((1, 6), dtype=dtype),
-        right_hand_pose=torch.randn((1, 6), dtype=dtype),
-    )
-
-    display(
-        Markdown(
-            f"#### `anny.SMPLH` model ({model.bone_count} bones, "
-            f"{len(output['vertices'].squeeze(0))} vertices)"
-        )
-    )
+        display(nb.scene_to_notebook(scene))
