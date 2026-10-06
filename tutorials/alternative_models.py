@@ -266,3 +266,48 @@ else:
         )
     )
     display(nb.scene_to_notebook(scene))
+
+# %% [markdown]
+# ## Interoperability with SMPL+H
+#
+# The `SMPLH` model class (`from anny.models.smpl import SMPLH`) implements
+# [SMPL+H](https://mano.is.tue.mpg.de/), the SMPL body with MANO hands (52 bones). It works like
+# `SMPLX` without the face: it takes `betas`, `global_orient`, `transl`, `body_pose`,
+# `left_hand_pose` and `right_hand_pose`, and supports `use_pca=True` for the hands and the
+# `"smpl"`, `"anny"` and `"smplx"` topologies. The cell below reuses `SMPLX_MODEL_PATH` and skips
+# itself when that variable is not set.
+
+# %%
+if not smplx_model_path or not os.path.isdir(smplx_model_path):
+    display(
+        Markdown(
+            "> **SMPL+H example skipped.** Download the SMPL+H model files from "
+            "[mano.is.tue.mpg.de](https://mano.is.tue.mpg.de/) and set the `SMPLX_MODEL_PATH` "
+            "environment variable to the directory that contains them to run this cell."
+        )
+    )
+else:
+    from anny.models.smpl import SMPLH
+
+    dtype = torch.float32
+    model = SMPLH(smplx_model_path, gender="neutral", use_pca=True, topology="anny").to(
+        dtype=dtype
+    )
+
+    # Random shape and pose parameters (10 shape betas, 21 body joints, 6 PCA hand components).
+    torch.manual_seed(0)
+    output = model(
+        betas=0.5 * torch.randn((1, 10), dtype=dtype),
+        global_orient=0.1 * torch.randn((1, 3), dtype=dtype),
+        body_pose=0.1 * torch.randn((1, 21 * 3), dtype=dtype),
+        transl=torch.zeros((1, 3), dtype=dtype),
+        left_hand_pose=torch.randn((1, 6), dtype=dtype),
+        right_hand_pose=torch.randn((1, 6), dtype=dtype),
+    )
+
+    display(
+        Markdown(
+            f"#### `anny.SMPLH` model ({model.bone_count} bones, "
+            f"{len(output['vertices'].squeeze(0))} vertices)"
+        )
+    )

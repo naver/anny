@@ -4,6 +4,8 @@
 
 import dataclasses
 import inspect
+from pathlib import Path
+import pickle
 from unittest.mock import patch
 import warnings
 
@@ -64,6 +66,64 @@ def _add_bone_tail_blendshapes(data: ModelData) -> ModelData:
         bone_tails_blendshapes=bone_tails_blendshapes,
         bone_rolls_rotmat=bone_rolls_rotmat,
     )
+
+
+def _apply_smpl_topology(data: ModelData, topology: str) -> ModelData:
+    """Retopologize model data defined on the SMPL mesh (SMPL, SMPL+H)."""
+    if topology != "smpl":
+        # Load the SMPL/Anny correspondences
+        anny_state_dict = torch.load(
+            get_anny2smpl_data_path(), map_location="cpu", weights_only=True
+        )
+        barycentric_coordinates = anny_state_dict["dst2anny_barycentric_coordinates"]
+        reference_vertex_indices = anny_state_dict["dst2anny_vertex_indices"]
+        vertices = (
+            barycentric_coordinates[0][:, None]
+            * data.template_vertices[reference_vertex_indices[:, 0]]
+            + barycentric_coordinates[1][:, None]
+            * data.template_vertices[reference_vertex_indices[:, 1]]
+            + barycentric_coordinates[2][:, None]
+            * data.template_vertices[reference_vertex_indices[:, 2]]
+        )
+        faces = anny_state_dict["anny_faces"]
+        anny_data = anny.models.model_transforms.apply_retopology(
+            data,
+            vertices=vertices,
+            faces=faces,
+            reference_vertex_indices=reference_vertex_indices,
+            barycentric_coordinates=barycentric_coordinates,
+            check_weights=False,
+        )
+
+        if topology == "anny":
+            data = anny.models.model_transforms.remove_unattached_vertices(anny_data)
+        elif topology == "smplx":
+            # Load the SMPLX topology
+            state_dict = torch.load(
+                get_anny2smplx_data_path(), map_location="cpu", weights_only=True
+            )
+            barycentric_coordinates = state_dict["anny2dst_barycentric_coordinates"]
+            reference_vertex_indices = state_dict["anny2dst_vertex_indices"]
+            vertices = (
+                barycentric_coordinates[0][:, None]
+                * anny_data.template_vertices[reference_vertex_indices[:, 0]]
+                + barycentric_coordinates[1][:, None]
+                * anny_data.template_vertices[reference_vertex_indices[:, 1]]
+                + barycentric_coordinates[2][:, None]
+                * anny_data.template_vertices[reference_vertex_indices[:, 2]]
+            )
+            faces = state_dict["dst_faces"]
+            data = anny.models.model_transforms.apply_retopology(
+                anny_data,
+                vertices=vertices,
+                faces=faces,
+                reference_vertex_indices=reference_vertex_indices,
+                barycentric_coordinates=barycentric_coordinates,
+            )
+            data = anny.models.model_transforms.remove_unattached_vertices(data)
+        else:
+            raise ValueError()
+    return data
 
 
 class SMPLX(RiggedModelWithLinearBlendShapes):
@@ -335,63 +395,7 @@ class SMPL(RiggedModelWithLinearBlendShapes):
             ),
             stacked_phenotype_blend_shapes_mask=None,
         )
-        if topology != "smpl":
-            # Load the SMPL/Anny correspondences
-            anny_state_dict = torch.load(
-                get_anny2smpl_data_path(), map_location="cpu", weights_only=True
-            )
-            barycentric_coordinates = anny_state_dict[
-                "dst2anny_barycentric_coordinates"
-            ]
-            reference_vertex_indices = anny_state_dict["dst2anny_vertex_indices"]
-            vertices = (
-                barycentric_coordinates[0][:, None]
-                * data.template_vertices[reference_vertex_indices[:, 0]]
-                + barycentric_coordinates[1][:, None]
-                * data.template_vertices[reference_vertex_indices[:, 1]]
-                + barycentric_coordinates[2][:, None]
-                * data.template_vertices[reference_vertex_indices[:, 2]]
-            )
-            faces = anny_state_dict["anny_faces"]
-            anny_data = anny.models.model_transforms.apply_retopology(
-                data,
-                vertices=vertices,
-                faces=faces,
-                reference_vertex_indices=reference_vertex_indices,
-                barycentric_coordinates=barycentric_coordinates,
-                check_weights=False,
-            )
-
-            if topology == "anny":
-                data = anny.models.model_transforms.remove_unattached_vertices(
-                    anny_data
-                )
-            elif topology == "smplx":
-                # Load the SMPLX topology
-                state_dict = torch.load(
-                    get_anny2smplx_data_path(), map_location="cpu", weights_only=True
-                )
-                barycentric_coordinates = state_dict["anny2dst_barycentric_coordinates"]
-                reference_vertex_indices = state_dict["anny2dst_vertex_indices"]
-                vertices = (
-                    barycentric_coordinates[0][:, None]
-                    * anny_data.template_vertices[reference_vertex_indices[:, 0]]
-                    + barycentric_coordinates[1][:, None]
-                    * anny_data.template_vertices[reference_vertex_indices[:, 1]]
-                    + barycentric_coordinates[2][:, None]
-                    * anny_data.template_vertices[reference_vertex_indices[:, 2]]
-                )
-                faces = state_dict["dst_faces"]
-                data = anny.models.model_transforms.apply_retopology(
-                    anny_data,
-                    vertices=vertices,
-                    faces=faces,
-                    reference_vertex_indices=reference_vertex_indices,
-                    barycentric_coordinates=barycentric_coordinates,
-                )
-                data = anny.models.model_transforms.remove_unattached_vertices(data)
-            else:
-                raise ValueError()
+        data = _apply_smpl_topology(data, topology)
         data = _add_bone_tail_blendshapes(data)
         super().__init__(
             data=data,
@@ -423,6 +427,254 @@ class SMPL(RiggedModelWithLinearBlendShapes):
 
         if self.pose_corrective:
             batch_size = len(pose_parameters)
+            identity_rotmat = torch.eye(
+                3, dtype=pose_parameters.dtype, device=pose_parameters.device
+            )
+            pose_corrective_blendshape_coeffs = (
+                pose_parameters[:, 1:, :3, :3] - identity_rotmat[None, None]
+            ).view(batch_size, -1)
+            full_blendshape_coeffs = torch.concatenate(
+                (blendshape_coeffs, pose_corrective_blendshape_coeffs), dim=-1
+            )
+        else:
+            full_blendshape_coeffs = blendshape_coeffs
+
+        return super().forward(
+            pose_parameters=pose_parameters, blendshape_coeffs=full_blendshape_coeffs
+        )
+
+
+_MANO_HAND_SIDES = (("l", "LEFT"), ("r", "RIGHT"))
+
+
+def _resolve_smplh_path(model_path: str | Path, gender: str, ext: str) -> Path:
+    path = Path(model_path)
+    if path.is_file():
+        return path
+    candidates = [path / "smplh" / f"SMPLH_{gender.upper()}.{ext}"]
+    if ext == "npz":
+        candidates.append(path / "smplh" / gender.lower() / "model.npz")
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    raise FileNotFoundError(
+        "No SMPL+H model file found, tried: "
+        + ", ".join(str(candidate) for candidate in candidates)
+    )
+
+
+def _load_smplh_file(path: Path) -> dict:
+    if path.suffix == ".pkl":
+        with open(path, "rb") as file:
+            return pickle.load(file, encoding="latin1")
+    if path.suffix == ".npz":
+        return dict(np.load(path))
+    raise ValueError(f"Unsupported SMPL+H model file: {path}")
+
+
+def _load_mano_hands(mano_model_path: str | Path) -> dict:
+    hands = {}
+    for suffix, side in _MANO_HAND_SIDES:
+        with open(Path(mano_model_path) / f"MANO_{side}.pkl", "rb") as file:
+            mano = pickle.load(file, encoding="latin1")
+        hands[f"hands_components{suffix}"] = mano["hands_components"]
+        hands[f"hands_mean{suffix}"] = mano["hands_mean"]
+    return hands
+
+
+def _to_tensor(array) -> torch.Tensor:
+    # SMPL .pkl files may store sparse (scipy) or chumpy arrays.
+    if hasattr(array, "toarray"):
+        array = array.toarray()
+    return torch.as_tensor(np.asarray(array, dtype=np.float32))
+
+
+class SMPLH(RiggedModelWithLinearBlendShapes):
+    """SMPL body with MANO hands (SMPL+H, 52 bones).
+
+    Loads the SMPL+H ``.pkl`` or the extended 16-beta ``.npz`` files, with the hand PCA
+    data from MANO for the latter.
+    """
+
+    def __init__(
+        self,
+        model_path: str | Path,
+        gender: str = "neutral",
+        ext: str = "pkl",
+        num_betas: int = 10,
+        use_pca: bool = True,
+        num_pca_comps: int = 6,
+        flat_hand_mean: bool = False,
+        mano_model_path: str | Path | None = None,
+        pose_corrective: bool = True,
+        topology: str = "smpl",
+    ) -> None:
+        model_file = _resolve_smplh_path(model_path, gender, ext)
+        # smplx caps SMPL+H at 10 betas, so the files are read directly
+        model_data = _load_smplh_file(model_file)
+
+        shapedirs = _to_tensor(model_data["shapedirs"])
+        if not 0 < num_betas <= shapedirs.shape[-1]:
+            raise ValueError(
+                f"num_betas must be in [1, {shapedirs.shape[-1]}] for {model_file}, "
+                f"got {num_betas}."
+            )
+        if use_pca and not 0 < num_pca_comps <= 45:
+            raise ValueError(f"num_pca_comps must be in [1, 45], got {num_pca_comps}.")
+
+        if (use_pca or not flat_hand_mean) and "hands_componentsl" not in model_data:
+            if mano_model_path is None:
+                if not Path(model_path).is_dir():
+                    raise ValueError(
+                        f"{model_file} has no hand PCA data: pass mano_model_path, the "
+                        "directory holding MANO_LEFT.pkl and MANO_RIGHT.pkl."
+                    )
+                mano_model_path = Path(model_path) / "mano"
+            model_data = {**model_data, **_load_mano_hands(mano_model_path)}
+
+        template_vertices = _to_tensor(model_data["v_template"])
+        base_blendshapes = shapedirs[:, :, :num_betas].permute(2, 0, 1)
+        joint_regressor = _to_tensor(model_data["J_regressor"])
+        template_bone_heads = joint_regressor @ template_vertices
+
+        if pose_corrective:
+            # posedirs is stored as (V, 3, 459), smplx flattens it to (459, V * 3)
+            pose_corrective_blendshapes = _to_tensor(model_data["posedirs"]).permute(
+                2, 0, 1
+            )
+            blendshapes = torch.concatenate(
+                (base_blendshapes, pose_corrective_blendshapes), dim=0
+            )
+        else:
+            blendshapes = base_blendshapes
+
+        masked_blendshapes = blendshapes.clone()
+        masked_blendshapes[len(base_blendshapes) :] = 0.0
+        bone_heads_blendshapes = torch.einsum(
+            "JV,SVD->SJD", joint_regressor, masked_blendshapes
+        )
+
+        bone_count = template_bone_heads.shape[0]
+        vertex_bone_weights = _to_tensor(model_data["weights"])
+        vertex_bone_indices = (
+            torch.arange(bone_count)
+            .unsqueeze(0)
+            .expand(vertex_bone_weights.shape[0], -1)
+        )
+        bone_parents = [-1] + [
+            int(parent) for parent in np.asarray(model_data["kintree_table"])[0, 1:]
+        ]
+        bone_labels = [f"bone_{i}" for i in range(bone_count)]
+
+        hand_poses_mean = []
+        hand_components = []
+        for suffix, _ in _MANO_HAND_SIDES:
+            if flat_hand_mean:
+                hand_poses_mean.append(torch.zeros(15, 3))
+            else:
+                hand_poses_mean.append(
+                    _to_tensor(model_data[f"hands_mean{suffix}"]).reshape(15, 3)
+                )
+            if use_pca:
+                hand_components.append(
+                    _to_tensor(model_data[f"hands_components{suffix}"])[:num_pca_comps]
+                )
+        pose_mean = torch.cat(
+            [torch.zeros(1 + 21, 3)] + hand_poses_mean, dim=0
+        ).unsqueeze(0)
+
+        self.pose_mean = pose_mean
+        self.use_pca = use_pca
+        self.left_hand_components: torch.Tensor | None = None
+        self.right_hand_components: torch.Tensor | None = None
+        if use_pca:
+            self.left_hand_components = hand_components[0]
+            self.right_hand_components = hand_components[1]
+        self.pose_corrective = pose_corrective
+        metadata = ModelMetadata(
+            bone_parents=bone_parents,
+            bone_labels=bone_labels,
+        )
+        data = ModelData(
+            metadata=metadata,
+            template_vertices=template_vertices,
+            faces=torch.as_tensor(np.asarray(model_data["f"], dtype=np.int64)),
+            texture_coordinates=None,
+            face_texture_coordinate_indices=None,
+            blendshapes=blendshapes,
+            template_bone_heads=template_bone_heads,
+            bone_heads_blendshapes=bone_heads_blendshapes,
+            vertex_bone_weights=vertex_bone_weights,
+            vertex_bone_indices=vertex_bone_indices,
+            reference_bone_orientations=None,
+            base_mesh_vertex_indices=torch.arange(
+                len(template_vertices), dtype=torch.int64
+            ),
+            stacked_phenotype_blend_shapes_mask=None,
+        )
+        data = _apply_smpl_topology(data, topology)
+        data = _add_bone_tail_blendshapes(data)
+        super().__init__(
+            data=data,
+            pose_parameterization="local-bone-world",
+            skinning_method=None,
+            bone_orientation="blender",
+            root_identity_orientation=False,
+        )
+
+    def forward(
+        self,
+        betas,
+        global_orient,
+        transl,
+        body_pose,
+        left_hand_pose,
+        right_hand_pose,
+    ):
+        if self.use_pca:
+            left_hand_pose = torch.einsum(
+                "bi,ij->bj",
+                [
+                    left_hand_pose,
+                    self.left_hand_components.to(
+                        dtype=left_hand_pose.dtype, device=left_hand_pose.device
+                    ),
+                ],
+            )
+            right_hand_pose = torch.einsum(
+                "bi,ij->bj",
+                [
+                    right_hand_pose,
+                    self.right_hand_components.to(
+                        dtype=right_hand_pose.dtype, device=right_hand_pose.device
+                    ),
+                ],
+            )
+
+        rotvec = torch.cat(
+            [
+                global_orient.reshape(-1, 1, 3),
+                body_pose.reshape(-1, 21, 3),
+                left_hand_pose.reshape(-1, 15, 3),
+                right_hand_pose.reshape(-1, 15, 3),
+            ],
+            dim=1,
+        )
+
+        batch_size = rotvec.shape[0]
+        pose_parameters = (
+            torch.eye(4, dtype=rotvec.dtype, device=rotvec.device)
+            .unsqueeze(0)
+            .expand(batch_size, self.bone_count, 4, 4)
+            .clone()
+        )
+        pose_parameters[:, :, :3, :3] = roma.rotvec_to_rotmat(
+            rotvec + self.pose_mean.to(dtype=rotvec.dtype, device=rotvec.device)
+        )
+        pose_parameters[:, 0, :3, 3] = transl
+        blendshape_coeffs = betas
+
+        if self.pose_corrective:
             identity_rotmat = torch.eye(
                 3, dtype=pose_parameters.dtype, device=pose_parameters.device
             )

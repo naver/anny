@@ -4,6 +4,11 @@ All notable changes to this project.
 
 ## Unreleased
 
+### Added
+
+- `SMPLH` model class (`anny.models.smpl.SMPLH`) for SMPL+H (SMPL body with MANO hands),
+  reading the SMPL+H `.pkl` or the extended 16-beta `.npz` files.
+
 ### Fixed
 
 - The weight, muscle and proportions tables of `SimpleShapeDistribution` were indexed
