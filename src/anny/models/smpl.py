@@ -68,6 +68,12 @@ def _add_bone_tail_blendshapes(data: ModelData) -> ModelData:
     )
 
 
+def _barycentric_coordinates_as(coordinates, like: torch.Tensor) -> tuple:
+    # Correspondence files may store float64 barycentric coordinates; keep the
+    # retopologized data in the dtype of the model it is derived from.
+    return tuple(c.to(dtype=like.dtype, device=like.device) for c in coordinates)
+
+
 def _apply_smpl_topology(data: ModelData, topology: str) -> ModelData:
     """Retopologize model data defined on the SMPL mesh (SMPL, SMPL+H)."""
     if topology != "smpl":
@@ -75,7 +81,9 @@ def _apply_smpl_topology(data: ModelData, topology: str) -> ModelData:
         anny_state_dict = torch.load(
             get_anny2smpl_data_path(), map_location="cpu", weights_only=True
         )
-        barycentric_coordinates = anny_state_dict["dst2anny_barycentric_coordinates"]
+        barycentric_coordinates = _barycentric_coordinates_as(
+            anny_state_dict["dst2anny_barycentric_coordinates"], data.template_vertices
+        )
         reference_vertex_indices = anny_state_dict["dst2anny_vertex_indices"]
         vertices = (
             barycentric_coordinates[0][:, None]
@@ -102,7 +110,10 @@ def _apply_smpl_topology(data: ModelData, topology: str) -> ModelData:
             state_dict = torch.load(
                 get_anny2smplx_data_path(), map_location="cpu", weights_only=True
             )
-            barycentric_coordinates = state_dict["anny2dst_barycentric_coordinates"]
+            barycentric_coordinates = _barycentric_coordinates_as(
+                state_dict["anny2dst_barycentric_coordinates"],
+                anny_data.template_vertices,
+            )
             reference_vertex_indices = state_dict["anny2dst_vertex_indices"]
             vertices = (
                 barycentric_coordinates[0][:, None]
@@ -146,6 +157,7 @@ class SMPLX(RiggedModelWithLinearBlendShapes):
         blendshapes = torch.concatenate(
             (base_blendshapes, model.expr_dirs.permute(2, 0, 1)), dim=0
         )
+        shape_blendshapes_count = len(blendshapes)
 
         if pose_corrective:
             pose_corrective_blendshapes = model.posedirs.reshape(
@@ -155,8 +167,9 @@ class SMPLX(RiggedModelWithLinearBlendShapes):
                 (blendshapes, pose_corrective_blendshapes), dim=0
             )
 
+        # Joints follow the shape and expression blendshapes, not the pose correctives
         masked_blendshapes = blendshapes.clone()
-        masked_blendshapes[len(base_blendshapes) :] = 0.0
+        masked_blendshapes[shape_blendshapes_count:] = 0.0
         bone_heads_blendshapes = torch.einsum(
             "JV,SVD->SJD", model.J_regressor, masked_blendshapes
         )
@@ -206,9 +219,10 @@ class SMPLX(RiggedModelWithLinearBlendShapes):
             anny2smplx_state_dict = torch.load(
                 get_anny2smplx_data_path(), map_location="cpu", weights_only=True
             )
-            barycentric_coordinates = anny2smplx_state_dict[
-                "dst2anny_barycentric_coordinates"
-            ]
+            barycentric_coordinates = _barycentric_coordinates_as(
+                anny2smplx_state_dict["dst2anny_barycentric_coordinates"],
+                data.template_vertices,
+            )
             reference_vertex_indices = anny2smplx_state_dict["dst2anny_vertex_indices"]
             vertices = (
                 barycentric_coordinates[0][:, None]
@@ -234,7 +248,10 @@ class SMPLX(RiggedModelWithLinearBlendShapes):
             state_dict = torch.load(
                 get_anny2smpl_data_path(), map_location="cpu", weights_only=True
             )
-            barycentric_coordinates = state_dict["anny2dst_barycentric_coordinates"]
+            barycentric_coordinates = _barycentric_coordinates_as(
+                state_dict["anny2dst_barycentric_coordinates"],
+                anny_data.template_vertices,
+            )
             reference_vertex_indices = state_dict["anny2dst_vertex_indices"]
             vertices = (
                 barycentric_coordinates[0][:, None]

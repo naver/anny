@@ -564,8 +564,14 @@ def interpolate_skinning_weights(
             )
         row_sums = torch.where(degenerate[:, None], torch.ones_like(row_sums), row_sums)
         vbw = torch.where(degenerate[:, None], torch.zeros_like(vbw), vbw)
+    # The accumulation runs in float64 for precision; the result follows the source skinning
+    # weights so that the retopologized data keeps a single floating dtype.
+    vertex_bone_weights = (vbw / row_sums).to(
+        dtype=source_model.vertex_bone_weights.dtype,
+        device=source_model.vertex_bone_weights.device,
+    )
     return dataclasses.replace(
-        data, vertex_bone_weights=vbw / row_sums, vertex_bone_indices=vbi
+        data, vertex_bone_weights=vertex_bone_weights, vertex_bone_indices=vbi
     )
 
 
@@ -851,13 +857,8 @@ def interpolate_model_data(
         base_mesh_vertex_indices=base_mesh_vertex_indices,
         vertices=None,
     )
-    # interpolate_skinning_weights rebuilds its tensors from Python lists, hence always returns
-    # CPU float64; realign them with the source model.
     return dataclasses.replace(
-        result,
-        vertex_bone_weights=result.vertex_bone_weights.to(dtype=dtype, device=device),
-        vertex_bone_indices=result.vertex_bone_indices.to(device=device),
-        **{field: None for field in _PROCRUSTES_RUNTIME_FIELDS},
+        result, **{field: None for field in _PROCRUSTES_RUNTIME_FIELDS}
     )
 
 

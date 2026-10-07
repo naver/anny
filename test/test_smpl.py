@@ -11,33 +11,106 @@ from anny.models.rigged_model import RiggedModelWithLinearBlendShapes
 
 import anny
 
-SKIP_SMPL = False
-SKIP_SMPL_REASON = (
-    "SMPL/SMPL-X models are not available, please install anny[smpl] to run these tests"
-)
 try:
     from anny.models.smpl import SMPL, SMPLH, SMPLX
 except ImportError:
-    SKIP_SMPL = True
+    SMPL = SMPLH = SMPLX = None
 
 SMPLX_MODEL_PATH = os.environ.get("SMPLX_MODEL_PATH")
-SMPLX_MODEL_SKIP_REASON = "SMPLX_MODEL_PATH is not defined"
+
+requires_smpl_models = unittest.skipIf(
+    SMPL is None or SMPLX_MODEL_PATH is None,
+    "SMPL-family tests need anny[smpl] and SMPLX_MODEL_PATH",
+)
+
+DTYPE = torch.float32
 
 
-@unittest.skipIf(SKIP_SMPL, SKIP_SMPL_REASON)
-@unittest.skipIf(SMPLX_MODEL_PATH is None, SMPLX_MODEL_SKIP_REASON)
-class TestSMPLForward(unittest.TestCase):
-    dtype = torch.float32
+# Shared helpers -----------------------------------------------------------------------------
 
-    def test_smplx_is_normal_rigged_model_instance(self):
-        model = SMPLX(SMPLX_MODEL_PATH, pose_corrective=True)
 
-        self.assertIsInstance(model, RiggedModelWithLinearBlendShapes)
-        self.assertEqual(model.bone_orientation, "blender")
-        self.assertEqual(model.bone_count, 55)
-        self.assertTrue(hasattr(model, "faces"))
+def zero_inputs(dims, batch_size=1):
+    """Zero-valued forward inputs from (name, dimension) pairs."""
+    return {name: torch.zeros((batch_size, dim), dtype=DTYPE) for name, dim in dims}
 
-    def test_smpl_is_normal_rigged_model_instance(self):
+
+def reference_inputs(dims, batch_size=2):
+    """Deterministic, non-trivial forward inputs from (name, dimension) pairs.
+
+    Each input is a linspace of moderate amplitude, with alternating signs across inputs so
+    that no two inputs carry the same values.
+    """
+    return {
+        name: (-1.0) ** i
+        * torch.linspace(-0.25, 0.25, batch_size * dim, dtype=DTYPE).reshape(
+            batch_size, dim
+        )
+        for i, (name, dim) in enumerate(dims)
+    }
+
+
+def reference_model(model_type, **kwargs):
+    """The model of the smplx package that an anny model is compared against."""
+    import smplx
+
+    return smplx.create(SMPLX_MODEL_PATH, model_type=model_type, **kwargs)
+
+
+def assert_anny_topology(test, model, inputs):
+    """The model is retopologized onto the pruned Anny mesh and usable as built."""
+    full_anny_vertex_count = anny.Anny(
+        "anny", topology="makehuman"
+    ).template_vertices.shape[0]
+    # All vertices must be referenced by at least one face (no unattached vertices)
+    test.assertEqual(
+        torch.unique(model.faces.flatten()).shape[0],
+        model.template_vertices.shape[0],
+    )
+    # Pruned mesh must be a strict subset of the full Anny topology
+    test.assertLess(model.template_vertices.shape[0], full_anny_vertex_count)
+    test.assertTrue(torch.all(model.base_mesh_vertex_indices < full_anny_vertex_count))
+    # No unbound (zero skinning weight) vertex should survive the pruning
+    test.assertTrue(torch.all(model.vertex_bone_weights.sum(dim=-1) > 0.5))
+    # The retopologized model must be usable as built, without a dtype cast
+    output = model(**inputs)
+    test.assertEqual(output["vertices"].dtype, DTYPE)
+    test.assertTrue(torch.all(torch.isfinite(output["vertices"])))
+
+
+def assert_matches_reference_model(test, model, reference, inputs, tolerance=1e-5):
+    """Vertices and bone positions agree with the reference model on the same inputs."""
+    model = model.to(dtype=DTYPE)
+    model.set_skinning_method("lbs")
+    reference_output = reference(**inputs)
+    model_output = model(**inputs)
+
+    vertex_error = torch.linalg.norm(
+        model_output["vertices"] - reference_output.vertices, dim=-1
+    )
+    joint_error = torch.linalg.norm(
+        model_output["bone_poses"][:, :, :3, 3]
+        - reference_output.joints[:, : model.bone_count],
+        dim=-1,
+    )
+    test.assertLess(vertex_error.max().item(), tolerance)
+    test.assertLess(joint_error.max().item(), tolerance)
+
+
+# SMPL ---------------------------------------------------------------------------------------
+
+
+def smpl_input_dims(num_betas=10):
+    return (
+        ("betas", num_betas),
+        ("global_orient", 3),
+        ("transl", 3),
+        ("body_pose", 23 * 3),
+    )
+
+
+@requires_smpl_models
+class TestSMPL(unittest.TestCase):
+    def test_is_normal_rigged_model_instance(self):
         model = SMPL(SMPLX_MODEL_PATH, pose_corrective=True)
 
         self.assertIsInstance(model, RiggedModelWithLinearBlendShapes)
@@ -46,177 +119,105 @@ class TestSMPLForward(unittest.TestCase):
         self.assertTrue(hasattr(model, "faces"))
         self.assertEqual(model.template_vertices.shape[0], 6890)
 
-    def test_smplx_with_anny_topology(self):
-        model = SMPLX(SMPLX_MODEL_PATH, pose_corrective=True, topology="anny")
-        full_anny_vertex_count = anny.Anny(
-            "anny", topology="makehuman"
-        ).template_vertices.shape[0]
-        # All vertices must be referenced by at least one face (no unattached vertices)
-        self.assertEqual(
-            torch.unique(model.faces.flatten()).shape[0],
-            model.template_vertices.shape[0],
-        )
-        # Pruned mesh must be a strict subset of the full Anny topology
-        self.assertLess(model.template_vertices.shape[0], full_anny_vertex_count)
-        self.assertTrue(
-            torch.all(model.base_mesh_vertex_indices < full_anny_vertex_count)
-        )
-        # No unbound (zero skinning weight) vertex should survive the pruning
-        self.assertTrue(torch.all(model.vertex_bone_weights.sum(dim=-1) > 0.5))
-
-    def test_smpl_with_anny_topology(self):
+    def test_with_anny_topology(self):
         model = SMPL(SMPLX_MODEL_PATH, topology="anny")
-        full_anny_vertex_count = anny.Anny(
-            "anny", topology="makehuman"
-        ).template_vertices.shape[0]
-        # All vertices must be referenced by at least one face (no unattached vertices)
-        self.assertEqual(
-            torch.unique(model.faces.flatten()).shape[0],
-            model.template_vertices.shape[0],
-        )
-        # Pruned mesh must be a strict subset of the full Anny topology
-        self.assertLess(model.template_vertices.shape[0], full_anny_vertex_count)
-        self.assertTrue(
-            torch.all(model.base_mesh_vertex_indices < full_anny_vertex_count)
-        )
-        # No unbound (zero skinning weight) vertex should survive the pruning
-        self.assertTrue(torch.all(model.vertex_bone_weights.sum(dim=-1) > 0.5))
+        assert_anny_topology(self, model, zero_inputs(smpl_input_dims()))
 
-    def test_smpl_forward_builds_batched_pose_and_coefficients(self):
-        batch_size = 2
+    def test_forward_builds_batched_pose_and_coefficients(self):
         model = SMPL(SMPLX_MODEL_PATH, pose_corrective=True)
-        betas = torch.arange(batch_size * 10, dtype=self.dtype).reshape(batch_size, 10)
-        global_orient = torch.zeros((batch_size, 3), dtype=self.dtype)
-        transl = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=self.dtype)
-        body_pose = torch.zeros((batch_size, model.bone_count - 1, 3), dtype=self.dtype)
+        inputs = zero_inputs(smpl_input_dims(), batch_size=2)
+        inputs["transl"] = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=DTYPE)
 
-        _ = model(
-            betas=betas,
-            global_orient=global_orient,
-            transl=transl,
-            body_pose=body_pose,
-        )
+        _ = model(**inputs)
 
-    def test_smpl_forward_matches_smplx_reference_vertices(self):
-        import smplx
-
-        reference = smplx.create(
-            SMPLX_MODEL_PATH,
-            model_type="smpl",
-            gender="neutral",
-        )
+    def test_forward_matches_reference_model(self):
+        reference = reference_model("smpl", gender="neutral", batch_size=2)
         model = SMPL(
-            SMPLX_MODEL_PATH,
-            gender="neutral",
-            pose_corrective=True,
-            topology="smpl",
-        ).to(dtype=self.dtype)
-        model.set_skinning_method("lbs")
-
-        betas = torch.linspace(
-            -0.2,
-            0.2,
-            reference.num_betas,
-            dtype=self.dtype,
-        ).reshape(1, -1)
-        global_orient = torch.tensor([[0.1, -0.2, 0.05]], dtype=self.dtype)
-        transl = torch.tensor([[0.2, -0.4, 0.1]], dtype=self.dtype)
-        body_pose = torch.linspace(
-            -0.25,
-            0.25,
-            (model.bone_count - 1) * 3,
-            dtype=self.dtype,
-        ).reshape(1, -1)
-
-        reference_output = reference(
-            betas=betas,
-            global_orient=global_orient,
-            body_pose=body_pose,
-            transl=transl,
+            SMPLX_MODEL_PATH, gender="neutral", pose_corrective=True, topology="smpl"
         )
-        model_output = model(
-            betas=betas,
-            global_orient=global_orient,
-            transl=transl,
-            body_pose=body_pose,
+        assert_matches_reference_model(
+            self, model, reference, reference_inputs(smpl_input_dims())
         )
 
-        vertex_error = torch.linalg.norm(
-            model_output["vertices"] - reference_output.vertices,
-            dim=-1,
-        )
-        self.assertLess(vertex_error.max().item(), 1e-5)
 
-    def test_smplx_forward_builds_batched_pose_and_coefficients_pca(self):
-        batch_size = 2
+# SMPL-X -------------------------------------------------------------------------------------
+
+
+def smplx_input_dims(hand_pose_dim=6):
+    return (
+        ("betas", 10),
+        ("expression", 10),
+        ("global_orient", 3),
+        ("transl", 3),
+        ("body_pose", 21 * 3),
+        ("jaw_pose", 3),
+        ("leye_pose", 3),
+        ("reye_pose", 3),
+        ("left_hand_pose", hand_pose_dim),
+        ("right_hand_pose", hand_pose_dim),
+    )
+
+
+@requires_smpl_models
+class TestSMPLX(unittest.TestCase):
+    def test_is_normal_rigged_model_instance(self):
         model = SMPLX(SMPLX_MODEL_PATH, pose_corrective=True)
-        betas = torch.arange(batch_size * 10, dtype=self.dtype).reshape(batch_size, 10)
-        expression = (
-            torch.arange(batch_size * 10, dtype=self.dtype).reshape(batch_size, 10)
-            + 100.0
-        )
-        global_orient = torch.zeros((batch_size, 3), dtype=self.dtype)
-        transl = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=self.dtype)
-        body_pose = torch.zeros((batch_size, 21, 3), dtype=self.dtype)
-        eye_pose = torch.zeros((batch_size, 3), dtype=self.dtype)
-        hand_pose = torch.zeros((batch_size, 6), dtype=self.dtype)
-        jaw_pose = torch.zeros((batch_size, 3), dtype=self.dtype)
 
-        _ = model(
-            betas=betas,
-            expression=expression,
-            global_orient=global_orient,
-            transl=transl,
-            body_pose=body_pose,
-            leye_pose=eye_pose,
-            reye_pose=eye_pose,
-            left_hand_pose=hand_pose,
-            right_hand_pose=hand_pose,
-            jaw_pose=jaw_pose,
-        )
+        self.assertIsInstance(model, RiggedModelWithLinearBlendShapes)
+        self.assertEqual(model.bone_orientation, "blender")
+        self.assertEqual(model.bone_count, 55)
+        self.assertTrue(hasattr(model, "faces"))
 
-    def test_smplx_forward_builds_batched_pose_and_coefficients_no_pca(self):
-        batch_size = 2
+    def test_with_anny_topology(self):
+        model = SMPLX(SMPLX_MODEL_PATH, pose_corrective=True, topology="anny")
+        assert_anny_topology(self, model, zero_inputs(smplx_input_dims()))
+
+    def test_forward_builds_batched_pose_and_coefficients_pca(self):
+        model = SMPLX(SMPLX_MODEL_PATH, pose_corrective=True)
+        inputs = zero_inputs(smplx_input_dims(hand_pose_dim=6), batch_size=2)
+        inputs["transl"] = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=DTYPE)
+
+        _ = model(**inputs)
+
+    def test_forward_builds_batched_pose_and_coefficients_no_pca(self):
         model = SMPLX(SMPLX_MODEL_PATH, pose_corrective=True, use_pca=False)
-        betas = torch.arange(batch_size * 10, dtype=self.dtype).reshape(batch_size, 10)
-        expression = (
-            torch.arange(batch_size * 10, dtype=self.dtype).reshape(batch_size, 10)
-            + 100.0
-        )
-        global_orient = torch.zeros((batch_size, 3), dtype=self.dtype)
-        transl = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=self.dtype)
-        body_pose = torch.zeros((batch_size, 21, 3), dtype=self.dtype)
-        eye_pose = torch.zeros((batch_size, 3), dtype=self.dtype)
-        hand_pose = torch.zeros((batch_size, 15, 3), dtype=self.dtype)
-        jaw_pose = torch.zeros((batch_size, 3), dtype=self.dtype)
+        inputs = zero_inputs(smplx_input_dims(hand_pose_dim=15 * 3), batch_size=2)
+        inputs["transl"] = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=DTYPE)
 
-        _ = model(
-            betas=betas,
-            expression=expression,
-            global_orient=global_orient,
-            transl=transl,
-            body_pose=body_pose,
-            leye_pose=eye_pose,
-            reye_pose=eye_pose,
-            left_hand_pose=hand_pose,
-            right_hand_pose=hand_pose,
-            jaw_pose=jaw_pose,
+        _ = model(**inputs)
+
+    def test_forward_matches_reference_model(self):
+        reference = reference_model(
+            "smplx", gender="neutral", use_pca=True, num_pca_comps=6, batch_size=2
+        )
+        model = SMPLX(SMPLX_MODEL_PATH, gender="neutral", use_pca=True, num_pca_comps=6)
+        assert_matches_reference_model(
+            self, model, reference, reference_inputs(smplx_input_dims(hand_pose_dim=6))
         )
 
 
-@unittest.skipIf(SKIP_SMPL, SKIP_SMPL_REASON)
-@unittest.skipIf(SMPLX_MODEL_PATH is None, SMPLX_MODEL_SKIP_REASON)
-class TestSMPLHForward(unittest.TestCase):
-    dtype = torch.float32
+# SMPL+H -------------------------------------------------------------------------------------
+
+
+def smplh_input_dims(num_betas=10, hand_pose_dim=6):
+    return (
+        ("betas", num_betas),
+        ("global_orient", 3),
+        ("transl", 3),
+        ("body_pose", 21 * 3),
+        ("left_hand_pose", hand_pose_dim),
+        ("right_hand_pose", hand_pose_dim),
+    )
+
+
+@requires_smpl_models
+class TestSMPLH(unittest.TestCase):
     genders = ("male", "female", "neutral")
 
-    def setUp(self):
-        for gender in self.genders:
-            path = os.path.join(
-                SMPLX_MODEL_PATH, "smplh", f"SMPLH_{gender.upper()}.pkl"
-            )
-            if not os.path.isfile(path):
-                self.skipTest("SMPL+H model files are not in SMPLX_MODEL_PATH/smplh")
+    def require_smplh_pkl(self, gender):
+        filename = f"SMPLH_{gender.upper()}.pkl"
+        if not os.path.isfile(os.path.join(SMPLX_MODEL_PATH, "smplh", filename)):
+            self.skipTest(f"{filename} is not in SMPLX_MODEL_PATH/smplh")
 
     def find_extended_npz(self, gender):
         for folder in ("smplh", "smplh_raw"):
@@ -225,37 +226,13 @@ class TestSMPLHForward(unittest.TestCase):
                 return path
         return None
 
-    def inputs(self, num_betas, hand_pose_dim):
-        batch_size = 2
-        return {
-            "betas": torch.linspace(
-                -0.2, 0.2, batch_size * num_betas, dtype=self.dtype
-            ).reshape(batch_size, num_betas),
-            "global_orient": torch.tensor(
-                [[0.1, -0.2, 0.05], [-0.1, 0.2, 0.3]], dtype=self.dtype
-            ),
-            "transl": torch.tensor(
-                [[0.2, -0.4, 0.1], [0.0, 0.1, -0.3]], dtype=self.dtype
-            ),
-            "body_pose": torch.linspace(
-                -0.25, 0.25, batch_size * 21 * 3, dtype=self.dtype
-            ).reshape(batch_size, -1),
-            "left_hand_pose": torch.linspace(
-                -0.5, 0.5, batch_size * hand_pose_dim, dtype=self.dtype
-            ).reshape(batch_size, -1),
-            "right_hand_pose": torch.linspace(
-                0.5, -0.5, batch_size * hand_pose_dim, dtype=self.dtype
-            ).reshape(batch_size, -1),
-        }
-
-    def check_matches_smplx_reference(self, use_pca, num_pca_comps, flat_hand_mean):
-        import smplx
-
+    def check_matches_reference_model(self, use_pca, num_pca_comps, flat_hand_mean):
+        hand_pose_dim = num_pca_comps if use_pca else 15 * 3
         for gender in self.genders:
             with self.subTest(gender=gender):
-                reference = smplx.create(
-                    SMPLX_MODEL_PATH,
-                    model_type="smplh",
+                self.require_smplh_pkl(gender)
+                reference = reference_model(
+                    "smplh",
                     gender=gender,
                     ext="pkl",
                     use_pca=use_pca,
@@ -269,28 +246,16 @@ class TestSMPLHForward(unittest.TestCase):
                     use_pca=use_pca,
                     num_pca_comps=num_pca_comps,
                     flat_hand_mean=flat_hand_mean,
-                ).to(dtype=self.dtype)
-                model.set_skinning_method("lbs")
-
-                inputs = self.inputs(
-                    num_betas=10, hand_pose_dim=num_pca_comps if use_pca else 45
                 )
-                reference_output = reference(**inputs)
-                model_output = model(**inputs)
-
-                vertex_error = torch.linalg.norm(
-                    model_output["vertices"] - reference_output.vertices,
-                    dim=-1,
+                assert_matches_reference_model(
+                    self,
+                    model,
+                    reference,
+                    reference_inputs(smplh_input_dims(hand_pose_dim=hand_pose_dim)),
                 )
-                joint_error = torch.linalg.norm(
-                    model_output["bone_poses"][:, :, :3, 3]
-                    - reference_output.joints[:, : model.bone_count],
-                    dim=-1,
-                )
-                self.assertLess(vertex_error.max().item(), 1e-5)
-                self.assertLess(joint_error.max().item(), 1e-5)
 
-    def test_smplh_is_normal_rigged_model_instance(self):
+    def test_is_normal_rigged_model_instance(self):
+        self.require_smplh_pkl("neutral")
         model = SMPLH(SMPLX_MODEL_PATH)
 
         self.assertIsInstance(model, RiggedModelWithLinearBlendShapes)
@@ -301,36 +266,25 @@ class TestSMPLHForward(unittest.TestCase):
             torch.equal(model.faces, SMPL(SMPLX_MODEL_PATH, topology="smpl").faces)
         )
 
-    def test_smplh_with_anny_topology(self):
+    def test_with_anny_topology(self):
+        self.require_smplh_pkl("neutral")
         model = SMPLH(SMPLX_MODEL_PATH, topology="anny")
-        full_anny_vertex_count = anny.Anny(
-            "anny", topology="makehuman"
-        ).template_vertices.shape[0]
-        # All vertices must be referenced by at least one face (no unattached vertices)
-        self.assertEqual(
-            torch.unique(model.faces.flatten()).shape[0],
-            model.template_vertices.shape[0],
-        )
-        # Pruned mesh must be a strict subset of the full Anny topology
-        self.assertLess(model.template_vertices.shape[0], full_anny_vertex_count)
-        self.assertTrue(
-            torch.all(model.base_mesh_vertex_indices < full_anny_vertex_count)
-        )
-        # No unbound (zero skinning weight) vertex should survive the pruning
-        self.assertTrue(torch.all(model.vertex_bone_weights.sum(dim=-1) > 0.5))
+        assert_anny_topology(self, model, zero_inputs(smplh_input_dims()))
 
-    def test_smplh_forward_matches_smplx_reference_full_hand_pose(self):
-        self.check_matches_smplx_reference(
+    def test_forward_matches_reference_model_full_hand_pose(self):
+        self.check_matches_reference_model(
             use_pca=False, num_pca_comps=6, flat_hand_mean=True
         )
 
-    def test_smplh_forward_matches_smplx_reference_pca(self):
-        self.check_matches_smplx_reference(
+    def test_forward_matches_reference_model_pca(self):
+        self.check_matches_reference_model(
             use_pca=True, num_pca_comps=12, flat_hand_mean=False
         )
 
-    def test_smplh_extended_npz_uses_16_betas(self):
+    def test_extended_npz_uses_16_betas(self):
         mano_model_path = os.path.join(SMPLX_MODEL_PATH, "mano")
+        if not os.path.isfile(os.path.join(mano_model_path, "MANO_LEFT.pkl")):
+            self.skipTest("MANO model files are not in SMPLX_MODEL_PATH/mano")
         for gender in self.genders:
             with self.subTest(gender=gender):
                 npz_path = self.find_extended_npz(gender)
@@ -342,10 +296,12 @@ class TestSMPLHForward(unittest.TestCase):
                     use_pca=True,
                     num_pca_comps=12,
                     mano_model_path=mano_model_path,
-                ).to(dtype=self.dtype)
+                ).to(dtype=DTYPE)
                 self.assertEqual(model.bone_count, 52)
 
-                inputs = self.inputs(num_betas=16, hand_pose_dim=12)
+                inputs = reference_inputs(
+                    smplh_input_dims(num_betas=16, hand_pose_dim=12)
+                )
                 truncated_betas = inputs["betas"].clone()
                 truncated_betas[:, 10:] = 0.0
                 vertices = model(**inputs)["vertices"]

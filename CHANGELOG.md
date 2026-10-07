@@ -11,6 +11,10 @@ All notable changes to this project.
 
 ### Fixed
 
+- Models retopologized onto another mesh (e.g. `SMPL(topology="anny")`) mixed float32 and
+  float64 tensors, so that their forward pass failed until an explicit `.to(dtype=...)`.
+- `SMPLX` joints now follow the expression blendshapes, as in the `smplx` reference
+  implementation.
 - The weight, muscle and proportions tables of `SimpleShapeDistribution` were indexed
   by age in years but looked up with the anny `age` phenotype (in [0, 1]), so they were
   always read between their newborn and 1-year entries. Their anchors are now expressed
