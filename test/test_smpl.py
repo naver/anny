@@ -130,6 +130,10 @@ class TestSMPL(unittest.TestCase):
 
         _ = model(**inputs)
 
+    def test_rejects_other_model_types(self):
+        with self.assertRaises(ValueError):
+            SMPL(SMPLX_MODEL_PATH, model_type="smplx")
+
     def test_forward_matches_reference_model(self):
         reference = reference_model("smpl", gender="neutral", batch_size=2)
         model = SMPL(
@@ -185,6 +189,10 @@ class TestSMPLX(unittest.TestCase):
         inputs["transl"] = torch.tensor([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]], dtype=DTYPE)
 
         _ = model(**inputs)
+
+    def test_rejects_other_model_types(self):
+        with self.assertRaises(ValueError):
+            SMPLX(SMPLX_MODEL_PATH, model_type="smpl")
 
     def test_forward_matches_reference_model(self):
         reference = reference_model(

@@ -146,8 +146,13 @@ class SMPLX(RiggedModelWithLinearBlendShapes):
         topology="smplx",
         **smplx_kwargs,
     ):
+        if model_type != "smplx":
+            raise ValueError(
+                f"SMPLX wraps the smplx 'smplx' model, got model_type={model_type!r}; "
+                "use anny.models.smpl.SMPL or SMPLH for the other SMPL-family models."
+            )
         # Original model
-        model = smplx.create(*smplx_args, model_type="smplx", **smplx_kwargs)
+        model = smplx.create(*smplx_args, model_type=model_type, **smplx_kwargs)
 
         template_vertices = model.v_template
         base_blendshapes = model.shapedirs.permute(2, 0, 1)
@@ -356,10 +361,20 @@ class SMPLX(RiggedModelWithLinearBlendShapes):
 
 class SMPL(RiggedModelWithLinearBlendShapes):
     def __init__(
-        self, *smpl_args, pose_corrective=True, topology="smpl", **smpl_kwargs
+        self,
+        *smpl_args,
+        model_type="smpl",
+        pose_corrective=True,
+        topology="smpl",
+        **smpl_kwargs,
     ):
+        if model_type != "smpl":
+            raise ValueError(
+                f"SMPL wraps the smplx 'smpl' model, got model_type={model_type!r}; "
+                "use anny.models.smpl.SMPLX or SMPLH for the other SMPL-family models."
+            )
         # Original model
-        model = smplx.create(*smpl_args, model_type="smpl", **smpl_kwargs)
+        model = smplx.create(*smpl_args, model_type=model_type, **smpl_kwargs)
 
         template_vertices = model.v_template
         base_blendshapes = model.shapedirs.permute(2, 0, 1)
