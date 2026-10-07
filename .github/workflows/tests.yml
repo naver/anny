@@ -45,6 +45,7 @@ jobs:
           : "${ANNY_ENV_PATH:?ANNY_ENV_PATH is required on the runner}"
           cd "${REPO}"
           export ANNY_CACHE_DIR="$(realpath -m "${ANNY_ENV_PATH}/../../anny_cache")"
+          export SMPLX_MODEL_PATH="$(realpath -m "${ANNY_ENV_PATH}/../../smplx_models")"
 
           /opt/ci-runner/submit-slurm.sh \
             --job-name "anny-bootstrap-${GITHUB_RUN_ID}" \
@@ -56,6 +57,7 @@ jobs:
             --pip-cache \
             --env ANNY_ENV_PATH \
             --env ANNY_CACHE_DIR \
+            --env SMPLX_MODEL_PATH \
             -- \
             "python -V && uv --version"
 
@@ -74,6 +76,7 @@ jobs:
           # script do not reach the payload command, but --env does (same path
           # ANNY_ENV_PATH already takes). realpath -m needs no existing dir.
           export ANNY_CACHE_DIR="${ANNY_CACHE_DIR:-$(realpath -m "${ANNY_ENV_PATH}/../../anny_cache")}"
+          export SMPLX_MODEL_PATH="${SMPLX_MODEL_PATH:-$(realpath -m "${ANNY_ENV_PATH}/../../smplx_models")}"
           cd "${REPO}"
 
           /opt/ci-runner/submit-slurm.sh \
@@ -88,5 +91,6 @@ jobs:
             --pip-cache \
             --env ANNY_ENV_PATH \
             --env ANNY_CACHE_DIR \
+            --env SMPLX_MODEL_PATH \
             -- \
             uv run --no-sync python -m unittest discover
