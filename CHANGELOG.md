@@ -41,6 +41,11 @@ All notable changes to this project.
   always read between their newborn and 1-year entries. Their anchors are now expressed
   in anny age, like the height table. This changes the weight and muscle values sampled
   by `SimpleShapeDistribution.sample()`, and the phenotype prior of `AnnyInverter`.
+- `SMPL`, `SMPLH` and `SMPLX` produced NaN gradients for their shape and pose parameters
+  (`betas` and every non-root pose: body, hands, jaw, eyes, expression; only `global_orient`
+  and `transl` were unaffected). Their synthetic bone tails are aligned with the y axis, so
+  the rotation axis of these bones was computed as 0/0; the forward pass already replaced it
+  by the degenerate rotation, but the NaN still propagated in the backward pass.
 
 ## v0.6.1 - 2026-09-28
 

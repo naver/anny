@@ -322,14 +322,19 @@ def get_bone_poses(
     cross_p_norm = torch.linalg.norm(cross_p, dim=-1)
     angle = torch.atan2(cross_p_norm, dot_p)
 
-    ## Special case: cross_p_norm == 0 will produce NaN values and an undefined rotation axis.
+    ## Special case: cross_p_norm == 0 gives an undefined rotation axis.
     ## When dot_p > 0, angle==0 and R should be the identity rotation, thus the rotation axis does not matter.
     ## When dot_p < 0, angle==\pi and one should choose a rotation of 180 degrees around some axis.
     ## This case occurs at least for the 'tongue02' bone in a special body shape configuration.
     # Considering -X as rotation axis ensures continuity in bone orientation for this degenerate configuration,
     # but it may not be the general case.
     ## We detect and manually fix this degenerate case.
-    axis = (cross_p / cross_p_norm.unsqueeze(-1)).clone()
+    ## Where cross_p_norm == 0 the axis is undefined: the norm is replaced by 1 there so that the
+    ## backward pass stays finite (the value is discarded by the degenerate-case selection below).
+    with torch.no_grad():
+        has_axis = cross_p_norm > 0
+    safe_norm = torch.where(has_axis, cross_p_norm, torch.ones_like(cross_p_norm))
+    axis = (cross_p / safe_norm.unsqueeze(-1)).clone()
     R = roma.rotvec_to_rotmat(-angle.unsqueeze(-1) * axis)
     with torch.no_grad():
         is_valid = (torch.abs(torch.sum(torch.square(axis), dim=-1) - 1) < epsilon)[

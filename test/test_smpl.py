@@ -323,5 +323,95 @@ class TestSMPLH(unittest.TestCase):
                 )
 
 
+# Gradients ----------------------------------------------------------------------------------
+
+
+def random_inputs(dims, batch_size=2, dtype=DTYPE, seed=0):
+    """Random forward inputs from (name, dimension) pairs, all requiring gradients."""
+    generator = torch.Generator().manual_seed(seed)
+    return {
+        name: (
+            0.3 * torch.randn((batch_size, dim), generator=generator, dtype=dtype)
+        ).requires_grad_()
+        for name, dim in dims
+    }
+
+
+def vertices_and_joints_loss(model, inputs):
+    output = model(**inputs)
+    return output["vertices"].sum() + output["bone_poses"][:, :, :3, 3].sum()
+
+
+def smpl_family():
+    """(model class, model file, model arguments, forward input dimensions) for each
+    SMPL-family model."""
+    return (
+        (SMPL, os.path.join("smpl", "SMPL_NEUTRAL.pkl"), {}, smpl_input_dims()),
+        (SMPLH, os.path.join("smplh", "SMPLH_NEUTRAL.pkl"), {}, smplh_input_dims()),
+        (
+            SMPLX,
+            os.path.join("smplx", "SMPLX_NEUTRAL.npz"),
+            {"use_pca": False},
+            smplx_input_dims(hand_pose_dim=15 * 3),
+        ),
+    )
+
+
+@requires_smpl_models
+class TestSMPLFamilyGradients(unittest.TestCase):
+    """Synthetic bone tails make every bone direction degenerate (zero cross product
+    with the y axis); their gradients must stay finite all the same."""
+
+    def check_each_model(self, check):
+        for model_class, filename, kwargs, dims in smpl_family():
+            with self.subTest(model=model_class.__name__):
+                if not os.path.isfile(os.path.join(SMPLX_MODEL_PATH, filename)):
+                    self.skipTest(f"{filename} is not in SMPLX_MODEL_PATH")
+                check(model_class(SMPLX_MODEL_PATH, **kwargs), dims)
+
+    def test_gradients_are_finite(self):
+        def check(model, dims):
+            model = model.to(dtype=DTYPE)
+            inputs = random_inputs(dims)
+            vertices_and_joints_loss(model, inputs).backward()
+            for name, value in inputs.items():
+                self.assertIsNotNone(value.grad, name)
+                self.assertTrue(torch.all(torch.isfinite(value.grad)), name)
+
+        self.check_each_model(check)
+
+    def test_gradient_matches_finite_differences(self):
+        def check(model, dims):
+            model = model.to(dtype=torch.float64)
+            model.set_skinning_method("lbs")
+            inputs = random_inputs(dims, batch_size=1, dtype=torch.float64)
+            vertices_and_joints_loss(model, inputs).backward()
+            step = 1e-6
+            for name, index in (
+                ("betas", 0),
+                ("betas", 5),
+                ("body_pose", 0),
+                ("body_pose", 10),
+                ("body_pose", 40),
+            ):
+                value = inputs[name]
+                original = value[0, index].item()
+                with torch.no_grad():
+                    value[0, index] = original + step
+                    loss_plus = vertices_and_joints_loss(model, inputs)
+                    value[0, index] = original - step
+                    loss_minus = vertices_and_joints_loss(model, inputs)
+                    value[0, index] = original
+                finite_difference = (loss_plus - loss_minus).item() / (2 * step)
+                self.assertAlmostEqual(
+                    value.grad[0, index].item(),
+                    finite_difference,
+                    delta=1e-5 * max(1.0, abs(finite_difference)),
+                    msg=f"{name}[{index}]",
+                )
+
+        self.check_each_model(check)
+
+
 if __name__ == "__main__":
     unittest.main()

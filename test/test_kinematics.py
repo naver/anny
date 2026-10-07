@@ -8,6 +8,39 @@ import anny.utils.kinematics as kinematics
 import roma
 
 
+class TestBonePoses(unittest.TestCase):
+    def bone_inputs(self):
+        generator = torch.Generator().manual_seed(0)
+        dtype = torch.float64
+        up = torch.tensor([0.0, 1.0, 0.0], dtype=dtype)
+        heads = torch.randn((2, 4, 3), generator=generator, dtype=dtype)
+        offsets = up.expand(2, 4, 3).clone()
+        offsets[:, 3] = torch.tensor([0.5, 1.0, -0.3], dtype=dtype)
+        rolls = roma.random_rotmat((2, 4), dtype=dtype)
+        return heads, offsets, rolls, up, torch.eye(3, dtype=dtype)
+
+    def test_degenerate_bones_have_finite_gradients(self):
+        heads, offsets, rolls, up, identity = self.bone_inputs()
+        heads.requires_grad_()
+        offsets.requires_grad_()
+        poses = kinematics.get_bone_poses(heads, heads + offsets, rolls, up, identity)
+        poses.sum().backward()
+        self.assertTrue(torch.all(torch.isfinite(heads.grad)))
+        self.assertTrue(torch.all(torch.isfinite(offsets.grad)))
+
+    def test_gradcheck_with_degenerate_bones(self):
+        heads, offsets, rolls, up, identity = self.bone_inputs()
+        heads.requires_grad_()
+        self.assertTrue(
+            torch.autograd.gradcheck(
+                lambda h: kinematics.get_bone_poses(
+                    h, h + offsets, rolls, up, identity
+                ),
+                (heads,),
+            )
+        )
+
+
 class TestKinematics(unittest.TestCase):
     def test_forward_kinematics(self):
         parent_indices = [-1, 0, 0, 1, 2, 1, 2]
