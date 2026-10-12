@@ -46,7 +46,8 @@ model = anny.Anny(local_changes="default", facial_actions="all").to(dtype=torch.
 # The model accept both dictionnary and stacked tensor inputs.
 # Skeletal rig pose parameters (see model.bone_labels).
 pose_parameters = torch.eye(4)[None, None].repeat(1, model.bone_count, 1, 1)
-# High-level shape parameters (within [0,1], see model.phenotype_labels):
+# High-level shape parameters (within [0,1], see model.phenotype_labels and
+# "Phenotype parameters" below; e.g. gender runs from male (0) to female (1)):
 phenotype_kwargs = {key : 0.5 for key in model.phenotype_labels}
 # Local shape changes (within [-1,1], see model.local_change_labels):
 local_changes = {'stomach-pregnant-incr': 1.}
@@ -81,6 +82,20 @@ python -m anny.examples.interactive_demo
 <img src="docs/figures/interactive_demo.jpg" alt="Interactive demo" style="display:block;max-width:100%;max-height:24em;margin:auto"/>
 
 ## Technical details
+
+### Phenotype parameters
+
+Phenotype parameters are continuous values in `[0, 1]` that blend between MakeHuman
+macro targets (see `anny.models.model_data.PHENOTYPE_VARIATIONS`):
+
+| Parameter | Meaning of the value |
+|---|---|
+| `gender` | 0 is male, 1 is female. Note that this is the reverse of MakeHuman's own gender setting, where 0 is female and 1 is male. |
+| `age` | 0 is a baby, 1/3 a child, 2/3 a young adult, 1 an old person (a newborn corresponds to -1/3). |
+| `muscle`, `weight`, `cupsize`, `firmness` | 0 is the minimum, 0.5 the average, 1 the maximum. |
+| `height` | 0 is the minimum, 1 the maximum. |
+| `proportions` | 0 is ideal, 1 uncommon. |
+| `african`, `asian`, `caucasian` | Relative weights, normalized to sum to one. |
 
 ### Default `anny` rig
 

@@ -2,6 +2,15 @@
 
 All notable changes to this project.
 
+## Unreleased
+
+### Documentation
+
+- Stated the conventions of the phenotype parameters in the README and in the
+  docstrings of `Anny.forward` and `Anny.get_phenotype_blendshape_coefficients`, in
+  particular that `gender` runs from male (0) to female (1), the reverse of
+  MakeHuman's gender setting.
+
 ## v0.6.1 - 2026-09-28
 
 ### Fixed

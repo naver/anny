@@ -260,6 +260,12 @@ class Anny(RiggedModelWithLinearBlendShapes):
         """
         Return blendshape coefficients corresponding to the input phenotype description.
         Deprecated but kept for compatibility with SOMA.
+
+        Phenotype values lie in [0, 1]: `gender` runs from male (0) to female (1),
+        `age` from baby (0) through child (1/3) and young adult (2/3) to old (1),
+        `muscle`, `weight`, `cupsize` and `firmness` from minimum through average (0.5)
+        to maximum, `height` from minimum to maximum, and `proportions` from ideal (0)
+        to uncommon (1). The race weights are normalized to sum to one.
         """
         phenotype_parameters = self._parse_parameter_kwargs(
             {
@@ -453,6 +459,15 @@ class Anny(RiggedModelWithLinearBlendShapes):
         pose_parameterization: PoseParameterization | None = None,
         return_bone_ends: bool = False,
     ) -> dict[str, torch.Tensor]:
+        """
+        Compute the shaped and posed model.
+
+        `phenotype_kwargs` holds values in [0, 1] keyed by `phenotype_labels`; see
+        `get_phenotype_blendshape_coefficients` for the meaning of the endpoints
+        (e.g. `gender`: 0 is male, 1 is female). `local_changes_kwargs` holds values
+        in [-1, 1] keyed by `local_change_labels`, and `facial_actions` values in
+        [0, 1] keyed by `facial_action_labels`.
+        """
         (
             pose_parameters,
             phenotype_parameters,
