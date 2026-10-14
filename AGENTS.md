@@ -32,7 +32,13 @@ bash build_doc.bash  # build HTML docs from the jupytext py:percent tutorials in
 - `Anny(...)` — the model class, for full-body and part models alike; calling
   `anny.Anny(...)` builds a model and `isinstance(model, Anny)` holds for any Anny model.
   Accepts `rig`, `topology`, `local_changes`, `facial_actions`, `phenotypes`,
-  `extrapolate_phenotypes`, `pose_parameterization`, and `skinning_method`.
+  `extrapolate_phenotypes`, `pose_parameterization`, `skinning_method`, and
+  `phenotype_blendshapes` (`"compact"` by default: the phenotype blendshapes are replaced
+  by a minimal basis of the rest states the phenotypes reach, e.g. 136 rows instead of 624
+  for the default model, exact up to round-off; `"original"` keeps the uncompacted
+  MakeHuman blendshapes; a positive int truncates the compact basis to this rank, an
+  approximation; see `compact_phenotype_blendshapes` in
+  `models/model_transforms.py`).
 - `AnnyInverter`, `KeypointsRegressor`, `Anthropometry` — see Key Subsystems.
 - `create_fullbody_model(...)` — deprecated legacy full-body factory. It preserves the old
   default rig preset (`rig="default"`) and old full-body defaults; prefer `Anny(...)`.
@@ -61,7 +67,7 @@ bash build_doc.bash  # build HTML docs from the jupytext py:percent tutorials in
 | GPU skinning | `skinning/warp_skinning.py` | `warp-lang` accelerated LBS (`skinning_method="warp_lbs"`) |
 | Collision | `utils/collision.py` | Self-intersection detection, warp-accelerated |
 | Model data | `models/model_data.py` | `ModelData` / `ModelMetadata` dataclasses; bundle template mesh, blend shapes, and rig data; safetensors serialization for caching |
-| Model transforms | `models/model_transforms.py` | `ModelData` → `ModelData` operations: retopology (from a mesh, or from linear combinations of template vertices), bone orientation conversion, mesh/skinning cleanups |
+| Model transforms | `models/model_transforms.py` | `ModelData` → `ModelData` operations: retopology (from a mesh, or from linear combinations of template vertices), bone orientation conversion, mesh/skinning cleanups, phenotype blendshape compaction (`compact_phenotype_blendshapes`, applied last by the cached `build_compact_model_data` builder; internal builders keep the uncompacted stack since they match blendshape rows by label) |
 | Parameter regression | `anny_inverter.py` | `AnnyInverter`: iterative pose+shape fitting to a target mesh |
 | Keypoints | `keypoints.py` | `KeypointsRegressor`: keypoints as linear combinations of mesh vertices (e.g. COCO, `data/keypoints/`) |
 | Facial actions | `models/facial_actions.py` | Facial expression blend shapes from the MakeHuman face units (`data/faceunits01/`) |

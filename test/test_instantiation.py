@@ -176,20 +176,39 @@ class TestInstantiation(unittest.TestCase):
         self.assertLess(torch.max(roma.rotmat_geodesic_distance(R_base, R_posed)), 1e-9)
 
     def test_default_anny_rig_orientation_topology_independence(self):
-        anny_topology_model = anny.Anny(rig="anny", topology="anny").to(torch.float64)
-        makehuman_topology_model = anny.Anny(rig="anny", topology="makehuman").to(
-            torch.float64
+        # Compared through phenotype and local change parameters, the input space shared
+        # by both models (their blendshape bases may differ, e.g. after compaction).
+        anny_topology_model = anny.Anny(
+            rig="anny", topology="anny", local_changes="all"
+        ).to(torch.float64)
+        makehuman_topology_model = anny.Anny(
+            rig="anny", topology="makehuman", local_changes="all"
+        ).to(torch.float64)
+        self.assertEqual(
+            anny_topology_model.phenotype_labels,
+            makehuman_topology_model.phenotype_labels,
+        )
+        self.assertEqual(
+            anny_topology_model.local_change_labels,
+            makehuman_topology_model.local_change_labels,
         )
         torch.manual_seed(0)
-        blendshape_coeffs = torch.rand(
-            (2, anny_topology_model.blendshapes.shape[0]), dtype=torch.float64
+        phenotype_kwargs = torch.rand(
+            (2, len(anny_topology_model.phenotype_labels)), dtype=torch.float64
         )
-        poses_anny = anny_topology_model.get_rest_model(blendshape_coeffs)[
-            "rest_bone_poses"
-        ]
-        poses_makehuman = makehuman_topology_model.get_rest_model(blendshape_coeffs)[
-            "rest_bone_poses"
-        ]
+        local_changes_kwargs = (
+            2
+            * torch.rand(
+                (2, len(anny_topology_model.local_change_labels)), dtype=torch.float64
+            )
+            - 1
+        )
+        poses_anny = anny_topology_model(
+            phenotype_kwargs=phenotype_kwargs, local_changes_kwargs=local_changes_kwargs
+        )["rest_bone_poses"]
+        poses_makehuman = makehuman_topology_model(
+            phenotype_kwargs=phenotype_kwargs, local_changes_kwargs=local_changes_kwargs
+        )["rest_bone_poses"]
         self.assertLess(torch.max(torch.abs(poses_anny - poses_makehuman)), 1e-6)
 
     def test_list_of_facial_actions_is_filtered(self):

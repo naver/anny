@@ -32,3 +32,6 @@ BoneOrientation: TypeAlias = Literal["blender", "procrustes", "cached"]
 LocalChanges: TypeAlias = Literal["none", "default", "all"] | Sequence[str]
 FacialActions: TypeAlias = Literal["none", "all"] | Sequence[str]
 Phenotypes: TypeAlias = Literal["default", "all"]
+# Phenotype blendshapes of an Anny model: the original ones, their compaction into a minimal
+# basis of the reachable rest states, or that basis truncated to a given rank.
+PhenotypeBlendshapes: TypeAlias = Literal["original", "compact"] | int

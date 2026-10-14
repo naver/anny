@@ -20,7 +20,13 @@ from anny.models.model_data import (
     cache_builder,
 )
 from anny.models.phenotype import Anny
-from anny.typing import LocalChanges, PoseParameterization, SkinningMethod
+from anny.typing import (
+    FacialActions,
+    LocalChanges,
+    Phenotypes,
+    PoseParameterization,
+    SkinningMethod,
+)
 
 
 @cache_builder
@@ -28,7 +34,7 @@ def build_model_data(
     rig: RigConfig,
     topology: TopologyConfig,
     local_changes: LocalChanges,
-    facial_actions: bool,
+    facial_actions: FacialActions,
 ) -> ModelData:
     if rig.base_rig == "soma":
         import anny.models.soma
@@ -69,6 +75,38 @@ def build_model_data(
         local_changes=local_changes,
         facial_actions=facial_actions,
         reference_topology="anny_from_soma" if topology.base_mesh == "soma" else "anny",
+    )
+
+
+@cache_builder
+def build_compact_model_data(
+    rig: RigConfig,
+    topology: TopologyConfig,
+    local_changes: LocalChanges,
+    facial_actions: FacialActions,
+    phenotypes: Phenotypes,
+    rank: int | None = None,
+    head_weight: float = 1.0,
+    orientation_weight: float = 1e-2,
+) -> ModelData:
+    """Model data with the phenotype blendshapes compacted into a basis of the rest states the
+    ``phenotypes`` reach (see ``model_transforms.compact_phenotype_blendshapes`` for the
+    arguments). Every argument is part of the cache key, so pass the weights as floats to
+    avoid duplicate cache entries (``1`` and ``1.0`` hash differently)."""
+    from anny.models.model_transforms import compact_phenotype_blendshapes
+
+    data = build_model_data(
+        rig=rig,
+        topology=topology,
+        local_changes=local_changes,
+        facial_actions=facial_actions,
+    )
+    return compact_phenotype_blendshapes(
+        data,
+        phenotypes=phenotypes,
+        rank=rank,
+        head_weight=head_weight,
+        orientation_weight=orientation_weight,
     )
 
 

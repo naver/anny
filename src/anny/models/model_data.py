@@ -24,6 +24,7 @@ from anny.typing import (
     PathLike,
     AlternativeTopology,
     BoneOrientation,
+    PhenotypeBlendshapes,
     Phenotypes,
     PoseParameterization,
     Rig,
@@ -33,7 +34,7 @@ from anny.typing import (
 
 ANNY_VERSION = importlib.metadata.version("anny")
 # Increase this if there are any non-backwards-compatible changes to the data/metadata format
-CURRENT_DATA_VERSION = 12
+CURRENT_DATA_VERSION = 13
 
 logger = logging.getLogger(__name__)
 
@@ -282,6 +283,8 @@ class AnnyModelConfig:
     rig: RigConfig | str
     topology: TopologyConfig | str
 
+    phenotype_blendshapes: PhenotypeBlendshapes = "compact"
+
 
 @dataclasses.dataclass(frozen=True)
 class ModelMetadata:
@@ -290,15 +293,20 @@ class ModelMetadata:
 
     # Unique label per blend shape, identifying corresponding rows across configurations
     blendshape_labels: list[str] = dataclasses.field(default_factory=list)
+    # Phenotype set the phenotype blendshapes were compacted for (see
+    # ``compact_phenotype_blendshapes``); the data can then only be used with this set.
+    # None for uncompacted data, which supports any phenotype set.
+    phenotype_labels: list[str] | None = None
 
     @property
     def local_change_labels(self) -> list[str]:
-        res = []
-        for x in self.blendshape_labels[::2]:
-            block_name, label = x.split(":")
-            if block_name == "local_change":
-                res.append(label)
-        return res
+        # Local changes come as (positive, negative) pairs of consecutive rows.
+        labels = [
+            label
+            for block_name, label in map(lambda x: x.split(":"), self.blendshape_labels)
+            if block_name == "local_change"
+        ]
+        return labels[::2]
 
     @property
     def facial_action_labels(self) -> list[str]:
@@ -347,6 +355,10 @@ class ModelData:
     bone_children_indices: torch.Tensor | None = None
     bone_children_mask: torch.Tensor | None = None
     bone_children_local_offsets: torch.Tensor | None = None
+    # Optional compaction of the phenotype blendshapes (``compact_phenotype_blendshapes``):
+    # the coefficients of the compacted rows are ``c @ projection``, ``c`` being the
+    # coefficients of the original ``stacked_phenotype_blend_shapes_mask`` rows.
+    phenotype_blendshape_projection: torch.Tensor | None = None
 
     @property
     def device(self) -> torch.device:

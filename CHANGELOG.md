@@ -8,6 +8,21 @@ All notable changes to this project.
 
 - `SMPLH` model class (`anny.models.smpl.SMPLH`) for SMPL+H (SMPL body with MANO hands),
   reading the SMPL+H `.pkl` or the extended 16-beta `.npz` files.
+- `phenotype_blendshapes` argument of `Anny(...)`: `"compact"` (default, see below),
+  `"original"` for the MakeHuman phenotype blendshapes as loaded, or a positive integer to
+  truncate the compact basis to this rank (an approximation). See
+  `anny.models.model_transforms.compact_phenotype_blendshapes`.
+
+### Changed
+
+- **Phenotype blendshapes are compacted by default**: replaced by an orthonormal basis of the
+  rest states the phenotypes can reach around the template (136 rows instead of 624 for the
+  default model). The template and the model outputs are unchanged up to round-off for given
+  parameters, but below the phenotype parameters: phenotype `blendshape_labels` become
+  `phenotype_basis:NNN`, raw blendshape coefficients are specific to a model configuration
+  (topology, rig, phenotype set), and compacted model data is restricted to its phenotype
+  set (`ModelMetadata.phenotype_labels`). Pass `phenotype_blendshapes="original"` for the
+  previous behavior. Cached model data is regenerated automatically (data version bump).
 
 ### Changed
 

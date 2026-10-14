@@ -16,6 +16,7 @@ import trimesh.graph
 from anny.models.rigged_model import RiggedModelWithLinearBlendShapes
 from anny.models.model_data import ModelData
 from anny.paths import get_anny_root_dir
+from anny.typing import Phenotypes
 from anny.utils.mesh_utils import (
     get_edge_vertex_indices,
     get_symmetric_vertex_indices,
@@ -1326,4 +1327,204 @@ def apply_soma_rig(
         template_bone_tails=None,
         bone_tails_blendshapes=None,
         bone_rolls_rotmat=None,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Phenotype blendshape compaction
+# ---------------------------------------------------------------------------
+
+# Blocks of blendshape labels driven by the phenotype parameters.
+_PHENOTYPE_BLENDSHAPE_BLOCKS = ("universal", "race", "height", "proportions", "breast")
+_RACE_LABELS = ("african", "asian", "caucasian")
+
+
+def _phenotype_corners(
+    phenotype_labels: list[str], anchors, dtype: torch.dtype
+) -> torch.Tensor:
+    """(P, n) phenotype vectors whose blendshape coefficients affinely span the coefficients
+    of every reachable phenotype: every combination of the interpolation anchors of the
+    interpolated phenotypes, and of the one-hot race vectors when race is exposed."""
+    import itertools
+
+    axes = []
+    race_indices = []
+    for i, label in enumerate(phenotype_labels):
+        if label in _RACE_LABELS:
+            race_indices.append(i)
+            axes.append([0.0])
+        else:
+            axes.append(anchors[label].tolist())
+    corners = torch.tensor(list(itertools.product(*axes)), dtype=dtype)
+    if race_indices:
+        one_hot = torch.eye(len(race_indices), dtype=dtype)
+        corners = corners.repeat_interleave(len(race_indices), dim=0)
+        corners[:, race_indices] = one_hot.repeat(
+            corners.shape[0] // len(race_indices), 1
+        )
+    return corners
+
+
+def compact_phenotype_blendshapes(
+    data: ModelData,
+    phenotypes: Phenotypes = "default",
+    rank: int | None = None,
+    head_weight: float = 1.0,
+    orientation_weight: float = 1e-2,
+) -> ModelData:
+    """Replace the phenotype blendshapes by a minimal basis of the rest states that the
+    ``phenotypes`` reach.
+
+    The rest state (vertices, bone heads, and bone tails or orientation matrices when present)
+    is affine in the ``K`` phenotype blendshape coefficients ``c``, and ``c`` is an affine
+    combination of its values at the corners of the phenotype anchor grid. The reachable rest
+    states therefore span, around the template, a linear subspace of dimension ``r <= K`` (136
+    for the default model, against 624 blendshapes), of which this transform fits an
+    orthonormal basis by SVD. The compacted model keeps the template and uses the ``r`` basis
+    directions as phenotype blendshapes, with coefficients ``c @ projection`` stored in the
+    ``phenotype_blendshape_projection`` field and applied by
+    :class:`anny.models.phenotype.Anny`. Facial action and local change blendshapes are kept
+    unchanged.
+
+    With ``rank=None`` the numerical rank is kept and the compacted model reproduces the
+    original one up to round-off (float64 fit); the weights below then have no effect on the
+    outputs. A smaller ``rank`` keeps the best approximation of the rest states over the
+    anchor grid corners, in the metric defined by the weights: mean squared vertex
+    displacement (m²), plus ``head_weight`` times the mean squared bone head (and tail)
+    displacement (m²), plus ``orientation_weight`` (m²) times the mean squared Frobenius norm
+    of the deltas of the (unit-scale) bone orientation matrices. A unit coefficient of the
+    compacted basis is one meter of RMS displacement in this metric.
+
+    The result depends on the phenotype set, recorded in ``metadata.phenotype_labels``, and
+    is valid for both values of ``extrapolate_phenotypes``.
+    """
+    from anny.models.model_data import resolve_phenotypes
+    from anny.models.phenotype import (
+        make_phenotype_anchors,
+        phenotype_blendshape_weights,
+    )
+
+    if data.stacked_phenotype_blend_shapes_mask is None:
+        raise ValueError("Model data has no phenotype blendshapes to compact.")
+    if data.metadata.phenotype_labels is not None:
+        raise ValueError(
+            "Model data is already restricted to the phenotypes "
+            f"{data.metadata.phenotype_labels} (e.g. already compacted)."
+        )
+    labels = data.metadata.blendshape_labels
+    K = data.stacked_phenotype_blend_shapes_mask.shape[0]
+    if any(
+        label.split(":")[0] not in _PHENOTYPE_BLENDSHAPE_BLOCKS for label in labels[:K]
+    ):
+        raise ValueError(
+            "Phenotype blendshapes are expected to be the first blendshapes."
+        )
+    if any(label.split(":")[0] in _PHENOTYPE_BLENDSHAPE_BLOCKS for label in labels[K:]):
+        raise ValueError(
+            "Phenotype blendshapes are expected to be the first blendshapes."
+        )
+
+    dtype, device = data.template_vertices.dtype, data.template_vertices.device
+    fit_dtype = torch.float64
+    phenotype_labels = resolve_phenotypes(phenotypes)
+    anchors = make_phenotype_anchors(fit_dtype, device)
+    mask = data.stacked_phenotype_blend_shapes_mask.to(dtype=fit_dtype, device=device)
+
+    def coefficients(phenotype_parameters: torch.Tensor) -> torch.Tensor:
+        return phenotype_blendshape_weights(
+            phenotype_parameters.to(device),
+            phenotype_labels,
+            anchors,
+            mask,
+            extrapolate=False,
+        )
+
+    corners = _phenotype_corners(phenotype_labels, anchors, fit_dtype)
+    C = coefficients(corners)  # (P, K)
+
+    # Rest-state blocks, as (K, d) deltas with their metric weights.
+    V, B = data.template_vertices.shape[0], data.template_bone_heads.shape[0]
+    blocks: dict[str, tuple[torch.Tensor, torch.Tensor, float]] = {
+        "template_vertices": (
+            data.template_vertices,
+            data.blendshapes,
+            1.0 / V,
+        ),
+        "template_bone_heads": (
+            data.template_bone_heads,
+            data.bone_heads_blendshapes,
+            head_weight / B,
+        ),
+    }
+    if data.bone_tails_blendshapes is not None:
+        assert data.template_bone_tails is not None
+        blocks["template_bone_tails"] = (
+            data.template_bone_tails,
+            data.bone_tails_blendshapes,
+            head_weight / B,
+        )
+    if data.bone_orientation_blendshapes is not None:
+        assert data.bone_template_orientation_matrices is not None
+        blocks["bone_template_orientation_matrices"] = (
+            data.bone_template_orientation_matrices,
+            data.bone_orientation_blendshapes,
+            orientation_weight / B,
+        )
+    _blendshape_field = {
+        "template_vertices": "blendshapes",
+        "template_bone_heads": "bone_heads_blendshapes",
+        "template_bone_tails": "bone_tails_blendshapes",
+        "bone_template_orientation_matrices": "bone_orientation_blendshapes",
+    }
+    names = list(blocks)
+    sqrt_weights = [blocks[name][2] ** 0.5 for name in names]
+    deltas = {name: blocks[name][1][:K].to(fit_dtype).flatten(1) for name in names}
+    D = torch.cat([s * deltas[name] for name, s in zip(names, sqrt_weights)], dim=1)
+
+    # Right singular vectors of Y = C D (rest-state offsets from the template at the corners)
+    # without forming the (P, N) matrix: with the thin SVD C = U S Vh, Y and Z = (S Vh) D
+    # share them (U has orthonormal columns).
+    _, Sc, Vhc = torch.linalg.svd(C, full_matrices=False)
+    q = int((Sc > max(C.shape) * torch.finfo(fit_dtype).eps * Sc[0]).sum())
+    Z = (Sc[:q, None] * Vhc[:q]) @ D
+    _, s, Vh = torch.linalg.svd(Z, full_matrices=False)
+    numerical_rank = int(
+        (s > max(C.shape[0], D.shape[1]) * torch.finfo(fit_dtype).eps * s[0]).sum()
+    )
+    if rank is None:
+        rank = numerical_rank
+    elif not 0 < rank <= numerical_rank:
+        raise ValueError(
+            f"rank must be in [1, {numerical_rank}] (the numerical rank), got {rank}."
+        )
+    E = Vh[:rank]
+    # Deterministic signs: the largest-magnitude entry of each direction is positive.
+    peak = E.abs().argmax(dim=1, keepdim=True)
+    E = E * E.gather(1, peak).sign()
+    projection = D @ E.T  # (K, rank)
+    logger.info(
+        f"Compacted {K} phenotype blendshapes into {rank} (numerical rank {numerical_rank})."
+    )
+
+    replacements = {}
+    for name, split, sqrt_weight in zip(
+        names, E.split([deltas[name].shape[1] for name in names], dim=1), sqrt_weights
+    ):
+        template, blendshapes, _ = blocks[name]
+        replacements[_blendshape_field[name]] = torch.cat(
+            (
+                (split / sqrt_weight).reshape(rank, *template.shape).to(dtype),
+                blendshapes[K:],
+            )
+        )
+    return dataclasses.replace(
+        data,
+        metadata=dataclasses.replace(
+            data.metadata,
+            blendshape_labels=[f"phenotype_basis:{i:03d}" for i in range(rank)]
+            + labels[K:],
+            phenotype_labels=phenotype_labels,
+        ),
+        phenotype_blendshape_projection=projection.to(dtype),
+        **replacements,
     )

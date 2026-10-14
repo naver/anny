@@ -34,9 +34,9 @@ class TestSomaRigVertexCount(unittest.TestCase):
 
 
 class TestSomaRigProcrustesOrientation(unittest.TestCase):
-    def _max_rest_pose_difference(self, model_a, model_b, blendshape_coeffs):
-        poses_a = model_a.get_rest_model(blendshape_coeffs)["rest_bone_poses"]
-        poses_b = model_b.get_rest_model(blendshape_coeffs)["rest_bone_poses"]
+    def _max_rest_pose_difference(self, model_a, model_b, **kwargs):
+        poses_a = model_a(**kwargs)["rest_bone_poses"]
+        poses_b = model_b(**kwargs)["rest_bone_poses"]
         return torch.max(torch.abs(poses_a - poses_b))
 
     def test_precomputed_orientation_data(self):
@@ -138,16 +138,37 @@ class TestSomaRigProcrustesOrientation(unittest.TestCase):
         self.assertLess(torch.max(geodesic), 1e-6)
 
     def test_orientation_topology_independence(self):
-        soma_topology_model = anny.Anny(rig="soma", topology="soma")
-        anny_topology_model = anny.Anny(rig="soma", topology="anny")
+        # Compared through phenotype and local change parameters, the input space shared
+        # by both models (their blendshape bases may differ, e.g. after compaction).
+        soma_topology_model = anny.Anny(
+            rig="soma", topology="soma", local_changes="all"
+        )
+        anny_topology_model = anny.Anny(
+            rig="soma", topology="anny", local_changes="all"
+        )
+        self.assertEqual(
+            soma_topology_model.phenotype_labels, anny_topology_model.phenotype_labels
+        )
+        self.assertEqual(
+            soma_topology_model.local_change_labels,
+            anny_topology_model.local_change_labels,
+        )
         torch.manual_seed(0)
-        blendshape_coeffs = torch.rand(
-            (4, soma_topology_model.blendshapes.shape[0]),
-            dtype=soma_topology_model.dtype,
+        dtype = soma_topology_model.dtype
+        phenotype_kwargs = torch.rand(
+            (4, len(soma_topology_model.phenotype_labels)), dtype=dtype
+        )
+        local_changes_kwargs = (
+            2
+            * torch.rand((4, len(soma_topology_model.local_change_labels)), dtype=dtype)
+            - 1
         )
         self.assertLess(
             self._max_rest_pose_difference(
-                soma_topology_model, anny_topology_model, blendshape_coeffs
+                soma_topology_model,
+                anny_topology_model,
+                phenotype_kwargs=phenotype_kwargs,
+                local_changes_kwargs=local_changes_kwargs,
             ),
             1e-6,
         )
