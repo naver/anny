@@ -1,0 +1,15 @@
+# Normalize text files to LF in the repo and in working trees
+* text=auto eol=lf
+
+# Binary assets
+*.gz          binary
+*.png         binary
+*.jpg         binary
+*.pth         binary
+*.pt          binary
+*.safetensors binary
+*.npz         binary
+*.npy         binary
+*.pkl         binary
+*.ply         binary
+*.glb         binary
