@@ -44,12 +44,13 @@ jobs:
           export REPO="${REPO:-${GITHUB_WORKSPACE}}"
           : "${ANNY_ENV_PATH:?ANNY_ENV_PATH is required on the runner}"
           cd "${REPO}"
-          export ANNY_CACHE_DIR="$(realpath -m "${ANNY_ENV_PATH}/../../anny_cache")"
-          export SMPLX_MODEL_PATH="$(realpath -m "${ANNY_ENV_PATH}/../../smplx_models")"
+          export ANNY_CACHE_DIR="$(realpath -m "${ANNY_ENV_PATH}/../../assets/anny_cache")"
+          export SMPLX_MODEL_PATH="$(realpath -m "${ANNY_ENV_PATH}/../../assets/smplx_models")"
+          export ANNY_FIXTURES_DIR="$(realpath -m "${ANNY_ENV_PATH}/../../assets/fixtures")"
 
           /opt/ci-runner/submit-slurm.sh \
             --job-name "anny-bootstrap-${GITHUB_RUN_ID}" \
-            --partition cpu-be \
+            --partition cpu \
             --cpus 4 \
             --mem 12G \
             --time 00:20:00 \
@@ -58,6 +59,7 @@ jobs:
             --env ANNY_ENV_PATH \
             --env ANNY_CACHE_DIR \
             --env SMPLX_MODEL_PATH \
+            --env ANNY_FIXTURES_DIR \
             -- \
             "python -V && uv --version"
 
@@ -75,14 +77,16 @@ jobs:
           # Derived here rather than in ci-install.sh: exports from that sourced
           # script do not reach the payload command, but --env does (same path
           # ANNY_ENV_PATH already takes). realpath -m needs no existing dir.
-          export ANNY_CACHE_DIR="${ANNY_CACHE_DIR:-$(realpath -m "${ANNY_ENV_PATH}/../../anny_cache")}"
-          export SMPLX_MODEL_PATH="${SMPLX_MODEL_PATH:-$(realpath -m "${ANNY_ENV_PATH}/../../smplx_models")}"
+          export ANNY_CACHE_DIR="${ANNY_CACHE_DIR:-$(realpath -m "${ANNY_ENV_PATH}/../../assets/anny_cache")}"
+          export SMPLX_MODEL_PATH="${SMPLX_MODEL_PATH:-$(realpath -m "${ANNY_ENV_PATH}/../../assets/smplx_models")}"
+          export ANNY_FIXTURES_DIR="${ANNY_FIXTURES_DIR:-$(realpath -m "${ANNY_ENV_PATH}/../../assets/fixtures")}"
           cd "${REPO}"
 
           /opt/ci-runner/submit-slurm.sh \
             --job-name "anny-unittest-${GITHUB_RUN_ID}" \
-            --partition gpu-be \
+            --partition gpu \
             --gres gpu:1 \
+            --constraint gpu_v100 \
             --cpus 4 \
             --mem 32G \
             --time 00:20:00 \
@@ -92,5 +96,6 @@ jobs:
             --env ANNY_ENV_PATH \
             --env ANNY_CACHE_DIR \
             --env SMPLX_MODEL_PATH \
+            --env ANNY_FIXTURES_DIR \
             -- \
             uv run --no-sync python -m unittest discover
