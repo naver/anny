@@ -1,7 +1,7 @@
 [build-system]
 requires = [
     "setuptools>=80",
-    "setuptools-scm[simple]>=8",
+    "setuptools-scm[simple]>=10",
     "wheel"
 ]
 build-backend = "setuptools.build_meta"
@@ -30,6 +30,9 @@ dependencies = [
 ]
 
 [tool.setuptools_scm]
+# Between releases, a version counts towards the next minor release (0.6.1 + 7 commits -> 0.7.0.dev7+g<hash>);
+# towards the next patch release only on a release branch named like 0.6.x or release-0.6.
+version_scheme = "semver-pep440-release-branch"
 
 [tool.setuptools.packages.find]
 where = ["src"]

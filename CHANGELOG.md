@@ -9,6 +9,12 @@ All notable changes to this project.
 - `SMPLH` model class (`anny.models.smpl.SMPLH`) for SMPL+H (SMPL body with MANO hands),
   reading the SMPL+H `.pkl` or the extended 16-beta `.npz` files.
 
+### Changed
+
+- Development versions count towards the next minor release (`0.7.0.devN` after `v0.6.1`),
+  and towards the next patch release only on release branches (`0.6.x`, `release-0.6`):
+  setuptools-scm's `semver-pep440-release-branch` scheme (setuptools-scm >= 10 to build).
+
 ### Fixed
 
 - Models retopologized onto another mesh (e.g. `SMPL(topology="anny")`) mixed float32 and
