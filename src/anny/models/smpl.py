@@ -13,10 +13,14 @@ import numpy as np
 import roma
 import torch
 
-from anny.models.rigged_model import RiggedModelWithLinearBlendShapes
+from anny.models.rigged_model import (
+    RiggedModelWithLinearBlendShapes,
+    _make_optional_buffer,
+)
 import anny.models.model_transforms
 from anny.models.model_data import ModelData, ModelMetadata
 from anny.paths import get_anny2smpl_data_path, get_anny2smplx_data_path
+from anny.torch_compat import make_buffer
 
 
 with warnings.catch_warnings():
@@ -188,13 +192,7 @@ class SMPLX(RiggedModelWithLinearBlendShapes):
         )
         bone_labels = [f"bone_{i}" for i in range(bone_count)]
 
-        self.pose_mean = model.pose_mean.reshape(1, -1, 3)
         self.use_pca = model.use_pca
-        self.left_hand_components: torch.Tensor | None = None
-        self.right_hand_components: torch.Tensor | None = None
-        if self.use_pca:
-            self.left_hand_components = model.left_hand_components
-            self.right_hand_components = model.right_hand_components
         self.pose_corrective = pose_corrective
         metadata = ModelMetadata(
             bone_parents=model.parents,
@@ -291,6 +289,20 @@ class SMPLX(RiggedModelWithLinearBlendShapes):
             pose_parameterization="local-bone-world",
             bone_orientation="blender",
             root_identity_orientation=False,
+        )
+        # Buffers so that .to() moves/casts them along with the rest of the model.
+        self.pose_mean = make_buffer(
+            self, "pose_mean", model.pose_mean.reshape(1, -1, 3), persistent=False
+        )
+        self.left_hand_components: torch.Tensor | None = _make_optional_buffer(
+            self,
+            "left_hand_components",
+            model.left_hand_components if self.use_pca else None,
+        )
+        self.right_hand_components: torch.Tensor | None = _make_optional_buffer(
+            self,
+            "right_hand_components",
+            model.right_hand_components if self.use_pca else None,
         )
 
     def forward(
@@ -615,13 +627,7 @@ class SMPLH(RiggedModelWithLinearBlendShapes):
             [torch.zeros(1 + 21, 3)] + hand_poses_mean, dim=0
         ).unsqueeze(0)
 
-        self.pose_mean = pose_mean
         self.use_pca = use_pca
-        self.left_hand_components: torch.Tensor | None = None
-        self.right_hand_components: torch.Tensor | None = None
-        if use_pca:
-            self.left_hand_components = hand_components[0]
-            self.right_hand_components = hand_components[1]
         self.pose_corrective = pose_corrective
         metadata = ModelMetadata(
             bone_parents=bone_parents,
@@ -652,6 +658,14 @@ class SMPLH(RiggedModelWithLinearBlendShapes):
             skinning_method=None,
             bone_orientation="blender",
             root_identity_orientation=False,
+        )
+        # Buffers so that .to() moves/casts them along with the rest of the model.
+        self.pose_mean = make_buffer(self, "pose_mean", pose_mean, persistent=False)
+        self.left_hand_components: torch.Tensor | None = _make_optional_buffer(
+            self, "left_hand_components", hand_components[0] if use_pca else None
+        )
+        self.right_hand_components: torch.Tensor | None = _make_optional_buffer(
+            self, "right_hand_components", hand_components[1] if use_pca else None
         )
 
     def forward(

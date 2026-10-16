@@ -347,27 +347,62 @@ def smpl_family():
     SMPL-family model."""
     return (
         (SMPL, os.path.join("smpl", "SMPL_NEUTRAL.pkl"), {}, smpl_input_dims()),
-        (SMPLH, os.path.join("smplh", "SMPLH_NEUTRAL.pkl"), {}, smplh_input_dims()),
+        (
+            SMPLH,
+            os.path.join("smplh", "SMPLH_NEUTRAL.pkl"),
+            {"use_pca": False},
+            smplh_input_dims(hand_pose_dim=15 * 3),
+        ),
+        (
+            SMPLH,
+            os.path.join("smplh", "SMPLH_NEUTRAL.pkl"),
+            {"use_pca": True, "num_pca_comps": 6},
+            smplh_input_dims(hand_pose_dim=6),
+        ),
         (
             SMPLX,
             os.path.join("smplx", "SMPLX_NEUTRAL.npz"),
             {"use_pca": False},
             smplx_input_dims(hand_pose_dim=15 * 3),
         ),
+        (
+            SMPLX,
+            os.path.join("smplx", "SMPLX_NEUTRAL.npz"),
+            {"use_pca": True, "num_pca_comps": 6},
+            smplx_input_dims(hand_pose_dim=6),
+        ),
     )
+
+
+def check_each_model(test, check):
+    """Run check(model, dims) on each SMPL-family model whose file is available."""
+    for model_class, filename, kwargs, dims in smpl_family():
+        with test.subTest(model=model_class.__name__, **kwargs):
+            if not os.path.isfile(os.path.join(SMPLX_MODEL_PATH, filename)):
+                test.skipTest(f"{filename} is not in SMPLX_MODEL_PATH")
+            check(model_class(SMPLX_MODEL_PATH, **kwargs), dims)
+
+
+@requires_smpl_models
+class TestSMPLFamilyDtypes(unittest.TestCase):
+    def test_forward_supports_dtypes(self):
+        def check(model, dims):
+            for dtype in (torch.float32, torch.float64):
+                with self.subTest(dtype=dtype):
+                    model = model.to(dtype=dtype)
+                    inputs = {
+                        name: value.to(dtype)
+                        for name, value in zero_inputs(dims).items()
+                    }
+                    self.assertEqual(model(**inputs)["vertices"].dtype, dtype)
+
+        check_each_model(self, check)
 
 
 @requires_smpl_models
 class TestSMPLFamilyGradients(unittest.TestCase):
     """Synthetic bone tails make every bone direction degenerate (zero cross product
     with the y axis); their gradients must stay finite all the same."""
-
-    def check_each_model(self, check):
-        for model_class, filename, kwargs, dims in smpl_family():
-            with self.subTest(model=model_class.__name__):
-                if not os.path.isfile(os.path.join(SMPLX_MODEL_PATH, filename)):
-                    self.skipTest(f"{filename} is not in SMPLX_MODEL_PATH")
-                check(model_class(SMPLX_MODEL_PATH, **kwargs), dims)
 
     def test_gradients_are_finite(self):
         def check(model, dims):
@@ -378,7 +413,7 @@ class TestSMPLFamilyGradients(unittest.TestCase):
                 self.assertIsNotNone(value.grad, name)
                 self.assertTrue(torch.all(torch.isfinite(value.grad)), name)
 
-        self.check_each_model(check)
+        check_each_model(self, check)
 
     def test_gradient_matches_finite_differences(self):
         def check(model, dims):
@@ -410,7 +445,7 @@ class TestSMPLFamilyGradients(unittest.TestCase):
                     msg=f"{name}[{index}]",
                 )
 
-        self.check_each_model(check)
+        check_each_model(self, check)
 
 
 if __name__ == "__main__":
