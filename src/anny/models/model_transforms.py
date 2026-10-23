@@ -1248,6 +1248,13 @@ def _build_bone_children_buffers(
     return bone_children_indices, bone_children_mask, bone_children_local_offsets
 
 
+def _with_nearest_rotations(transforms: torch.Tensor) -> torch.Tensor:
+    """Homogeneous transforms (..., 4, 4) in float64, with their rotation blocks made orthonormal."""
+    transforms = transforms.double().clone()
+    transforms[..., :3, :3] = roma.special_procrustes(transforms[..., :3, :3])
+    return transforms
+
+
 def apply_soma_rig(
     data: ModelData, soma_rig_data: dict, procrustes_orientation_data: dict
 ) -> ModelData:
@@ -1258,8 +1265,11 @@ def apply_soma_rig(
     """
     sparse_rbf_matrix = soma_rig_data["sparse_rbf_matrix"]
     skinning_weights = soma_rig_data["skinning_weights"]
-    bind_world_transforms = soma_rig_data["bind_world_transforms"]
-    t_pose_world = soma_rig_data["t_pose_world"]
+    # SOMA's frames are float32 rotations (to ~6e-8), which the kinematics invert by transposition.
+    bind_world_transforms = _with_nearest_rotations(
+        soma_rig_data["bind_world_transforms"]
+    )
+    t_pose_world = _with_nearest_rotations(soma_rig_data["t_pose_world"])
     bone_parents = soma_rig_data["bone_parents"]
     bone_labels = soma_rig_data["bone_labels"]
     dtype = data.template_vertices.dtype

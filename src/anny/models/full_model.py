@@ -580,8 +580,8 @@ def load_rig(
     heads_blend_shapes = torch.stack(heads_blend_shapes, dim=1)
     template_bone_tails = torch.stack(template_bone_tails)
     tails_blend_shapes = torch.stack(tails_blend_shapes, dim=1)
-    bone_rolls_rotmat = roma.euler_to_rotmat("Y", [torch.tensor([bone_rolls])]).to(
-        dtype
+    bone_rolls_rotmat = roma.euler_to_rotmat(
+        "Y", [torch.tensor([bone_rolls], dtype=dtype)]
     )
 
     return RigData(

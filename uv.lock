@@ -88,7 +88,7 @@ requires-dist = [
     { name = "py-soma-x", marker = "extra == 'examples'", specifier = "==0.1.0" },
     { name = "pyyaml" },
     { name = "requests" },
-    { name = "roma", specifier = ">=1.5.7" },
+    { name = "roma", specifier = ">=1.7.1" },
     { name = "ruff", marker = "extra == 'dev'", specifier = "==0.14.5" },
     { name = "safetensors" },
     { name = "scipy", marker = "extra == 'examples'" },
@@ -3569,11 +3569,16 @@ wheels = [
 
 [[package]]
 name = "roma"
-version = "1.5.7"
+version = "1.7.1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/d1/24/e4bc96b84add0ddd15348ffe58276d005d7de23890ab9d18acd6c23da956/roma-1.5.7.tar.gz", hash = "sha256:6ae16066af4c95d90082be5c4548197a69e257569bd9fb13bd53ddd147d07f01", size = 32755, upload-time = "2026-07-27T09:30:44.256Z" }
+dependencies = [
+    { name = "numpy", version = "2.2.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "numpy", version = "2.4.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "torch" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c7/18/a18523714ad6e7f777799d2a1d3c41f0cf86327de9bc78c49b39f639bd28/roma-1.7.1.tar.gz", hash = "sha256:1e8ee383a420c931a57b2469b57079bc9f1ff37216da0b0a1e0c2e2d3629c6e9", size = 335656, upload-time = "2026-10-21T14:41:41.246Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/5e/0a/9c9d3cc3a77c0208cafeac3aa8172837d17bff84975ac1c1da7974d91e0d/roma-1.5.7-py3-none-any.whl", hash = "sha256:6bd69e6d7044923e7e6e11c463c741b0c8bab35a95e5b4b43f692f5e3dbfd130", size = 25441, upload-time = "2026-07-27T09:30:43.068Z" },
+    { url = "https://files.pythonhosted.org/packages/7a/ee/539bcb0e89a18c52b3e5ac8341b24bdc6c6eec4235acd0d347803c8fa734/roma-1.7.1-py3-none-any.whl", hash = "sha256:f213b7129710e60bc48d592b72f58cd7f2cbe74e70e9c47a02e5f989d57dc5bc", size = 33875, upload-time = "2026-10-21T14:41:39.887Z" },
 ]
 
 [[package]]

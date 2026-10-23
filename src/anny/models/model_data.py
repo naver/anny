@@ -34,7 +34,7 @@ from anny.typing import (
 
 ANNY_VERSION = importlib.metadata.version("anny")
 # Increase this if there are any non-backwards-compatible changes to the data/metadata format
-CURRENT_DATA_VERSION = 13
+CURRENT_DATA_VERSION = 14
 
 logger = logging.getLogger(__name__)
 

@@ -40,7 +40,7 @@ class TestVarious(unittest.TestCase):
         }
 
         epsilon = 1e-8
-        skinning_methods = ["lbs", "dqs"]
+        skinning_methods = ["dqs", "lbs"]
         try:
             import warp  # noqa: F401
 

@@ -195,7 +195,7 @@ class SMPLX(RiggedModelWithLinearBlendShapes):
         self.use_pca = model.use_pca
         self.pose_corrective = pose_corrective
         metadata = ModelMetadata(
-            bone_parents=model.parents,
+            bone_parents=model.parents.tolist(),
             bone_labels=bone_labels,
         )
         data = ModelData(
@@ -419,7 +419,7 @@ class SMPL(RiggedModelWithLinearBlendShapes):
         bone_labels = [f"bone_{i}" for i in range(bone_count)]
         self.pose_corrective = pose_corrective
         metadata = ModelMetadata(
-            bone_parents=model.parents,
+            bone_parents=model.parents.tolist(),
             bone_labels=bone_labels,
         )
         data = ModelData(

@@ -19,7 +19,7 @@ requires-python = ">=3.10"
 
 dependencies = [
     "torch>=2.0.0",
-    "roma>=1.5.7",
+    "roma>=1.7.1",
     "numpy",
     "pyyaml",
     "pillow",

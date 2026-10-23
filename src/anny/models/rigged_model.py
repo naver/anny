@@ -81,7 +81,6 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
             data.base_mesh_vertex_indices,
             persistent=False,
         )
-        self.set_skinning_method(skinning_method)
         self.pose_parameterization: PoseParameterization = pose_parameterization
 
         self.bone_orientation: BoneOrientation = bone_orientation
@@ -91,9 +90,13 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
         self.bone_parents = data.metadata.bone_parents
         self.blendshape_labels = data.metadata.blendshape_labels
 
-        self.kinematic_propagation_fronts = kinematics.get_kinematic_propagation_fronts(
-            self.bone_parents
+        self.kinematic_chain_levels, kinematic_chain_indices = (
+            kinematics.get_kinematic_chain(self.bone_parents)
         )
+        self.kinematic_chain_indices = make_buffer(
+            self, "kinematic_chain_indices", kinematic_chain_indices, persistent=False
+        )
+        self.set_skinning_method(skinning_method)
 
         if self.bone_orientation == "blender":
             assert data.template_bone_tails is not None
@@ -204,17 +207,25 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
                 skinning_method = "warp_lbs"
             except ImportError:
                 warnings.warn(
-                    "Fallback to default lbs skinning. Consider installing NVidia Warp for lower memory footprint."
+                    "Fallback to lbs skinning. Consider installing NVidia Warp for lower memory footprint."
                 )
                 skinning_method = "lbs"
-        if skinning_method == "lbs":
-            self._skinning_method = skinning.linear_blend_skinning
-        elif skinning_method == "dqs":
+        if skinning_method == "dqs":
             self._skinning_method = skinning.dual_quaternion_skinning
         elif skinning_method == "warp_lbs":
             import anny.skinning.warp_skinning
 
             self._skinning_method = anny.skinning.warp_skinning.linear_blend_skinning
+        elif skinning_method == "lbs":
+            self.dense_vertex_bone_weights = make_buffer(
+                self,
+                "dense_vertex_bone_weights",
+                skinning.dense_bone_weights(
+                    self.vertex_bone_weights, self.vertex_bone_indices, self.bone_count
+                ),
+                persistent=False,
+            )
+            self._skinning_method = skinning.dense_linear_blend_skinning
         else:
             raise NotImplementedError
 
@@ -502,6 +513,10 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
             bone_transforms = bone_transforms.to_homogeneous()
         elif isinstance(bone_transforms, torch.Tensor):
             pass
+        if self._skinning_method is skinning.dense_linear_blend_skinning:
+            return skinning.dense_linear_blend_skinning(
+                rest_vertices, self.dense_vertex_bone_weights, bone_transforms
+            )
         vertices = self._skinning_method(
             rest_vertices,
             bone_weights=self.vertex_bone_weights.unsqueeze(dim=0),
@@ -543,93 +558,13 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
             delta_transforms, rest_bone_poses
         )
 
-        bone_transforms = None
-        if pose_parameterization == "world":
-            bone_poses = delta_transforms
-        else:
-            if self.reference_bone_orientations is not None:
-                # Use the reference bone orientations
-                ref_bone_poses, _ = (
-                    kinematics.parallel_forward_kinematic_absolute_orientations(
-                        self.kinematic_propagation_fronts,
-                        rest_bone_poses=rest_bone_poses,
-                        absolute_orientations=self.reference_bone_orientations[None],
-                    )
-                )
-            else:
-                ref_bone_poses = rest_bone_poses
-            if pose_parameterization == "local-bone-world":
-                base_transform = None
-                bone_poses, _ = kinematics.parallel_forward_kinematic(
-                    self.kinematic_propagation_fronts,
-                    rest_bone_poses=ref_bone_poses,
-                    delta_transforms=delta_transforms,
-                    base_transform=base_transform,
-                )
-            elif pose_parameterization == "local-bone":
-                # Pose is parameterized as local transforms relative to the reference pose, expressed in bone space.
-                # The reference bone is the origin
-                base_transform = (
-                    roma.Rigid.from_homogeneous(ref_bone_poses[:, 0])
-                    .inverse()
-                    .to_homogeneous()
-                )
-                bone_poses, _ = kinematics.parallel_forward_kinematic(
-                    self.kinematic_propagation_fronts,
-                    rest_bone_poses=ref_bone_poses,
-                    delta_transforms=delta_transforms,
-                    base_transform=base_transform,
-                )
-            elif pose_parameterization == "local-ref":
-                # Pose is parameterized as local transforms relative to the reference pose,
-                # expressed in the reference pose space.
-                # The reference bone is the origin
-                base_transform = (
-                    roma.Rigid.from_homogeneous(ref_bone_poses[:, 0])
-                    .inverse()
-                    .to_homogeneous()
-                )
-                reference_orientations = roma.Rigid(
-                    ref_bone_poses[:, :, :3, :3], translation=None
-                )
-                T = (
-                    reference_orientations.inverse().to_homogeneous()
-                    @ delta_transforms
-                    @ reference_orientations.to_homogeneous()
-                )
-                bone_poses, _ = kinematics.parallel_forward_kinematic(
-                    self.kinematic_propagation_fronts,
-                    rest_bone_poses=ref_bone_poses,
-                    delta_transforms=T,
-                    base_transform=base_transform,
-                )
-            elif pose_parameterization == "world-orient":
-                # Use the root bone as origin
-                base_transform = (
-                    roma.Rigid.from_homogeneous(delta_transforms[:, 0])
-                    @ roma.Rigid.from_homogeneous(rest_bone_poses[:, 0]).inverse()
-                ).to_homogeneous()
-                bone_poses, bone_transforms = (
-                    kinematics.parallel_forward_kinematic_absolute_orientations(
-                        self.kinematic_propagation_fronts,
-                        rest_bone_poses=rest_bone_poses,
-                        absolute_orientations=delta_transforms[..., :3, :3],
-                        base_transform=base_transform,
-                    )
-                )
-            else:
-                raise NotImplementedError(
-                    f"Pose parameterization {pose_parameterization} not implemented"
-                )
-
-        if bone_transforms is None:
-            bone_transforms = (
-                bone_poses
-                @ roma.Rigid.from_homogeneous(rest_bone_poses)
-                .inverse()
-                .to_homogeneous()
-            )
-        return bone_transforms, bone_poses
+        return kinematics.forward_kinematic(
+            (self.kinematic_chain_levels, self.kinematic_chain_indices),
+            rest_bone_poses,
+            delta_transforms,
+            pose_parameterization,
+            self.reference_bone_orientations,
+        )
 
     def forward(
         self,
@@ -692,57 +627,42 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
             output = bone_poses.clone()
             output[..., 1:, :3, 3] = 0.0
             return output
-        elif pose_parameterization == "local-bone":
-            if self.reference_bone_orientations is not None:
-                # Use the reference bone orientations
-                ref_bone_poses, _ = (
-                    kinematics.parallel_forward_kinematic_absolute_orientations(
-                        self.kinematic_propagation_fronts,
-                        rest_bone_poses=rest_bone_poses,
-                        absolute_orientations=self.reference_bone_orientations[None],
-                    )
-                )
-            else:
-                ref_bone_poses = rest_bone_poses
-            ref_relative = (
-                roma.Rigid.from_homogeneous(ref_bone_poses[:, self.bone_parents[1:]])
-                .inverse()
-                .to_homogeneous()
-                @ ref_bone_poses[:, 1:]
+        elif pose_parameterization not in (
+            "local-bone",
+            "local-bone-world",
+            "local-ref",
+        ):
+            raise NotImplementedError(
+                f"Pose parametrization {pose_parameterization} not implemented"
             )
-            relative = (
-                roma.Rigid.from_homogeneous(bone_poses[:, self.bone_parents[1:]])
-                .inverse()
-                .to_homogeneous()
-                @ bone_poses[:, 1:]
+
+        # The reference poses: each bone's reference orientation at its head, as posed by its parents.
+        ref_bone_poses = rest_bone_poses
+        if self.reference_bone_orientations is not None:
+            identity = torch.eye(
+                4, dtype=rest_bone_poses.dtype, device=rest_bone_poses.device
             )
-            local = ref_relative.inverse() @ relative
-            return torch.cat((bone_poses[:, 0, None], local), dim=1)
-        elif pose_parameterization == "local-bone-world":
-            if self.reference_bone_orientations is not None:
-                # Use the reference bone orientations
-                ref_bone_poses, _ = (
-                    kinematics.parallel_forward_kinematic_absolute_orientations(
-                        self.kinematic_propagation_fronts,
-                        rest_bone_poses=rest_bone_poses,
-                        absolute_orientations=self.reference_bone_orientations[None],
-                    )
-                )
-            else:
-                ref_bone_poses = rest_bone_poses
-            ref_relative = (
-                roma.Rigid.from_homogeneous(ref_bone_poses[:, self.bone_parents[1:]])
-                .inverse()
-                .to_homogeneous()
-                @ ref_bone_poses[:, 1:]
-            )
-            relative = (
-                roma.Rigid.from_homogeneous(bone_poses[:, self.bone_parents[1:]])
-                .inverse()
-                .to_homogeneous()
-                @ bone_poses[:, 1:]
-            )
-            local = ref_relative.inverse() @ relative
+            ref_bone_poses = kinematics.forward_kinematic(
+                (self.kinematic_chain_levels, self.kinematic_chain_indices),
+                rest_bone_poses,
+                identity.expand_as(rest_bone_poses),
+                "local-bone-world",
+                self.reference_bone_orientations,
+            )[1]
+        ref_relative = (
+            roma.Rigid.from_homogeneous(ref_bone_poses[:, self.bone_parents[1:]])
+            .inverse()
+            .to_homogeneous()
+            @ ref_bone_poses[:, 1:]
+        )
+        relative = (
+            roma.Rigid.from_homogeneous(bone_poses[:, self.bone_parents[1:]])
+            .inverse()
+            .to_homogeneous()
+            @ bone_poses[:, 1:]
+        )
+        local = ref_relative.inverse() @ relative
+        if pose_parameterization == "local-bone-world":
             root = (
                 roma.Rigid.from_homogeneous(ref_bone_poses[:, 0])
                 .inverse()
@@ -750,21 +670,8 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
                 @ bone_poses[:, 0]
             )
             return torch.cat((root[:, None], local), dim=1)
-        elif pose_parameterization == "local-ref":
-            output = self.get_pose_parameterization(
-                model_output, pose_parameterization="local-bone"
-            )
-            if self.reference_bone_orientations is not None:
-                # Use the reference bone orientations
-                ref_bone_poses, _ = (
-                    kinematics.parallel_forward_kinematic_absolute_orientations(
-                        self.kinematic_propagation_fronts,
-                        rest_bone_poses=rest_bone_poses,
-                        absolute_orientations=self.reference_bone_orientations[None],
-                    )
-                )
-            else:
-                ref_bone_poses = rest_bone_poses
+        output = torch.cat((bone_poses[:, 0, None], local), dim=1)
+        if pose_parameterization == "local-ref":
             reference_orientations = roma.Rigid(
                 ref_bone_poses[:, :, :3, :3], translation=None
             )
@@ -773,8 +680,4 @@ class RiggedModelWithLinearBlendShapes(torch.nn.Module):
                 @ output
                 @ reference_orientations.inverse().to_homogeneous()
             )
-            return output
-        else:
-            raise NotImplementedError(
-                f"Pose parametrization {pose_parameterization} not implemented"
-            )
+        return output

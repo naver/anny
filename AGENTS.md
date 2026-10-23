@@ -62,8 +62,8 @@ bash build_doc.bash  # build HTML docs from the jupytext py:percent tutorials in
 
 | Subsystem | Location | Purpose |
 |-----------|----------|---------|
-| Forward kinematics | `utils/kinematics.py` | Tree traversal with parallel propagation fronts |
-| Skinning | `skinning/skinning.py` | LBS and dual-quaternion skinning (`skinning_method="lbs"` / `"dqs"`) |
+| Forward kinematics | `utils/kinematics.py` | One chain product S_c = S_p K_c over the bones in depth order (index buffers built at init), for every pose parameterization |
+| Skinning | `skinning/skinning.py` | LBS with dense (vertices, bones) weights and dual-quaternion skinning (`skinning_method="lbs"` / `"dqs"`) |
 | GPU skinning | `skinning/warp_skinning.py` | `warp-lang` accelerated LBS (`skinning_method="warp_lbs"`) |
 | Collision | `utils/collision.py` | Self-intersection detection, warp-accelerated |
 | Model data | `models/model_data.py` | `ModelData` / `ModelMetadata` dataclasses; bundle template mesh, blend shapes, and rig data; safetensors serialization for caching |

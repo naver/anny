@@ -5,43 +5,36 @@ import torch
 import roma
 
 
-def linear_blend_skinning(vertices, bone_weights, bone_indices, bone_transforms):
+def dense_bone_weights(sparse_weights, sparse_indices, bone_count):
     """
-    Apply linear blend skinning to a batch of sets of vertices using sparse bone weights.
+    The (num_vertices, bone_count) dense weight matrix from the sparse (num_vertices, max_bones_per_vertex)
+    bone weights and bone indices.
+    """
+    weights = torch.zeros(
+        sparse_indices.shape[0],
+        bone_count,
+        dtype=sparse_weights.dtype,
+        device=sparse_weights.device,
+    )
+    return weights.scatter_add_(1, sparse_indices.long(), sparse_weights)
+
+
+def dense_linear_blend_skinning(vertices, bone_weights, bone_transforms):
+    """
+    Linear blend skinning with dense bone weights: one matrix product per state over every bone,
+    instead of gathering each vertex's bone transforms.
 
     Args:
     vertices (torch.Tensor): Tensor of shape (batch_size, num_vertices, 3) containing the vertex positions.
-    bone_weights (torch.Tensor): Tensor of shape (batch_size, num_vertices, max_bones_per_vertex),
-        containing the bone weights for each vertex.
-    bone_indices (torch.Tensor): Tensor of shape (batch_size, num_vertices, max_bones_per_vertex),
-        containing the bone indices for each vertex.
+    bone_weights (torch.Tensor): Tensor of shape (num_vertices, num_bones), see dense_bone_weights.
     bone_transforms (torch.Tensor): Tensor of shape (batch_size, num_bones, 4, 4),
         containing the bone transformation matrices.
 
     Returns:
     torch.Tensor: Transformed vertices of shape (batch_size, num_vertices, 3).
     """
-    B1, _, _ = vertices.shape
-    batch_size = max(B1, bone_transforms.shape[0])
-
-    vertices = vertices.expand(batch_size, -1, -1)
-    bone_weights = bone_weights.expand(batch_size, -1, -1)
-    bone_indices = bone_indices.expand(batch_size, -1, -1)
-    bone_transforms = bone_transforms.expand(batch_size, -1, -1, -1)
-
-    batch_indices = torch.arange(batch_size, device=bone_indices.device)[:, None, None]
-    selected_bone_transforms = bone_transforms[batch_indices, bone_indices, :3, :]
-
-    # Blend the transformations
-    transforms = torch.sum(
-        bone_weights.unsqueeze(-1).unsqueeze(dim=-1) * selected_bone_transforms, dim=2
-    )
-
-    # Apply the transformations
-    # Strong assumption here to get consistent results:
-    # The weights are supposed to sum to one, and the transformations are assumed to be affine.
-    vertices_homo = torch.cat([vertices, torch.ones_like(vertices[..., :1])], dim=-1)
-    return torch.einsum("bvik, bvk -> bvi", transforms, vertices_homo)
+    blend = torch.einsum("nj,bjik->bnik", bone_weights, bone_transforms[..., :3, :])
+    return (blend[..., :3] * vertices[..., None, :]).sum(-1) + blend[..., 3]
 
 
 def homogeneous_to_dual_quaternion(homogeneous):
@@ -67,7 +60,7 @@ def unit_dual_quaternion_to_homogeneous(dual_quat):
 def dual_quaternion_skinning(vertices, bone_weights, bone_indices, bone_transforms):
     """
     Apply dual quaternion blend skinning to a batch of sets of vertices using sparse bone weights.
-    Take homogeneous transformations as input for compatibility with linear_blend_skinning
+    Take homogeneous transformations as input for compatibility with dense_linear_blend_skinning
 
     Args:
     vertices (torch.Tensor): Tensor of shape (batch_size, num_vertices, 3) containing the vertex positions.
@@ -178,8 +171,9 @@ if __name__ == "__main__":
         .expand(batch_size, num_bones, -1, -1)
     )  # Example bone transforms
 
-    transformed_vertices = linear_blend_skinning(
-        vertices, bone_weights, bone_indices, bone_transforms
+    dense_weights = dense_bone_weights(bone_weights[0], bone_indices[0], num_bones)
+    transformed_vertices = dense_linear_blend_skinning(
+        vertices, dense_weights, bone_transforms
     )
     transformed_vertices_qual_quat = dual_quaternion_skinning(
         vertices, bone_weights, bone_indices, bone_transforms
@@ -190,8 +184,8 @@ if __name__ == "__main__":
     print(
         "LBS",
         timeit.timeit(
-            lambda: linear_blend_skinning(
-                vertices, bone_weights, bone_indices, bone_transforms
+            lambda: dense_linear_blend_skinning(
+                vertices, dense_weights, bone_transforms
             ),
             number=200,
         ),

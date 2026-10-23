@@ -289,6 +289,7 @@ def main_anny(
         topology="anny",
         local_changes="all",
         facial_actions="none",
+        phenotype_blendshapes="original",
     )
 
     # The bone orientations are inconsistent across shapes (which motivates the use of

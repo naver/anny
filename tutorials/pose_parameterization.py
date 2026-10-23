@@ -57,7 +57,7 @@ axis = trimesh.creation.axis(axis_length=0.1)
 # ### Pose parameterization
 #
 # A pose is described by a set of 4x4 rigid transformation matrices, one per bone. Here
-# we set all bone transformations to be the identity, which corresponds to the rest pose:
+# we set all bone transformations to be the identity, which corresponds to the reference pose:
 #
 # *Remark: we use direct transforms and column vectors conventions, so that coordinates
 # $X_i$ of a vector are transformed by a matrix $M_{i,j}$ into $Y_i = \sum_k M_{ik} X_k$.*
@@ -111,7 +111,7 @@ scene.show()
 # Anny supports different pose parameterizations that behave differently.
 # The choice of parameterization can be changed at instantiation through the
 # `pose_parameterization` argument, or at each call of Anny using the
-# `pose_parameterization` argument.
+# `pose_parameterization` argument. The default is *local-ref*.
 #
 # ### pose_parameterization="local-bone"
 #
@@ -121,8 +121,9 @@ scene.show()
 # with the world coordinate system.
 #
 # The transformation associated to a bone affects this bone and its children along the kinematic chain of the model.
-# It describes the transformation applied to the bone with respect to its parent bone,
-# and is expressed with respect to the rest coordinates system of this bone.
+# It describes the transformation applied to the bone with respect to its parent bone, from its reference pose,
+# and is expressed in the coordinate system of this bone. The reference pose is the rest pose, unless the rig
+# defines reference bone orientations, as `anny` does.
 #
 # Let us consider a particular bone, the left shoulder for example. We show below its default pose:
 
@@ -131,7 +132,7 @@ bone_id = anny_model.bone_labels.index("shoulder01.L")
 print(f"Bone 'shoulder01.L' has id {bone_id}.")
 
 pose_parameters = {label: torch.eye(4)[None] for label in anny_model.bone_labels}
-output = anny_model(pose_parameters=pose_parameters)
+output = anny_model(pose_parameters=pose_parameters, pose_parameterization="local-bone")
 mesh = trimesh.Trimesh(
     vertices=output["vertices"].squeeze(), faces=anny_model.faces, process=False
 )
@@ -146,7 +147,7 @@ scene.apply_transform(trimesh_scene_transform)
 scene.show()
 
 # %% [markdown]
-# Let us apply a rotation around the Z axis (in blue) to rotate this bone with respect
+# Let us apply a rotation around its Z axis (in blue) to rotate this bone with respect
 # to its parent. Note how it affects the whole arm.
 
 # %%
@@ -155,7 +156,7 @@ pose_parameters = {label: torch.eye(4)[None] for label in anny_model.bone_labels
 pose_parameters["shoulder01.L"] = roma.Rigid(
     roma.euler_to_rotmat("z", [30.0], degrees=True), translation=None
 ).to_homogeneous()[None]
-output = anny_model(pose_parameters=pose_parameters)
+output = anny_model(pose_parameters=pose_parameters, pose_parameterization="local-bone")
 mesh = trimesh.Trimesh(
     vertices=output["vertices"].squeeze(), faces=anny_model.faces, process=False
 )
@@ -168,6 +169,13 @@ scene.add_geometry(
 )
 scene.apply_transform(trimesh_scene_transform)
 scene.show()
+
+# %% [markdown]
+# #### ```pose_parameterization="local-ref"```
+# *local-ref* mode, the default, is the same as *local-bone* mode, except that the
+# coordinate system of each bone is aligned with the world coordinate system when the
+# model is in its reference pose. In *local-ref* mode, the rotation above would therefore
+# rotate the shoulder around the world Z axis.
 
 # %% [markdown]
 # #### ```pose_parameterization="world"```
@@ -211,7 +219,7 @@ scene.show()
 # resolved through forward kinematics.
 
 # %%
-output = anny_model(pose_parameterization="local-bone")  # rest pose
+output = anny_model(pose_parameterization="local-bone")  # reference pose
 pose_parameters = anny_model.get_pose_parameterization(
     output, pose_parameterization="world-orient"
 )

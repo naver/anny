@@ -5,300 +5,6 @@ import torch
 import roma
 
 
-def get_kinematic_propagation_fronts(parent_indices):
-    """
-    Group nodes of a kinematic tree into subsets allowing parallel computations of forward kinematics within a set,
-    i.e. propagation fronts of forward kinematic information.
-    Args:
-        - parent_indices: A list in which each element is the index of the parent joint in the kinematic tree.
-                         Absence of parent (i.e. root joints) is encoded using -1.
-
-    Returns:
-        A tuple of two lists:
-        - The first list contains lists of joint indices that can be processed in parallel.
-        - The second list contains lists of parent indices associated with each joint in the parallel groups.
-    """
-    num_joints = len(parent_indices)
-    grouped_joints_indices = []
-    grouped_joints_parents = []
-
-    # Create a list to keep track of whether each joint has been assigned to a group.
-    assigned = [False] * num_joints
-
-    # Start with the first level: joints with parent -1 (root joints)
-    current_level = [i for i in range(num_joints) if parent_indices[i] < 0]
-
-    while current_level:
-        # Add the current level of independent joints and their parents to the result
-        grouped_joints_indices.append(current_level)
-        grouped_joints_parents.append([parent_indices[i] for i in current_level])
-
-        # Mark joints in the current level as assigned
-        for joint in current_level:
-            assigned[joint] = True
-
-        # Find the next level: joints whose parent is in the current level and not yet assigned
-        next_level = []
-        for i in range(num_joints):
-            if not assigned[i] and parent_indices[i] in current_level:
-                next_level.append(i)
-
-        # Move to the next level
-        current_level = next_level
-
-    assert all(assigned)
-    return grouped_joints_indices, grouped_joints_parents
-
-
-def identity_rotation_like(translation):
-    d = translation.shape[-1]
-    return torch.eye(d, dtype=translation.dtype, device=translation.device)[
-        [None] * len(translation.shape[:-1])
-    ]
-
-
-def forward_kinematic(bone_parents, rest_bone_poses, delta_transforms):
-    """
-    Args:
-        - bone_parents: torch.Tensor of shape [B]
-        - rest_bone_poses: torch.Tensor of shape [bs,B,4,4]
-        - delta_transforms: torch.Tensor of shape [bs,B,4,4]
-        - mode: string
-    Return:
-        - poses: [bs,B,4,4]
-        - transforms: [bs,B,4,4]
-    """
-    # Pose of each bone
-    poses = torch.empty_like(rest_bone_poses)
-    # Relative pose of each bone with respect to its rest pose
-    transforms = torch.empty_like(rest_bone_poses)
-
-    bs, B = rest_bone_poses.shape[:2]
-
-    for bone_id in range(len(bone_parents)):
-        delta = delta_transforms[:, bone_id]
-        rest_pose = rest_bone_poses[:, bone_id]
-        parent_id = bone_parents[bone_id]
-        T = rest_pose @ delta
-
-        if parent_id >= 0:
-            pose = transforms[:, parent_id] @ T
-        else:
-            pose = T
-        transform = pose @ rest_pose.inverse()
-        poses[:, bone_id] = pose
-        transforms[:, bone_id] = transform
-    return poses, transforms
-
-
-def forward_kinematic_absolute_orientations(
-    bone_parents, rest_bone_poses, absolute_orientations
-):
-    """
-    Args:
-        - bone_parents: torch.Tensor of shape [B]
-        - rest_bone_poses: torch.Tensor of shape [bs,B,4,4]
-        - absolute_orientations: list of ([bs,3,3] rotation matrices or None)
-        - mode: string
-    Return:
-        - poses: [bs,B,4,4]
-        - transforms: [bs,B,4,4]
-    """
-    # Pose of each bone
-    poses = torch.empty_like(rest_bone_poses)
-    # Relative pose of each bone with respect to its rest pose
-    transforms = torch.empty_like(rest_bone_poses)
-
-    bs, B = rest_bone_poses.shape[:2]
-
-    for bone_id in range(len(bone_parents)):
-        absolute_orientation = absolute_orientations[bone_id]
-        rest_pose = rest_bone_poses[:, bone_id]
-        parent_id = bone_parents[bone_id]
-        if parent_id >= 0:
-            pose = transforms[:, parent_id] @ rest_pose
-        else:
-            pose = (
-                rest_pose.clone()
-            )  # Use clone to avoid in-place modification of rest_pose
-        if absolute_orientation is not None:
-            pose[:, :3, :3] = absolute_orientation
-        transform = pose @ rest_pose.inverse()
-        poses[:, bone_id] = pose
-        transforms[:, bone_id] = transform
-    return poses, transforms
-
-
-def forward_kinematic_v2(bone_parents, rest_bone_poses, delta_transforms):
-    """
-    Args:
-        - bone_parents: torch.Tensor of shape [B]
-        - rest_bone_poses: torch.Tensor of shape [bs,B,4,4]
-        - delta_transforms: torch.Tensor of shape [bs,B,4,4]
-        - mode: string
-    Return:
-        - poses: [bs,B,4,4]
-        - transforms: [bs,B,4,4]
-    """
-
-    bs, B, _, _ = rest_bone_poses.shape
-
-    T = rest_bone_poses @ delta_transforms
-
-    bone_rest_poses_inv = rest_bone_poses.inverse()
-
-    poses, transforms = [], []
-    for bone_id in range(len(bone_parents)):
-        parent_id = bone_parents[bone_id]
-        rest_pose_inv = bone_rest_poses_inv[:, bone_id]
-
-        if parent_id >= 0:
-            pose = torch.matmul(transforms[parent_id], T[:, bone_id])
-        else:
-            pose = T[:, bone_id]
-
-        transform = torch.matmul(pose, rest_pose_inv)
-
-        transforms.append(transform)
-        poses.append(pose)
-
-    return torch.stack(poses, 1), torch.stack(transforms, 1)
-
-
-def parallel_forward_kinematic(
-    kinematic_propagation_fronts, rest_bone_poses, delta_transforms, base_transform=None
-):
-    """
-    Args:
-        - kinematic_propagation_fronts: output of get_kinematic_propagation_fronts
-        - rest_bone_poses: torch.Tensor of shape [bs,B,4,4]
-        - delta_transforms: torch.Tensor of shape [bs,B,4,4]
-        - mode: string
-    Return:
-        - poses: [bs,B,4,4]
-        - transforms: [bs,B,4,4]
-    """
-
-    l_grouped_indices, l_grouped_parents = kinematic_propagation_fronts
-
-    bs, B, _, _ = rest_bone_poses.shape
-
-    T = rest_bone_poses @ delta_transforms
-
-    bone_rest_poses_inv = (
-        roma.Rigid.from_homogeneous(rest_bone_poses).inverse().to_homogeneous()
-    )
-
-    # Preallocate tensors for poses and transforms with the same shape as rest_bone_poses
-    poses = torch.empty_like(rest_bone_poses)
-    transforms = torch.empty_like(rest_bone_poses)
-
-    for i in range(len(l_grouped_indices)):
-        grouped_joints_indices = l_grouped_indices[i]
-        grouped_joints_parents = l_grouped_parents[i]
-
-        # Handle bones with no parents first
-        for bone_id, parent_id in zip(grouped_joints_indices, grouped_joints_parents):
-            if parent_id == -1:  # Root bones
-                root_poses = (
-                    T[:, bone_id]
-                    if (base_transform is None)
-                    else base_transform @ T[:, bone_id]
-                )
-                poses[:, bone_id] = root_poses
-                transforms[:, bone_id] = torch.einsum(
-                    "bij,bjk->bik", root_poses, bone_rest_poses_inv[:, bone_id]
-                )
-
-        # Now handle bones with parents
-        children_and_parents = [
-            (child, parent)
-            for child, parent in zip(grouped_joints_indices, grouped_joints_parents)
-            if parent >= 0
-        ]
-        if len(children_and_parents) > 0:
-            children, parents = zip(*children_and_parents)
-            children = torch.tensor(children, dtype=torch.long, device=T.device)
-            parents = torch.tensor(parents, dtype=torch.long, device=T.device)
-            children_poses = torch.einsum(
-                "blij,bljk->blik", transforms[:, parents], T[:, children]
-            )
-            poses[:, children] = children_poses
-            transforms[:, children] = torch.einsum(
-                "blij,bljk->blik", children_poses, bone_rest_poses_inv[:, children]
-            )
-    return poses, transforms
-
-
-def parallel_forward_kinematic_absolute_orientations(
-    kinematic_propagation_fronts,
-    rest_bone_poses,
-    absolute_orientations,
-    base_transform=None,
-):
-    """
-    Args:
-        - kinematic_propagation_fronts: output of get_kinematic_propagation_fronts
-        - rest_bone_poses: torch.Tensor of shape [bs,B,4,4]
-        - absolute_orientations: torch.Tensor of shape [bs,B,3,3]
-    Return:
-        - poses: [bs,B,4,4]
-        - transforms: [bs,B,4,4]
-    """
-
-    l_grouped_indices, l_grouped_parents = kinematic_propagation_fronts
-
-    bs, B, _, _ = rest_bone_poses.shape
-
-    T = rest_bone_poses
-
-    bone_rest_poses_inv = (
-        roma.Rigid.from_homogeneous(rest_bone_poses).inverse().to_homogeneous()
-    )
-
-    # Preallocate tensors for poses and transforms with the same shape as rest_bone_poses
-    poses = torch.empty_like(rest_bone_poses)
-    transforms = torch.empty_like(rest_bone_poses)
-
-    for i in range(len(l_grouped_indices)):
-        grouped_joints_indices = l_grouped_indices[i]
-        grouped_joints_parents = l_grouped_parents[i]
-
-        # Handle bones with no parents first
-        for bone_id, parent_id in zip(grouped_joints_indices, grouped_joints_parents):
-            if parent_id == -1:  # Root bones
-                root_poses = (
-                    T[:, bone_id]
-                    if (base_transform is None)
-                    else base_transform @ T[:, bone_id]
-                )
-                poses[:, bone_id] = root_poses
-                poses[:, bone_id, :3, :3] = absolute_orientations[:, bone_id]
-                transforms[:, bone_id] = torch.einsum(
-                    "bij,bjk->bik", root_poses, bone_rest_poses_inv[:, bone_id]
-                )
-
-        # Now handle bones with parents
-        children_and_parents = [
-            (child, parent)
-            for child, parent in zip(grouped_joints_indices, grouped_joints_parents)
-            if parent >= 0
-        ]
-        if len(children_and_parents) > 0:
-            children, parents = zip(*children_and_parents)
-            children = torch.tensor(children, dtype=torch.long, device=T.device)
-            parents = torch.tensor(parents, dtype=torch.long, device=T.device)
-            children_poses = torch.einsum(
-                "blij,bljk->blik", transforms[:, parents], T[:, children]
-            )
-            children_poses[:, :, :3, :3] = absolute_orientations[:, children, :, :]
-            poses[:, children] = children_poses
-            transforms[:, children] = torch.einsum(
-                "blij,bljk->blik", children_poses, bone_rest_poses_inv[:, children]
-            )
-    return poses, transforms
-
-
 def get_bone_poses(
     bone_heads, bone_tails, bone_rolls_rotmat, y_axis, degenerate_rotation, epsilon=0.1
 ):
@@ -350,3 +56,181 @@ def get_bone_poses(
     H[..., 3, :3] = 0.0
     H[..., 3, 3] = 1.0
     return H
+
+
+# 3x3 and 4x4 products as broadcast sums: on a V100, torch.matmul was slower in the chain product below
+# (1.9 vs 1.6 ms for one state, 3.8 vs 1.6 ms for 1024).
+def _apply(r, v):
+    return (r * v[..., None, :]).sum(-1)
+
+
+def _mm(a, b):
+    return (a[..., :, :, None] * b[..., None, :, :]).sum(-2)
+
+
+def get_kinematic_chain(bone_parents):
+    """
+    The bones in depth order, for forward_kinematic: the root (a single one, at index 0), then its children, then
+    theirs, and so on, so that each depth level is a contiguous slice whose parents all lie in the level before it.
+
+    Args:
+        - bone_parents: list of B parent indices, the root's being negative
+    Return:
+        - levels: list of the (first, last + 1) positions of each depth level
+        - indices: LongTensor (4, B): each bone's parent's position within the level before it (root: 0),
+          the depth order, its inverse, and each bone's parent (root: itself)
+    """
+    bone_parents = [int(parent) for parent in bone_parents]
+    assert bone_parents[0] < 0 and min(bone_parents[1:], default=0) >= 0, (
+        "Expected a single root bone, at index 0."
+    )
+    children = [[] for _ in bone_parents]
+    for bone, parent in enumerate(bone_parents[1:], start=1):
+        children[parent].append(bone)
+    levels, order, local = [], [0], [0]
+    first = 0
+    while first < len(order):
+        last = len(order)
+        levels.append((first, last))
+        for position in range(first, last):
+            for child in children[order[position]]:
+                order.append(child)
+                local.append(position - first)
+        first = last
+    assert len(order) == len(bone_parents), (
+        "Expected every bone to descend from the root."
+    )
+    order = torch.tensor(order)
+    indices = torch.stack(
+        [
+            torch.tensor(local),
+            order,
+            torch.argsort(order),
+            torch.tensor([0] + bone_parents[1:]),
+        ]
+    )
+    return levels, indices
+
+
+def forward_kinematic(
+    kinematic_chain,
+    rest_bone_poses,
+    delta_transforms,
+    pose_parameterization,
+    reference_orientations=None,
+):
+    """
+    Forward kinematics: the posed bone poses for delta transforms in a pose parameterization, and the bone transforms
+    that map the rest pose to them.
+
+    Notation, for a bone c of parent p, [X | t] being the rigid transform x -> X x + t:
+        - P_c = [R_c | h_c]: the rest pose, h_c being the bone's head.
+        - Q_c = [U_c | q_c]: the reference pose, P_c if None. Each bone takes its reference orientation U_c, rotating
+          its descendants' heads with it about its own head, except the root, whose rotation leaves the skeleton in
+          place.
+        - [D_c | d_c]: the delta transform. Only its top 3x4 block is read.
+        - W_c: the posed pose, returned as poses.
+        - T_c = W_c P_c^-1 is returned as transforms (for skinning).
+
+    The delta transforms in each pose parameterization:
+        - 'local-bone': W_c = W_p (Q_p^-1 Q_c) D_c. The delta is the bone's pose relative to its reference pose, in
+          its reference frame. The root's delta is its world pose, W_0 = D_0.
+        - 'local-bone-world': like 'local-bone', but the root's delta is relative to its reference pose too,
+          W_0 = Q_0 D_0. Identity deltas then give the reference poses Q_c.
+        - 'local-ref': like 'local-bone', but each delta is expressed in world-aligned axes rather than in the bone's
+          reference axes: D_c is replaced by [U_c^T | 0] D_c [U_c | 0], the root's included. This is 'local-bone'
+          when the reference orientations are I.
+        - 'world-orient': D_c is the bone's world orientation, and its head follows its parent: W_c = [D_c | T_p h_c].
+          d_c is ignored except for the root, whose delta is its world pose, W_0 = [D_0 | d_0].
+        - 'world': the deltas are the posed poses, W_c = D_c.
+
+    Implementation: a chain X_c = X_p K_c on the poses W, or on the transforms T for 'world-orient', with the K_c
+    computed for every bone at once, so the chain takes one batched product per depth level. Rotations are inverted
+    by transposition.
+
+    Args:
+        - kinematic_chain: output of get_kinematic_chain
+        - rest_bone_poses: torch.Tensor [..., B, 4, 4]
+        - delta_transforms: torch.Tensor [..., B, 4, 4]
+        - pose_parameterization: 'local-bone', 'local-bone-world', 'local-ref', 'world-orient' or 'world'
+        - reference_orientations: torch.Tensor [B, 3, 3], or None for the rest orientations
+    Return:
+        - transforms: [..., B, 4, 4]
+        - poses: [..., B, 4, 4]
+    """
+    levels, (local, order, inverse, parent) = kinematic_chain
+    R, h = rest_bone_poses[..., :3, :3], rest_bone_poses[..., :3, 3]
+    D, d = delta_transforms[..., :3, :3], delta_transforms[..., :3, 3]
+    if pose_parameterization == "world-orient":
+        # W_c = [D_c | T_p h_c] gives, with G_c = D_c R_c^T, T_c = [G_c | T_p h_c - G_c h_c].
+        # We can define K_c = T_p^-1 T_c = [G_p^T G_c | h_c - G_p^T G_c h_c] to compute
+        # the chain T_c = T_p K_c for every bone.
+        # The root's T_0 = [D_0 | d_0] P_0^-1 = [G_0 | d_0 - G_0 h_0].
+        G = _mm(D, R.transpose(-1, -2))
+        K_rotations = _mm(G[..., parent, :, :].transpose(-1, -2), G)
+        K = _rigid(K_rotations, h - _apply(K_rotations, h))
+        G0 = G[..., 0, :, :]
+        T0 = _rigid(G0, d[..., 0, :] - _apply(G0, h[..., 0, :]))
+        T = _chain_product(levels, local, order, inverse, T0, K)
+        return T, _mm(T, rest_bone_poses)
+
+    if pose_parameterization == "world":
+        W = delta_transforms
+    elif pose_parameterization in ("local-ref", "local-bone", "local-bone-world"):
+        # The reference head offsets q_offsets = q_c - q_p = A_p (h_c - h_p),
+        # with A_p = U_p R_p^T the parent's rotation
+        # from its rest to its reference orientation, and A_0 taken as I.
+        h_offsets = h - h[..., parent, :]
+        if reference_orientations is None:
+            U, q_offsets = R, h_offsets
+        else:
+            U = reference_orientations
+            eye = torch.eye(3, dtype=R.dtype, device=R.device).expand_as(
+                R[..., :1, :, :]
+            )
+            A = _mm(U[..., 1:, :, :], R[..., 1:, :, :].transpose(-1, -2))
+            A = torch.cat([eye, A], -3)
+            q_offsets = _apply(A[..., parent, :, :], h_offsets)
+        # W_c = W_p K_c with K_c = [U_p^T | 0] [I | q_c - q_p] [M_c | m_c] = [U_p^T M_c | U_p^T (q_c - q_p + m_c)],
+        # where:
+        # [M_c | m_c] = [D_c | d_c] [U_c | 0] for 'local-ref',
+        # [M_c | m_c] = [U_c | 0] [D_c | d_c] for 'local-bone-*'.
+        if pose_parameterization == "local-ref":
+            M, m = _mm(D, U), d
+        else:
+            M, m = _mm(U, D), _apply(U, d)
+        U_pt = U[..., parent, :, :].transpose(-1, -2)
+        K = _rigid(_mm(U_pt, M), _apply(U_pt, m + q_offsets))
+        M0, m0 = M[..., 0, :, :], m[..., 0, :]
+        if pose_parameterization == "local-ref":
+            # W_0 = [U_0^T | 0] [D_0 | d_0] [U_0 | 0]
+            U0_t = U[..., 0, :, :].transpose(-1, -2)
+            W0 = _rigid(_mm(U0_t, M0), _apply(U0_t, m0))
+        elif pose_parameterization == "local-bone":
+            # W_0 = [D_0 | d_0]
+            W0 = _rigid(D[..., 0, :, :], d[..., 0, :])
+        else:  # local-bone-world
+            # W_0 = Q_0 [D_0 | d_0] = [I | h_0] [U_0 | 0] [D_0 | d_0]
+            W0 = _rigid(M0, m0 + h[..., 0, :])
+        W = _chain_product(levels, local, order, inverse, W0, K)
+    else:
+        raise NotImplementedError(
+            f"Pose parameterization {pose_parameterization} not implemented"
+        )
+    # T_c = W_c P_c^-1 = [V_c R_c^T | w_c - V_c R_c^T h_c] for W_c = [V_c | w_c].
+    T_rotations = _mm(W[..., :3, :3], R.transpose(-1, -2))
+    return _rigid(T_rotations, W[..., :3, 3] - _apply(T_rotations, h)), W
+
+
+def _rigid(rotation, translation):
+    return roma.Rigid(rotation, translation).to_homogeneous()
+
+
+def _chain_product(levels, local, order, inverse, X0, K):
+    """X_c = X_p K_c level by level from X_0 at the root."""
+    K = K[..., order, :, :]
+    X = [X0[..., None, :, :]]
+    for first, last in levels[1:]:
+        X_p = X[-1][..., local[first:last], :, :]
+        X.append(_mm(X_p, K[..., first:last, :, :]))
+    return torch.cat(X, -3)[..., inverse, :, :]

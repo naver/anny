@@ -42,11 +42,12 @@ class TestSkinning(unittest.TestCase):
             bone_transforms = roma.Rigid(
                 bone_rotations, bone_translations
             ).to_homogeneous()
-            return anny.skinning.skinning.linear_blend_skinning(
-                vertices=vertices,
-                bone_weights=bone_weights[None],
-                bone_indices=bone_indices[None],
-                bone_transforms=bone_transforms,
+            return anny.skinning.skinning.dense_linear_blend_skinning(
+                vertices,
+                anny.skinning.skinning.dense_bone_weights(
+                    bone_weights, bone_indices, bone_count
+                ),
+                bone_transforms,
             )
 
         input = (vertices, bone_weights, bone_rotations, bone_translations)
@@ -54,6 +55,16 @@ class TestSkinning(unittest.TestCase):
         self.assertTrue(
             torch.autograd.gradcheck(my_func, input, eps=1e-6, atol=1e-4, rtol=1e-4)
         )
+
+    def test_forward_mode_ad(self):
+        model = anny.Anny(skinning_method="lbs")
+        phenotypes = torch.full((1, len(model.phenotype_labels)), 0.5)
+        _, tangent = torch.func.jvp(
+            lambda z: model(phenotype_kwargs=z)["vertices"],
+            (phenotypes,),
+            (torch.ones_like(phenotypes),),
+        )
+        self.assertTrue(tangent.isfinite().all())
 
     @unittest.skipIf(warp_skinning is None, "Warp is not installed")
     def test_warp_lbs_gradient(self):
@@ -137,11 +148,12 @@ class TestSkinning(unittest.TestCase):
         bone_translations.grad.zero_()
 
         bone_transforms = roma.Rigid(bone_rotations, bone_translations).to_homogeneous()
-        lbs_result = anny.skinning.skinning.linear_blend_skinning(
-            vertices=vertices,
-            bone_weights=bone_weights[None],
-            bone_indices=bone_indices[None],
-            bone_transforms=bone_transforms,
+        lbs_result = anny.skinning.skinning.dense_linear_blend_skinning(
+            vertices,
+            anny.skinning.skinning.dense_bone_weights(
+                bone_weights, bone_indices, bone_count
+            ),
+            bone_transforms,
         )
         lbs_result.sum().backward()
         lbs_vertices_grad = vertices.grad.clone()

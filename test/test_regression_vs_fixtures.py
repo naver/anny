@@ -107,11 +107,14 @@ class TestRegressionVsFixtures(unittest.TestCase):
             atol=1e-6,
             msg=f"Forward vertices mismatch for config: {cfg['slug']}",
         )
+        # The fixtures predate the closed-form rest frames and the orthonormalized reference
+        # orientations, which move the posed bones by up to 1.8e-6 (the vertices by 3e-7): back
+        # to 1e-6 once the fixtures are regenerated.
         torch.testing.assert_close(
             fwd_output["bone_poses"][:, compared_bones],
             torch.from_numpy(ref["forward_bone_poses"])[:, compared_bones],
             rtol=0,
-            atol=1e-6,
+            atol=5e-6,
             msg=f"Forward bone poses mismatch for config: {cfg['slug']}",
         )
 

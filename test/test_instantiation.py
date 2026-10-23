@@ -158,7 +158,10 @@ class TestInstantiation(unittest.TestCase):
         import roma
 
         model = anny.Anny(
-            rig="anny", topology="anny", facial_actions="all", skinning_method="lbs"
+            rig="anny",
+            topology="anny",
+            facial_actions="all",
+            skinning_method="lbs",
         )
         facial_rows = [
             i
