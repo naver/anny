@@ -23,7 +23,9 @@ Anny models a large variety of human body shapes, from infants to elders, using 
 - Anny is open-source and free.
 
 ### News
- - **2026-08-06**: v0.6: New "anny" rig, facial actions, improved SOMA compatibility, API refactoring, and better torch.compile support. See [CHANGELOG.md](CHANGELOG.md) for more details.
+See [CHANGELOG.md](CHANGELOG.md) for more details:
+ - **2026-10-26**: v0.6.2: significant speed-ups, compact phenotype blendshapes by default, SMPL-H support, and various bug fixes.
+ - **2026-08-06**: v0.6: new "anny" rig, facial actions, improved SOMA compatibility, API refactoring, and better torch.compile support.
  - **2026-06-03**: v0.5: code refactoring (one can now use `anny.Anny` syntax). Support for ["soma"](https://github.com/NVlabs/SOMA-X) rig and topology. SMPLX wrapper with "anny" topology support.
  - **2026-02-04**: v0.3: "smplx" topology available for interoperability with [SMPL-X](https://smpl-x.is.tue.mpg.de/) (non-commercial use only). Nipple blend shapes excluded from default settings (use `local_changes="all"` for backward compatibility).
  - **2025-11-21**: v0.2: support for different mesh topologies.

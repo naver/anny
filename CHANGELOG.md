@@ -2,7 +2,7 @@
 
 All notable changes to this project.
 
-## Unreleased
+## v0.6.2 - 2026-10-26
 
 ### Added
 
@@ -23,12 +23,9 @@ All notable changes to this project.
   (topology, rig, phenotype set), and compacted model data is restricted to its phenotype
   set (`ModelMetadata.phenotype_labels`). Pass `phenotype_blendshapes="original"` for the
   previous behavior. Cached model data is regenerated automatically (data version bump).
-
-### Changed
-
-- Development versions count towards the next minor release (`0.7.0.devN` after `v0.6.1`),
-  and towards the next patch release only on release branches (`0.6.x`, `release-0.6`):
-  setuptools-scm's `semver-pep440-release-branch` scheme (setuptools-scm >= 10 to build).
+- **Faster forward and backward passes** (about 2-20x, growing with the batch size, and more
+  with `torch.compile`), notably through dense skinning weights for
+  `skinning_method="lbs"`. Posed bones move by at most ~2e-6. Requires `roma>=1.7.1`.
 
 ### Fixed
 
@@ -36,6 +33,8 @@ All notable changes to this project.
   float64 tensors, so that their forward pass failed until an explicit `.to(dtype=...)`.
 - `SMPLX` joints now follow the expression blendshapes, as in the `smplx` reference
   implementation.
+- `SMPLX` models with hand PCA (`use_pca=True`) can now be moved with `.to(device/dtype)`:
+  the PCA components were left on their original device and dtype.
 - The weight, muscle and proportions tables of `SimpleShapeDistribution` were indexed
   by age in years but looked up with the anny `age` phenotype (in [0, 1]), so they were
   always read between their newborn and 1-year entries. Their anchors are now expressed
